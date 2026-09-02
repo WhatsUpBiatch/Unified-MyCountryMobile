@@ -210,10 +210,6 @@ const CompanyMessaging = () => {
     setErrors({});
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const helpCount = useMemo(() => count(form.help_message), [form.help_message]);
 

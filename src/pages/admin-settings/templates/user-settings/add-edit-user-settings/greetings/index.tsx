@@ -15,6 +15,9 @@ interface IGREETINGPROPS {
   company_info?: ICompanyInfo;
   intro?: ReactNode;
   footer?: ReactNode;
+  /* The component already reads this; it was simply missing from the type, so
+     every caller passing it failed to compile. */
+  containerClass?: string;
 }
 
 /* See SettingPermission for why this renders inside the scrolling box rather

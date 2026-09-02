@@ -329,10 +329,6 @@ const CompanyPolicies = () => {
     setErrors({});
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const { mutate: savePolicies, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,

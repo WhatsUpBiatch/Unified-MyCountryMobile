@@ -456,10 +456,6 @@ const CompanyCallingPermissions = () => {
     setForm(savedForm);
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const { mutate: savePermissions, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,

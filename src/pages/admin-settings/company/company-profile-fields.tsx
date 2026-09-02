@@ -215,10 +215,6 @@ const CompanyProfileFields = () => {
     setConfirmingDelete(null);
   }, [savedFields]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(fields) !== JSON.stringify(savedFields),
-    [fields, savedFields],
-  );
 
   const { mutate: saveFields, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,

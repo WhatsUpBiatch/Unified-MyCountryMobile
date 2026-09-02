@@ -198,10 +198,6 @@ const CompanyRingTime = () => {
     setForm(savedForm);
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const currentSeconds = Number(form.seconds);
 

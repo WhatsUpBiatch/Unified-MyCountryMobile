@@ -232,10 +232,6 @@ const CompanyVoicemail = () => {
     setErrors({});
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const { mutate: saveVoicemail, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,
