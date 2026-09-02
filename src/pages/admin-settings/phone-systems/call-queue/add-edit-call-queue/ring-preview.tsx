@@ -41,7 +41,12 @@ const ORDER_BY_STRATEGY: Record<string, RingOrder> = {
   'longest-idle-agent': 'longest-idle-first',
   'longest-idle': 'longest-idle-first',
   'agent-with-fewest-calls': 'fewest-calls-first',
-  'agent-with-least-talk-time': 'longest-idle-first',
+  /* Deliberately 'in-order', not 'longest-idle-first'. Talk time is recorded
+     nowhere - every agent reads zero - so on the switch this strategy ties on
+     every comparison and falls back to the order the queue was set up in, which
+     is Top Down. Showing it as longest-idle-first would preview a behaviour the
+     caller will never get. */
+  'agent-with-least-talk-time': 'in-order',
 };
 
 const asSeconds = (value: unknown, fallback: number): number => {
@@ -52,7 +57,12 @@ const asSeconds = (value: unknown, fallback: number): number => {
 const RingPreview = () => {
   const { watch } = useFormContext();
 
-  const strategyRaw = String(watch('settings.ring_strategy.type')?.value ?? '')
+  /* `settings.ring_strategy.value` is where the strategy select writes, and the
+     only place it has ever been written. This read used to say `.type`, a path
+     that exists nowhere in the form, so it was always undefined and the preview
+     fell back to ringing everybody — it described Ring All whichever strategy
+     you picked. */
+  const strategyRaw = String(watch('settings.ring_strategy.value')?.value ?? '')
     .toLowerCase()
     .replace(/_/g, '-');
   const escalation = watch('settings.escalation');

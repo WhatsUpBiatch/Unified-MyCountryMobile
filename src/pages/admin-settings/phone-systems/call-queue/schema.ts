@@ -5,7 +5,7 @@ import {
   MAX_WAITING_CALLERS_LIMITS,
   QUEUE_TIMEOUT_LIMITS,
 } from './constant';
-import { optionalString, requiredString } from '@/lib/schema';
+import { optionalString } from '@/lib/schema';
 import { checkQueueName } from '@/lib/queue-naming';
 import { holidaySchema } from '../../constants';
 import { FORWARD_TYPES } from '@/constants/forwarding-consts';

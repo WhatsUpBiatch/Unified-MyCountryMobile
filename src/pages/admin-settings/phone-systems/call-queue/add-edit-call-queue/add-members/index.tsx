@@ -1,7 +1,8 @@
 import { Icon } from '@/assets/icons/icon';
 import CustomAvatar from '@/components/custom/custom-avatar';
 import TableManager from '@/components/custom/table-manager';
-import { SettingCard } from '@/components/mcm/setting-card';
+import { SettingCard, SettingFlag } from '@/components/mcm/setting-card';
+import { chooseManager, isOnQueue, memberKey, toggleMember } from '@/lib/queue-members';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
@@ -61,7 +62,7 @@ const canManage = (member: IMEMBER): boolean =>
  * Only editable for somebody already in the queue. Rating a person you have not
  * added is a setting with nowhere to live. */
 const MemberRatingCell = ({ memberData }: { memberData: IMEMBER }) => {
-  const { control, setValue } = useFormContext();
+  const { control, setValue, getValues } = useFormContext();
   const members = useWatch({ control, name: 'members', defaultValue: [] });
   const index = Array.isArray(members)
     ? members.findIndex((m: any) => m?.value === memberData?.extension)
@@ -86,8 +87,14 @@ const MemberRatingCell = ({ memberData }: { memberData: IMEMBER }) => {
           /* Clamped rather than refused: an admin typing 150 means "as high as
              it goes", and an error message for that would be pedantic. */
           const next = raw === '' ? 100 : Math.min(100, Math.max(0, Number(raw) || 0));
-          const copy = [...members];
-          copy[index] = { ...copy[index], rating: next };
+          /* Read at the moment of the edit, like every other write on this
+             screen. Building from a remembered list here would drop anybody
+             ticked since this input last rendered. */
+          const live = getValues('members') || [];
+          const at = live.findIndex((m: any) => m?.value === memberData?.extension);
+          if (at < 0) return;
+          const copy = [...live];
+          copy[at] = { ...copy[at], rating: next };
           setValue('members', copy, { shouldValidate: false });
         }}
       />
@@ -96,63 +103,70 @@ const MemberRatingCell = ({ memberData }: { memberData: IMEMBER }) => {
 };
 
 // Checkbox cell component with internal form subscription and logic
-const MemberCheckboxCell = ({ memberData }: { memberData: IMEMBER }) => {
-  const { control, setValue, clearErrors } = useFormContext();
+/**
+ * Putting somebody on this queue, or taking them off.
+ *
+ * Shared by the tick box and the person's name, because a 16px box is a poor
+ * target for the main action on the page - and when a click misses it, nothing
+ * happens and nothing explains why. Clicking the name does the same thing.
+ */
+const useToggleMember = (memberData: IMEMBER) => {
+  const { control, setValue, clearErrors, getValues } = useFormContext();
+  /* Watched only so the tick redraws. The write below never uses this value. */
   const members = useWatch({ control, name: 'members', defaultValue: [] });
-  const manager = useWatch({ control, name: 'manager', defaultValue: { value: '' } });
-  const isChecked =
-    Array.isArray(members) && members.some((item: any) => item?.value === memberData?.extension);
+  const isOn = isOnQueue(members, memberData);
 
-  const handleCheckChange = useCallback(
-    (checked: boolean) => {
-      if (checked) {
-        const newValue = {
-          label: memberData?.last_name
-            ? `${memberData?.first_name} ${memberData?.last_name}`
-            : memberData?.label,
-          value: memberData?.extension ? memberData?.extension : memberData?.value,
-          email: memberData?.email,
-          extension: memberData?.extension,
-          skills: memberData?.skills,
-          name: memberData?.last_name
-            ? `${memberData?.first_name} ${memberData?.last_name}`
-            : memberData?.label,
-          role:
-            memberData?.custom_role_data?.name || memberData?.role_data?.name || memberData?.role,
-          user_uuid: memberData?.uuid,
-        };
+  const toggle = useCallback(
+    (next?: boolean) => {
+      /* Read at the moment of the click, not from the render that drew this
+         row. Every row closed over the list as it stood when it last rendered,
+         which was the empty list - so the second person you ticked was added to
+         nothing and the first disappeared. That is why only one ever stuck. */
+      const current = getValues('members') || [];
+      const updated = toggleMember(current, memberData, next);
+      setValue('members', updated, { shouldValidate: true });
+      clearErrors('members');
 
-        /* Matched on the extension, which is the field every other check in
-           this file already uses and the one that is always present. Matching
-           on the id alone meant that if a row ever arrived without one, the
-           first member added would have `user_uuid: undefined`, every later one
-           would compare undefined to undefined, and the tick would be silently
-           swallowed — one member addable, and no error to explain it. */
-        const memberExists = members.some(
-          (member: IMEMBER) =>
-            member.value === newValue.value ||
-            (!!newValue.user_uuid && member.user_uuid === newValue.user_uuid),
-        );
-
-        if (!memberExists) {
-          setValue('members', [...members, newValue], { shouldValidate: true });
-          clearErrors('members');
-        }
-      } else {
-        const filteredMembers = members.filter((el: IMEMBER) => el.value !== memberData.extension);
-        setValue('members', filteredMembers, { shouldValidate: true });
-        if (memberData.extension === manager?.value) {
-          setValue('manager', { value: '' });
-          clearErrors('manager');
-        }
+      /* A queue cannot be saved without somebody in charge, and asking for that
+         as a second click on a column that looks dead until you tick somebody is
+         what made this screen feel like hard work. The first person who *can*
+         run it is put in charge as they join; picking somebody else is still one
+         click, and a deliberate choice is never overruled. */
+      const nextManager = chooseManager(updated, getValues('manager'));
+      const currentManagerKey = memberKey(getValues('manager'));
+      if (memberKey(nextManager) !== currentManagerKey) {
+        setValue('manager', nextManager || { value: '' }, { shouldValidate: true });
+        clearErrors('manager');
       }
     },
-    [memberData, members, manager, setValue, clearErrors],
+    [memberData, setValue, clearErrors, getValues],
   );
 
+  return { isOn, toggle };
+};
+
+const MemberCheckboxCell = ({ memberData }: { memberData: IMEMBER }) => {
+  const { isOn, toggle } = useToggleMember(memberData);
+
+  /* The whole cell is the target, not just the box inside it - the box alone is
+     16px, and a near miss did nothing and said nothing. The box is made inert
+     so one click cannot be counted twice. */
   return (
-    <div className="flex justify-center text-primary hover:text-primary/80 underline underline-offset-4 text-center">
-      <Checkbox checked={isChecked} onCheckedChange={handleCheckChange} />
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isOn}
+      title={isOn ? 'Click to take them off this queue' : 'Click to put them on this queue'}
+      onClick={() => toggle()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggle();
+        }
+      }}
+      className="-m-2 flex cursor-pointer items-center justify-center p-4 text-primary"
+    >
+      <Checkbox checked={isOn} className="pointer-events-none" tabIndex={-1} />
     </div>
   );
 };
@@ -204,8 +218,27 @@ ManagerRadioCell.displayName = 'ManagerRadioCell';
 // Memoized name cell component
 const MemberNameCell = memo(({ data }: { data: IMEMBER }) => {
   const fullName = `${data?.first_name}${data?.last_name ? ` ${data?.last_name}` : ''}`;
+  /* Clicking the person is the obvious way to put them on the queue, and it is
+     the biggest thing in the row. The tick box still works; this just stops a
+     near miss doing nothing at all. */
+  const { isOn, toggle } = useToggleMember(data);
   return (
-    <div className="flex items-center gap-2  w-2xs">
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isOn}
+      title={isOn ? 'Click to take them off this queue' : 'Click to put them on this queue'}
+      onClick={() => toggle()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggle();
+        }
+      }}
+      className={`flex w-2xs cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-gray-50 ${
+        isOn ? 'bg-primary/5' : ''
+      }`}
+    >
       <div className="flex ">
         <CustomAvatar
           name={fullName}
@@ -256,42 +289,27 @@ const SelectAllHeader = ({ currentMembers }: { currentMembers: IMEMBER[] }) => {
 
   const handleSelectAllChange = useCallback(
     (checked: boolean) => {
-      if (checked) {
-        const newMembers = [...members];
-        currentMembers.forEach((member) => {
-          const extension = member.extension || member.value || '';
-          if (!newMembers.some((m: any) => m.value === extension)) {
-            newMembers.push({
-              label: member?.last_name
-                ? `${member?.first_name} ${member?.last_name}`
-                : member?.label,
-              value: extension,
-              email: member?.email,
-              extension: member?.extension,
-              skills: member?.skills,
-              name: member?.last_name
-                ? `${member?.first_name} ${member?.last_name}`
-                : member?.label,
-              role: member?.custom_role_data?.name || member?.role_data?.name || member?.role,
-              user_uuid: member?.uuid,
-            });
-          }
-        });
-        setValue('members', newMembers, { shouldValidate: true });
-        clearErrors('members');
-      } else {
-        const currentExtensions = currentMembers.map((m) => m.extension);
-        const filteredMembers = members.filter((m: any) => !currentExtensions.includes(m.value));
-        setValue('members', filteredMembers, { shouldValidate: true });
+      /* Read at the moment of the click, for the same reason each row does:
+         building from a remembered list is what made this screen hold one
+         person. Every visible person is folded in one at a time, so the result
+         is the same whether you tick them individually or all at once. */
+      let updated = getValues('members') || [];
+      currentMembers.forEach((person) => {
+        updated = toggleMember(updated, person, checked);
+      });
+      setValue('members', updated, { shouldValidate: true });
+      clearErrors('members');
 
-        const manager = getValues('manager');
-        if (manager && currentExtensions.includes(manager.value)) {
-          setValue('manager', { value: '' });
-          clearErrors('manager');
-        }
+      /* Same rule as a single tick: keep a deliberate choice, promote somebody
+         eligible if the old manager has just been taken off, and say plainly
+         that nobody can run it when that is the truth. */
+      const nextManager = chooseManager(updated, getValues('manager'));
+      if (memberKey(nextManager) !== memberKey(getValues('manager'))) {
+        setValue('manager', nextManager || { value: '' }, { shouldValidate: true });
+        clearErrors('manager');
       }
     },
-    [currentMembers, members, setValue, clearErrors, getValues],
+    [currentMembers, setValue, clearErrors, getValues],
   );
 
   return (
@@ -307,6 +325,82 @@ const SelectAllHeader = ({ currentMembers }: { currentMembers: IMEMBER[] }) => {
   );
 };
 
+/**
+ * Who is on the queue, right now, above the list you pick from.
+ *
+ * Ticking a row changed a box halfway down a scrolling table and nothing else,
+ * so there was no answer to "did that work, and who have I got?". This is that
+ * answer: the manager first, then everybody else, each removable without
+ * hunting for their row again.
+ */
+const ChosenStrip = () => {
+  const { control, setValue, clearErrors, getValues } = useFormContext();
+  const members = useWatch({ control, name: 'members', defaultValue: [] });
+  const manager = useWatch({ control, name: 'manager', defaultValue: { value: '' } });
+
+  const list: any[] = Array.isArray(members) ? members : [];
+  const managerKey = memberKey(manager);
+  const ordered = [
+    ...list.filter((m) => memberKey(m) === managerKey),
+    ...list.filter((m) => memberKey(m) !== managerKey),
+  ];
+
+  const remove = (person: any) => {
+    const updated = toggleMember(getValues('members') || [], person, false);
+    setValue('members', updated, { shouldValidate: true });
+    const nextManager = chooseManager(updated, getValues('manager'));
+    if (memberKey(nextManager) !== memberKey(getValues('manager'))) {
+      setValue('manager', nextManager || { value: '' }, { shouldValidate: true });
+      clearErrors('manager');
+    }
+  };
+
+  if (list.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-sm text-gray-600">
+        Nobody on this queue yet. Click a person below to add them.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
+      <p className="mb-2 text-sm font-semibold text-gray-900">
+        {list.length} {list.length === 1 ? 'person is' : 'people are'} on this queue
+        {managerKey ? '' : ' - nobody can run it yet'}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {ordered.map((m) => {
+          const isManager = memberKey(m) === managerKey;
+          return (
+            <span
+              key={memberKey(m)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                isManager
+                  ? 'border-primary/30 bg-primary/10 font-semibold text-primary'
+                  : 'border-gray-200 bg-white text-gray-700'
+              }`}
+            >
+              {m?.name || m?.label}
+              <span className="text-gray-400">{m?.extension}</span>
+              {isManager ? <span className="text-[10px] uppercase">runs it</span> : null}
+              <button
+                type="button"
+                aria-label={`Take ${m?.name || m?.label} off this queue`}
+                title="Take them off this queue"
+                onClick={() => remove(m)}
+                className="ml-0.5 rounded-full px-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const AddMembers: FC = () => {
   const {
     watch,
@@ -314,6 +408,9 @@ const AddMembers: FC = () => {
   } = useFormContext();
 
   const selectedSite = watch('site_uuid')?.value;
+  /* How many are actually on the queue, not how many rows are listed. Read from
+     the form rather than the table so it counts people the search has hidden. */
+  const selectedCount = (watch('members') || []).length;
   const [searchKey, setSearchKey] = useState('');
   const debouncedSearchKey = useDebounce(searchKey, 500);
   const [currentMembers, setCurrentMembers] = useState<IMEMBER[]>([]);
@@ -332,7 +429,18 @@ const AddMembers: FC = () => {
         cell: ({ row }) => <MemberCheckboxCell memberData={row?.original} />,
       },
       {
-        header: 'Manager',
+        /* The radio is deliberately dead until somebody is ticked - you cannot
+           put a person in charge of a queue they are not on. That rule was
+           invisible, so a whole column of greyed circles read as "this page is
+           broken". */
+        header: () => (
+          <span className="flex flex-col leading-tight">
+            <span>Manager</span>
+            <span className="text-[10px] font-normal normal-case text-gray-500">
+              {selectedCount === 0 ? 'tick someone first' : 'pick one'}
+            </span>
+          </span>
+        ),
         accessorKey: 'status',
         cell: ({ row }) => <ManagerRadioCell memberData={row?.original} />,
       },
@@ -342,7 +450,16 @@ const AddMembers: FC = () => {
         cell: ({ row }: any) => <MemberNameCell data={row?.original} />,
       },
       {
-        header: 'Rating',
+        /* Saved on the member and read by nothing - not by the switch, not by
+           the lookup service, and not used to decide who rings first. Said on
+           the column rather than left for somebody to set carefully and wonder
+           why it never changed anything. */
+        header: () => (
+          <span className="flex items-center gap-1.5">
+            Rating
+            <SettingFlag status="coming-soon" />
+          </span>
+        ),
         id: 'rating',
         accessorKey: 'rating',
         cell: ({ row }: any) => <MemberRatingCell memberData={row?.original} />,
@@ -355,7 +472,8 @@ const AddMembers: FC = () => {
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
       <SettingCard
         title="Who this queue rings"
-        description="Tick the people who should take these calls, and mark one as the manager. Only people at the location chosen on Basic info are listed."
+        description="Tick somebody to put them on this queue, untick to take them off - that is all there is to it, there is nothing separate to save or delete. Only people at the location chosen on Basic info are listed."
+        note="Whoever runs the queue is chosen for you as soon as somebody eligible joins. Click a different Manager circle to change it."
         aside={
           <div className="relative w-full min-w-[15rem] max-w-sm">
             <Input
@@ -387,7 +505,9 @@ const AddMembers: FC = () => {
           </div>
         )}
 
-        <div className="py-3">
+        <div className="flex flex-col gap-3 py-3">
+          <ChosenStrip />
+
           <TableManager
             {...{
               emptyTablePlaceholder: 'Nobody at this location',

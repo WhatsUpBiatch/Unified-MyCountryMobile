@@ -8,9 +8,19 @@ import { getDispositions } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
 import { FC } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { SettingFlag } from '@/components/mcm/setting-card';
+import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
 import { TIME_LIST } from '@/pages/auto-dialer/campaign/add-edit-campaign/consts';
 import { WRAPUP_DEFAULT_MODE, WRAPUP_PROMPT_MODES } from '../../constant';
+
+/**
+ * What happens around a queue call, rather than to it.
+ *
+ * These three settings were laid out as one row of unrelated dropdowns, which
+ * made them read as a single thing with three parts. They are not: one governs
+ * the seconds after a call, one what the agent reads during it, and one how the
+ * agent labels it afterwards. They are separated here so each can carry its own
+ * honest badge - and they do not all reach equally far.
+ */
 
 const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
   const {
@@ -24,6 +34,10 @@ const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
     queryFn: () => getDispositions({ page: 1, limit: 200 }),
     select: (data) => data?.data?.data?.result?.rows || [],
   });
+
+  const agentDispositions = (dispositionsList as any[]).filter(
+    (item: any) => item?.dispositionType?.toLowerCase() === 'agent',
+  );
 
   const handleDispositionCheck = (checked: boolean, item: any) => {
     const currentValues = watch('agentDisposition') || [];
@@ -40,28 +54,28 @@ const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
     }
   };
 
-  const isDispositionChecked = (item: any) => {
-    return (watch('agentDisposition') || []).some((d: any) => d._id === item?._id);
-  };
+  const isDispositionChecked = (item: any) =>
+    (watch('agentDisposition') || []).some((d: any) => d._id === item?._id);
+
+  const chosenCount = (watch('agentDisposition') || []).length;
 
   return (
-    <>
-      <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto pr-1">
-        <div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-5">
-          <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex items-center justify-between w-full min-h-[20px]">
-              <span className="text-sm font-semibold text-gray-900">Wrap-up time</span>
-            </div>
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+      <SettingCard
+        title="After a call ends"
+        description="The pause an agent gets before the queue sends them the next caller."
+        note="The rules that let an agent finish early are obeyed. Holding them until they have labelled the call is not built yet, so the ones that require it behave like the timer."
+      >
+        <SettingRow
+          label="Wrap-up time"
+          description="Seconds an agent is held back after hanging up, to finish their notes."
+          status="active"
+          control={
             <CustomSelect
-              placeholder="Select Option"
-              options={TIME_LIST.map((item) => ({
-                label: item,
-                value: item,
-              }))}
+              placeholder="Select seconds"
+              options={TIME_LIST.map((item) => ({ label: item, value: item }))}
               handleChange={(e: ISELECTVALUE | null) => {
-                setValue(`settings.wrapup_time`, e?.value || '', {
-                  shouldValidate: true,
-                });
+                setValue(`settings.wrapup_time`, e?.value || '', { shouldValidate: true });
               }}
               value={{
                 value: watch('settings.wrapup_time'),
@@ -70,24 +84,24 @@ const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
               error={(errors?.settings as any)?.wrapup_time?.message}
               menuPlacement="auto"
             />
-          </div>
+          }
+        />
 
-          {/* The prompt mode, not just the timer. Established systems treat this
-              as the real setting — "optional" and "cannot be skipped" are
-              different products to a supervisor, and a timer alone cannot say
-              which one this queue is. Existing queues default to the mode a
-              plain timer already behaved like, so nothing changes underneath
-              anyone. Stored but not yet enforced. */}
-          <div className="flex flex-col gap-1.5 w-full lg:col-span-2">
-            <div className="flex items-center justify-between w-full min-h-[20px]">
-              <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                Wrap-up rule
-                {/* Said on screen, not only in a comment above. The choice is
-                    saved, but no call acts on it yet, and a supervisor picking
-                    "cannot be skipped" would otherwise believe it holds. */}
-                <SettingFlag status="coming-soon" />
-              </span>
-            </div>
+        {/* The prompt mode, not just the timer. "Optional" and "cannot be
+            skipped" are different products to a supervisor, and a timer alone
+            cannot say which one this queue is.
+            
+            Half honoured: the agent's call screen now reads this and lets them
+            finish early where the rule allows it. Holding them until the call is
+            labelled needs the chosen disposition, which lives in a different
+            part of the call screen - so those modes still behave like the timer,
+            which is what every mode did before. Badged app-only, because it is
+            the app that obeys it and nothing further down. */}
+        <SettingRow
+          label="Wrap-up rule"
+          description="Whether an agent may skip their wrap-up, or has to finish it."
+          status="app-only"
+          control={
             <CustomSelect
               placeholder="Select Option"
               options={WRAPUP_PROMPT_MODES}
@@ -103,37 +117,47 @@ const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
               }
               menuPlacement="auto"
             />
-            <p className="text-xs text-amber-700 font-semibold">
-              Saved, but the timer above is still what actually runs.
-            </p>
-          </div>
+          }
+        />
+      </SettingCard>
 
-          <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex items-center justify-between w-full min-h-[20px]">
-              <span className="text-sm font-semibold text-gray-900">Call Script</span>
-              <div className="flex items-center gap-2">
-                {/* <span className="text-xs text-gray-500 font-medium">Required</span> */}
-                <Switch
-                  id="script_enabled"
-                  checked={watch('script_enabled')}
-                  onCheckedChange={(checked) => {
-                    setValue('script_enabled', checked, { shouldValidate: true });
-                    if (!checked) {
-                      setValue('script', { label: '', value: '' }, { shouldValidate: true });
-                    }
-                  }}
+      <SettingCard
+        title="What the agent reads on the call"
+        description="A script shown in the agent's call panel while they are talking to this queue's callers."
+        status="app-only"
+        note="A script is something an agent reads. Nothing outside this app acts on it, and a caller never sees it."
+      >
+        <SettingRow
+          label="Call script"
+          description="Turn on to show one of your saved scripts to whoever answers."
+          control={
+            <div className="flex w-full items-center gap-2">
+              <Switch
+                id="script_enabled"
+                checked={watch('script_enabled')}
+                onCheckedChange={(checked) => {
+                  setValue('script_enabled', checked, { shouldValidate: true });
+                  if (!checked) {
+                    setValue('script', { label: '', value: '' }, { shouldValidate: true });
+                  }
+                }}
+              />
+              {((errors as any)?.script?.value?.message ?? errors?.script?.message) && (
+                <ErrorTooltip
+                  text={(errors as any)?.script?.value?.message ?? errors?.script?.message}
                 />
-                {((errors as any)?.script?.value?.message ?? errors?.script?.message) && (
-                  <ErrorTooltip
-                    text={(errors as any)?.script?.value?.message ?? errors?.script?.message}
-                  />
-                )}
-              </div>
+              )}
             </div>
-            {!watch('script_enabled') ? null : (
+          }
+        />
+
+        {watch('script_enabled') ? (
+          <SettingRow
+            label="Which script"
+            description="Written under Call scripts. Changing it here changes what this queue's agents see."
+            control={
               <CustomSelect
-                isDisabled={!watch('script_enabled')}
-                placeholder="Select Option"
+                placeholder="Choose a script"
                 options={scriptList?.map((script: { name: string; _id: string }) => ({
                   label: script?.name,
                   value: script?._id,
@@ -143,77 +167,63 @@ const QueueSettings: FC<any> = ({ scriptList, setModalState }) => {
                 }}
                 value={watch('script')}
               />
-            )}
-          </div>
-        </div>
+            }
+          />
+        ) : null}
+      </SettingCard>
 
-        <div className="flex w-full gap-6">
-          <div className="w-full">
-            <div className="w-full flex items-center gap-2 mb-2">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-1">
-                  <h3 className="text-gray-900 font-semibold text-md">Agent Disposition</h3>
-                  {(errors as any)?.agentDisposition?.message && (
-                    <ErrorTooltip text={(errors as any)?.agentDisposition?.message} />
-                  )}
-                </div>
-                <Button
-                  className="shadow-none"
-                  variant="secondary"
-                  type="button"
-                  onClick={() => setModalState(true)}
-                >
-                  <Icon name="Plus" className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-            {/* <div
-              className={`w-full h-full grid grid-cols-2 gap-2 overflow-y-auto ${dialMethod === 'PREDICTIVE' ? 'max-h-[calc(100vh_-_41rem)]' : 'max-h-[calc(100vh_-_30rem)]'}  pr-1`}
-            > */}
-            <div className="grid w-full grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-              {dispositionsList && dispositionsList?.length
-                ? dispositionsList
-                    ?.filter((item: any) => item?.dispositionType?.toLowerCase() === 'agent')
-                    ?.map((item: any) => (
-                      <div
-                        className="w-full  flex items-center justify-between gap-3"
-                        key={`${item?.disposition?.name}`}
-                      >
-                        <div className="w-full p-2 border border-gray-200 rounded-lg flex items-center justify-between gap-2  min-h-[62px]">
-                          <div className="flex items-center gap-3">
-                            <Switch
-                              id={item?._id}
-                              onCheckedChange={(checked) => {
-                                handleDispositionCheck(checked, item);
-                              }}
-                              checked={isDispositionChecked(item)}
-                            />
-                            <label
-                              htmlFor={item?._id}
-                              className="text-gray-900/80 font-semibold text-sm"
-                            >
-                              {item?.disposition?.name}
-                            </label>
-                          </div>
-                        </div>
-                        {/* <Button
-                        className="shadow-none min-w-[70px]"
-                        variant={'secondary'}
-                        type="submit"
-                      >
-                        Retry
-                      </Button> */}
-                      </div>
-                    ))
-                : null}
-              {/* items */}
+      <SettingCard
+        title="How agents label a call"
+        description="When a call ends, the agent picks one of these to say how it went. It is saved with the call and counted in reports."
+        status="active"
+        note={
+          agentDispositions.length === 0
+            ? 'No labels exist yet. Add one with the button above - until then agents are asked for nothing.'
+            : `${chosenCount} of ${agentDispositions.length} offered on this queue. Switch on only the ones that make sense here - a shorter list gets picked more honestly.`
+        }
+        aside={
+          <Button
+            className="shadow-none"
+            variant="secondary"
+            type="button"
+            onClick={() => setModalState(true)}
+            aria-label="Add a label"
+          >
+            <Icon name="Plus" className="h-3 w-3" />
+          </Button>
+        }
+      >
+        {(errors as any)?.agentDisposition?.message && (
+          <p className="text-sm text-red-600">{(errors as any).agentDisposition.message}</p>
+        )}
 
-              {/* ---- */}
-            </div>
+        {agentDispositions.length === 0 ? (
+          <p className="text-sm text-gray-600">
+            Nothing to choose from yet. Labels are shared across your whole company, so one added
+            here can be offered on any queue.
+          </p>
+        ) : (
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+            {agentDispositions.map((item: any) => (
+              <label
+                key={item?._id || item?.disposition?.name}
+                htmlFor={item?._id}
+                className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3"
+              >
+                <Switch
+                  id={item?._id}
+                  checked={isDispositionChecked(item)}
+                  onCheckedChange={(checked) => handleDispositionCheck(checked, item)}
+                />
+                <span className="text-sm font-semibold text-gray-900/80">
+                  {item?.disposition?.name}
+                </span>
+              </label>
+            ))}
           </div>
-        </div>
-      </div>
-    </>
+        )}
+      </SettingCard>
+    </div>
   );
 };
 

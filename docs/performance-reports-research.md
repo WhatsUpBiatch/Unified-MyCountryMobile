@@ -188,3 +188,82 @@ that is a separate ingestion defect and needs its own item.
 - The CDR ingester still reports 0 pending and 0 unparsable after any change to
   it — it is the only thing writing `call_history`, and breaking it stops every
   report at once.
+
+---
+
+# Ring strategies: which of the six actually work
+
+Separate question, researched 2 Sep 2026 against the live queue-agent service
+and the live agent records. The dropdown offers six.
+
+## The wiring is correct
+
+The screen's stored values (`src/.../call-queue/constant.ts`) match the switch's
+canonical names exactly — `ring-all`, `longest-idle-agent`, `round-robin`,
+`top-down`, `agent-with-least-talk-time`, `agent-with-fewest-calls`. The service
+also normalises every older spelling it has ever used (`ringall`, `linear`,
+`call-linear`, `sequentially-by-agent-order`, `longest-idle`, `least-talk`), so
+an old queue keeps working. Nothing is lost between the screen and the switch.
+
+`order_agents()` in `/opt/queue-agent-service/queue_agent_service.py` implements
+each one as a real sort, on the figure that defines it:
+
+| Strategy | Sorts on | Works? |
+|---|---|---|
+| Ring All | nothing — rings everyone together | **Yes** |
+| Top Down | tier level, then position | **Yes** |
+| Longest Idle Agent | `last_bridge_end` | **Yes** |
+| Round Robin | `last_offered_call` | **Yes** |
+| Agent With Fewest Calls | `calls_answered` | **Yes** |
+| Agent With Least Talk Time | `talk_time` | **No — see below** |
+
+## Agent With Least Talk Time cannot work
+
+Checked all **37 agent records**. Eight have genuine activity — `calls_answered`
+between 1 and 6, matching `total_calls`, and real `last_bridge_end` /
+`last_offered_call` timestamps. So the counters that the other strategies need
+are being written.
+
+**`talk_time` is 0 on all 37, and so is `total_talk_time`** — including for the
+agent who has answered six calls. Nothing anywhere records how long anybody has
+been talking.
+
+A sort where every key is equal is not a sort. It ties on every comparison and
+falls through to the tie-breaker, which is tier order — so choosing this
+strategy gives you **Top Down**, silently, under a different name.
+
+Two others are honest by comparison: Longest Idle Agent and Round Robin also
+read zero for the 29 agents who have never taken a call, but that is correct —
+somebody who has never been offered a call *should* sort as most idle.
+
+## And the preview was describing the wrong strategy
+
+`ring-preview.tsx` read `settings.ring_strategy.type`. That path is **written
+nowhere in the form** — every other reference, the select included, uses
+`settings.ring_strategy.value`. So the read was always `undefined`, and the
+"What a caller would experience" walkthrough fell back to its default,
+`all-at-once`. **It described Ring All whichever strategy you picked.** With Ring
+All selected it looked right by coincidence, which is why it survived.
+
+Fixed. The preview now reads the path the select writes.
+
+Also corrected in the same pass: the preview mapped
+`agent-with-least-talk-time` to `longest-idle-first`, which would have shown a
+caller experience that cannot happen. It now maps to `in-order`, matching what
+the switch really does with it.
+
+## What the customer now reads
+
+Every strategy already had a plain-English line under the dropdown
+(`DEPARTMENT_RING_STRATEGY_DESC`), and they are good. The only change needed was
+truthfulness: Agent With Least Talk Time now says it is not working yet, why,
+and which two strategies to use instead for the same goal.
+
+## To make Least Talk Time real
+
+Something has to write talk time onto the agent record when a call ends. The
+figure exists on the call — `billsec` is already in `call_history` — and
+`upload_recording.lua` already fires as a hangup hook, so there is a place that
+runs at the right moment with the right ids to hand. *Retest:* answer two calls
+of clearly different lengths on two agents, confirm `talk_time` differs, then
+confirm the shorter-talking agent is offered the next call.

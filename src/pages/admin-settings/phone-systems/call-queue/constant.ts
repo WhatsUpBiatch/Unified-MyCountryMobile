@@ -339,7 +339,7 @@ export const DEPARTMENT_RING_STRATEGY_DESC = {
   'top-down':
     'Always starts at the top of the list. Your most experienced people take most of the calls, and the rest only hear the busy ones.',
   'agent-with-least-talk-time':
-    'Whoever has spent least time on calls today is tried first. Evens out how long people spend talking, not how many calls they take.',
+    'Not working yet \u2014 pick another one. It should try whoever has spent least time on calls, but nothing records how long anybody has talked: every person reads as zero, so this behaves exactly like Top Down. If you want the work spread out, use Longest Idle Agent or Agent With Fewest Calls, which both have the figures they need.',
   'agent-with-fewest-calls':
     'Whoever has taken fewest calls is tried first. Evens out the number of calls, even if some take much longer than others.',
   random: 'Tried in a different order each time. No pattern, and no one person favoured.',

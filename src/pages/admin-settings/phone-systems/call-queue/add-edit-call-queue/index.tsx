@@ -841,6 +841,7 @@ const AddCallQueue: FC<AddCallQueueProps> = ({ setDrawerState, queueDetails, tab
                   isChooseTemplate={false}
                   customClass="h-full min-h-0"
                   data={{ settings }}
+                  origin="queue"
                 />
               </div>
             </TabsContent>
