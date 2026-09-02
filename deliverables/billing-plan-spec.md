@@ -103,6 +103,52 @@ Whoever builds the SMS and AI meters should copy its shape rather than invent on
 
 ---
 
+## Overage rates — what happens past the allowance
+
+Written as **dollars**. The user said "cents"; read literally every rate would sit
+below cost — 0.02 cents is a fifth of a penny against an SMS that costs us about
+0.8 of a penny to send. Dollars is the only reading that works, and each one then
+carries a sensible margin. **Confirm before seeding.**
+
+| Item | Charged | Roughly costs us | Margin |
+|---|---|---|---|
+| SMS | **$0.02** each | ~$0.008 | ~2.5x |
+| MMS | **$0.03** each | ~$0.02 | ~1.5x |
+| AI voice | **$0.08** per minute | ~$0.02 | ~4x |
+| AI reply | **$0.08** each | ~$0.01 | ~8x |
+| Storage | **$0.30** per GB / month | ~$0.007 | ~43x |
+
+Storage looks like a large multiple because the customer is buying retention,
+retrieval and the player, not the disk. MMS is the thin one — 1.5x leaves little
+room if carrier pricing moves, and it is the rate to revisit first.
+
+### Minutes are the exception: they STOP
+
+Past 5,000 US minutes the customer **cannot make or receive more US calls**. There
+is no per-minute overage and nothing is taken from the wallet.
+
+Everything else flows to the wallet; calling alone hits a wall. That is a
+deliberate decision and it needs saying on screen well before it happens, because
+a phone system that stops answering is the worst possible surprise. The warning
+wants to arrive at 80% and again at 95%, not at 100%.
+
+International calling is unaffected by this — it never used the allowance in the
+first place and always draws on the wallet.
+
+### Where these rates live
+
+`plan.per_gb_price` already exists for storage. The other four have **no column**:
+there is no `sms_rate`, `mms_rate` or AI overage price on the plan — only
+`ai_call_rate` and `ai_message_rate`, which are the AI ones. SMS and MMS overage
+prices have nowhere to be stored yet.
+
+Options: put them on the plan as new columns, or express them as a rate card,
+which is what `sms_rate_card_uuid` and `mms_rate_card_uuid` already point at. The
+rate card is the better fit — it is per destination, so a US price and an
+international price can differ, which they will.
+
+---
+
 ## Still open
 
 - **Plan prices.** No `cost` values agreed yet.
