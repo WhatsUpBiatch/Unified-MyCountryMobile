@@ -31,6 +31,7 @@ import {
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { invalidateNumberLists } from '@/lib/number-list-cache';
 import { buildQueueAttachPatch } from '@/lib/queue-numbers';
+import { dedupeMembers } from '@/lib/queue-members';
 import {
   generateRandomExtension,
   getHolidaysFormVal,
@@ -532,7 +533,10 @@ const AddCallQueue: FC<AddCallQueueProps> = ({ setDrawerState, queueDetails, tab
           timeout: seedDeviceRingTime(ring_time ?? timeout, companySettings).value,
         };
       }) || [];
-    const uniqueMembers = Array.from(new Map(members.map((m: any) => [m.user_uuid, m])).values());
+    /* Keyed on the id, falling back to the extension. Keying on the id alone
+       collapsed the whole queue to one person whenever the people list came
+       back under the other id spelling and every member's was blank. */
+    const uniqueMembers = dedupeMembers(members);
     const { label, value, ...manager } = watch('manager');
     console.info(label, value);
     const payload = {
@@ -575,7 +579,7 @@ const AddCallQueue: FC<AddCallQueueProps> = ({ setDrawerState, queueDetails, tab
     });
     // Reconstruct members with label and value for UI consistency
     const uniqueMembers = queueInfo?.members
-      ? Array.from(new Map(queueInfo.members.map((m: any) => [m.user_uuid, m])).values()).map(
+      ? dedupeMembers(queueInfo.members).map(
           (m: any) => ({
             ...m,
             label: m.label || m.name || `${m.first_name} ${m.last_name}`,

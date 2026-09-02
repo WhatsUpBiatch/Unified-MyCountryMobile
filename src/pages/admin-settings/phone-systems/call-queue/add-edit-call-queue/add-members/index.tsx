@@ -437,7 +437,7 @@ const AddMembers: FC = () => {
           <span className="flex flex-col leading-tight">
             <span>Manager</span>
             <span className="text-[10px] font-normal normal-case text-gray-500">
-              {selectedCount === 0 ? 'tick someone first' : 'pick one'}
+              {selectedCount === 0 ? 'chosen for you' : 'click to change'}
             </span>
           </span>
         ),

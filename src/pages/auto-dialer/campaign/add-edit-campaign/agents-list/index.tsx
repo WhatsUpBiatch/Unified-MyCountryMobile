@@ -35,7 +35,7 @@ interface IMEMBER {
 const MemberCheckboxCell = ({ memberData }: { memberData: IMEMBER }) => {
   const { user } = useUser();
   const defaultDomain = user?.sip_credentials?.domain || '';
-  const { control, setValue, clearErrors, watch } = useFormContext();
+  const { control, setValue, clearErrors, watch, getValues } = useFormContext();
   const members = useWatch({ control, name: 'members', defaultValue: [] });
   const isChecked =
     Array.isArray(members) && members.some((item: any) => item?.value === memberData?.extension);
@@ -58,10 +58,18 @@ const MemberCheckboxCell = ({ memberData }: { memberData: IMEMBER }) => {
           domain: memberData?.domain || defaultDomain || '',
           user_uuid: memberData?.user_uuid || memberData?.uuid || '',
         };
-        setValue('members', [...(members || []), newValue], { shouldValidate: true });
+        /* Read at the moment of the click, not from the render that drew this
+           row. Each row closed over the list as it stood when it last rendered,
+           so the second agent ticked was added to a list that still had nobody
+           in it and the first disappeared - one agent per campaign, with nothing
+           on screen to explain it. Same bug the call queue member list had. */
+        const live = getValues('members') || [];
+        if (!live.some((m: IMEMBER) => m?.value === newValue.value)) {
+          setValue('members', [...live, newValue], { shouldValidate: true });
+        }
         clearErrors('members');
       } else {
-        const filteredMembers = (members || []).filter(
+        const filteredMembers = (getValues('members') || []).filter(
           (el: IMEMBER) => el.value !== memberData.extension,
         );
         setValue('members', filteredMembers, { shouldValidate: true });
@@ -72,7 +80,7 @@ const MemberCheckboxCell = ({ memberData }: { memberData: IMEMBER }) => {
         }
       }
     },
-    [memberData, members, setValue, clearErrors, watch, defaultDomain],
+    [memberData, setValue, clearErrors, watch, getValues, defaultDomain],
   );
 
   return (
@@ -144,7 +152,9 @@ const SelectAllHeader = ({ currentMembers }: { currentMembers: IMEMBER[] }) => {
   const handleSelectAllChange = useCallback(
     (checked: boolean) => {
       if (checked) {
-        const newMembers = [...(members || [])];
+        /* Live, for the same reason each row is: building from a remembered
+           list is what made this screen hold one agent. */
+        const newMembers = [...(getValues('members') || [])];
         currentMembers.forEach((member) => {
           const extensionValue = member.extension || member.value || '';
           if (!newMembers.some((m: any) => m.value === extensionValue)) {
@@ -167,7 +177,7 @@ const SelectAllHeader = ({ currentMembers }: { currentMembers: IMEMBER[] }) => {
         clearErrors('members');
       } else {
         const currentExtensions = currentMembers.map((m) => m.extension);
-        const filteredMembers = (members || []).filter(
+        const filteredMembers = (getValues('members') || []).filter(
           (m: any) => !currentExtensions.includes(m.value),
         );
         setValue('members', filteredMembers, { shouldValidate: true });

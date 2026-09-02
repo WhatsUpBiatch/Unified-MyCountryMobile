@@ -17,7 +17,7 @@ import CampaignBussinessHoursModal from '../custom/campaign-bussiness-hours';
 import moment from 'moment';
 import { Switch } from '../ui/switch';
 import CustomSelect from '@/components/custom/custom-select';
-import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
+import { SettingCard, SettingFlag, SettingRow } from '@/components/mcm/setting-card';
 import { useQuery } from '@tanstack/react-query';
 import {
   COMPANY_DEFAULTS_QUERY_KEY,
@@ -110,6 +110,11 @@ const CommonSettingPermission: FC<any> = ({
      other screens using this editor are an admin configuring a number, department,
      IVR or queue, where a lock meant for staff would make no sense. */
   const isOwnSettingsPage = origin === 'general_settings';
+  /* This editor is shared by a person, a number, a department, a menu and a
+     queue, and three of its controls reach nothing on a queue: the switch
+     reads them for the other owners and never for this one. Said on screen
+     rather than left for a customer to discover by testing a call. */
+  const inertOnQueue = origin === 'queue';
   const companyPolicy = useCompanyPolicy({ enabled: isOwnSettingsPage });
 
   /* `isEditable` stays in charge everywhere the company rule does not reach —
@@ -445,7 +450,10 @@ const CommonSettingPermission: FC<any> = ({
             <>
               <div className="flex bg-white justify-between gap-3.5 w-full  border border-gray-100 shadow-[1px_1px_2px_rgba(0,0,0,0.05)] p-4 rounded-xl">
                 <div className="flex flex-col gap-1.5">
-                  <p className="font-semibold truncate text-md">Automatic Transcription</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold truncate text-md">Automatic Transcription</p>
+                    {inertOnQueue ? <SettingFlag status="coming-soon" /> : null}
+                  </div>
                   <p className="text-gray-800 truncate text-sm">
                     Automatic transcription is{' '}
                     {readToggle('settings.transcription') ? 'enabled' : 'disabled'}.
@@ -468,7 +476,10 @@ const CommonSettingPermission: FC<any> = ({
               </div>
               <div className="flex flex-col sm:flex-row bg-white justify-between gap-3.5 w-full  border border-gray-100 shadow-[1px_1px_2px_rgba(0,0,0,0.05)] p-4 rounded-xl">
                 <div className="flex flex-col gap-1.5">
-                  <p className="font-semibold truncate text-md">AI Call Monitoring</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold truncate text-md">AI Call Monitoring</p>
+                    {inertOnQueue ? <SettingFlag status="coming-soon" /> : null}
+                  </div>
                   <p className="text-gray-800 truncate text-sm">
                     When enabled transcripts will be automatically triggered.
                     {/* AI Call Monitoring is{' '}
@@ -497,6 +508,7 @@ const CommonSettingPermission: FC<any> = ({
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-1">
                   <p className="font-semibold truncate text-md">Display Number</p>
+                  {inertOnQueue ? <SettingFlag status="coming-soon" /> : null}
                   {(errors?.settings as any)?.display_number?.masking?.value?.message && (
                     <ErrorTooltip
                       text={(errors?.settings as any)?.display_number?.masking?.value?.message}
