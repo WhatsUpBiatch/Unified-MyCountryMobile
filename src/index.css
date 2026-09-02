@@ -132,10 +132,10 @@
   --mcm-line: #dfe5f0;
   --mcm-line-2: #eaeef6;
 
-  --mcm-accent: #f2994a;
-  --mcm-accent-ink: #c96f1f;
-  --mcm-accent-wash: #fff1e0;
-  --mcm-accent-edge: #ffd9ad;
+  --mcm-accent: #2563eb;
+  --mcm-accent-ink: #1d4ed8;
+  --mcm-accent-wash: #e8efff;
+  --mcm-accent-edge: #c3d6ff;
 
   /* AI gets its own hue on purpose: machine output must never be mistaken
      for system truth. Violet reads as "generated, verify me". */
@@ -214,10 +214,10 @@
   --mcm-line: #26314a;
   --mcm-line-2: #1c2537;
 
-  --mcm-accent: #ffab5e;
-  --mcm-accent-ink: #ffc98a;
-  --mcm-accent-wash: #2b1f12;
-  --mcm-accent-edge: #4a341c;
+  --mcm-accent: #5b8dff;
+  --mcm-accent-ink: #87aaff;
+  --mcm-accent-wash: #16223d;
+  --mcm-accent-edge: #2c3f68;
 
   --mcm-ai: #a97fff;
   --mcm-ai-ink: #c0a3ff;
@@ -1939,20 +1939,33 @@
    marked !important here outranks it. That is what pins the brand regardless of
    what the organisation row says.
    --------------------------------------------------------------------------- */
-:root {
+/* Scoped to the ucaas build. Unscoped, these !important rules also repainted
+   My Country Mobile, whose own organisation row is blue (#0f6ae7) and should
+   win. main.tsx stamps data-brand from VITE_APP_SLUG, so each portal keeps its
+   own colours from one source tree. */
+:root[data-brand='ucaas'] {
   --primary: #f2994a !important;
   --color-ucass-primary-100: #fff1e0 !important;
   --color-ucass-primary-200: #fde9d2 !important;
   --color-ucass-active: #c96f1f !important;
   --color-ucass-active-bg: #fde9d2 !important;
   --color-ucass-login-bg: #fff1e0 !important;
+  --mcm-accent: #f2994a;
+  --mcm-accent-ink: #c96f1f;
+  --mcm-accent-wash: #fff1e0;
+  --mcm-accent-edge: #ffd9ad;
 }
 
-.dark {
+.dark[data-brand='ucaas'],
+[data-brand='ucaas'] .dark {
   --primary: #ffab5e !important;
   --color-ucass-primary-100: #2b1f12 !important;
   --color-ucass-primary-200: #ffab5e !important;
   --color-ucass-active: #ffc98a !important;
   --color-ucass-active-bg: #2b1f12 !important;
   --color-ucass-login-bg: #2b1f12 !important;
+  --mcm-accent: #ffab5e;
+  --mcm-accent-ink: #ffc98a;
+  --mcm-accent-wash: #2b1f12;
+  --mcm-accent-edge: #4a341c;
 }

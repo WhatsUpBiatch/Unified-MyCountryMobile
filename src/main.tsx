@@ -6,6 +6,10 @@ import App from './App.tsx';
 
 polyfillCountryFlagEmojis();
 
+/* Which portal this bundle is. The brand lock in index.css keys off it, so a
+   build without a slug simply keeps the colours its organisation row supplies. */
+document.documentElement.dataset.brand = import.meta.env.VITE_APP_SLUG || '';
+
 const DYNAMIC_IMPORT_RELOAD_KEY = 'dynamic_import_reload_at';
 const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   'Failed to fetch dynamically imported module',
