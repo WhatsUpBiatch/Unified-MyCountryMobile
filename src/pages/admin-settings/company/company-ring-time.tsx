@@ -103,10 +103,15 @@ const RING_TIME_OPTIONS = [
   buildOption(MAX_SECONDS, 'other established systems maximum'),
 ];
 
-/* Where the "what happens next" half of this question is answered. A real route
-   from src/router/index.tsx — a number's call handling, including its Business
-   Hours step, is edited from the numbers list. */
-const NUMBERS_IN_USE_PATH = '/admin-settings/numbers/in-use';
+/* Where the "what happens next" half of this question is answered.
+   `/admin-settings/numbers/in-use` used to be the target and was wrong: it
+   lists what each number is set to, never whether a caller would be dropped,
+   and the no-answer action is not on it at all — that lives inside the per-number
+   Set Forwarding dialog, which has no URL of its own. Call coverage is the one
+   screen that asks the question this panel asks, so it is the honest target:
+   it names the numbers that would drop a call and offers to fix them. Route
+   confirmed in src/router/index.tsx (`numbers` > `coverage`). */
+const CALL_COVERAGE_PATH = '/admin-settings/numbers/coverage';
 
 interface RingTimeForm {
   seconds: string;
@@ -380,22 +385,23 @@ const CompanyRingTime = () => {
               <p className="text-sm text-gray-700">
                 When the ring time runs out, the call follows the &ldquo;what happens when nobody
                 answers&rdquo; action set on that particular line — voicemail, another person, a
-                menu, a queue, or simply hanging up. That action is not set here. It is part of each
-                number&rsquo;s call handling, on the Business Hours step, and it can be different
-                for every number you own.
+                menu, a queue, or simply hanging up. That action is not set here. It is set one
+                number at a time, in that number&rsquo;s Set Forwarding, on the Business Hours
+                step, and it can be different for every number you own.
               </p>
               <p className="text-sm text-gray-700">
-                So a caller giving up is rarely just the ring time. If people say calls end in
-                silence, check that action first: a line with no action set will stop ringing and
-                then do nothing at all, no matter what number you choose above.
+                So a caller giving up is rarely just the ring time. A line with no action set
+                will stop ringing and then do nothing at all, no matter what number you choose
+                above. You do not have to open each number to find those: Call coverage lists
+                every number that would drop a call today, and fixes the ones it safely can.
               </p>
               <div>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate(NUMBERS_IN_USE_PATH)}
+                  onClick={() => navigate(CALL_COVERAGE_PATH)}
                 >
-                  Open your numbers to check
+                  Show me which numbers would drop a call
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
