@@ -1,3 +1,17 @@
+> **Repo HEAD is NOT what is deployed** (verified by the unified5-bb session,
+> 2 Sep 2026). The deployed bundle is dated **6 Aug**; the repo's only commit is
+> **31 Aug** — the deploy predates it by ~3.5 weeks. Marker test on the live
+> bundle: 6 of 7 distinctive source literals present, but
+> `custom_jitsi_LVideo_container` (from `src/pages/.../local-track-container/`)
+> is absent from both deployed bundles and the CSS, while its sibling
+> `custom_jitsi_Screen_Video_container` is present. Same lineage, older source.
+> No version string exists in the artifact. **Rebuilding from HEAD would change
+> behaviour, not re-emit this bundle.**
+>
+> Also confirmed there: the deployed build is byte-identical on all three boxes,
+> is served by no nginx config on any of them, and reads an XMPP password from
+> the query string (`src/App.tsx:224` → `jitsi-context.tsx:950`).
+
 > **CORRECTION, 2 Sep 2026 — the source is NOT gone.**
 >
 > It is at `git@bitbucket.org:mycountry/video-recorder-portal.git`, HEAD `3ec76b2`
