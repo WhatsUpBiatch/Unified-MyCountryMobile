@@ -5,7 +5,12 @@
    be shortened, however it happens to start. */
 
 const assert = require('assert');
-const { stripCarrierRoutingPrefix, normalizeCallNumber } = require('./call-number.build.cjs');
+const {
+  stripCarrierRoutingPrefix,
+  normalizeCallNumber,
+  pickCounterpartNumber,
+  isInternalEndpoint,
+} = require('./call-number.build.cjs');
 
 let passed = 0;
 const check = (what, fn) => {
@@ -70,4 +75,79 @@ check('a non-numeric value is not treated as a prefixed number', () => {
   assert.strictEqual(stripCarrierRoutingPrefix('77701abcdefghijkl'), '77701abcdefghijkl');
 });
 
-console.log(`  ${passed} passed${process.exitCode ? ' (with failures above)' : ''}`);
+/* Which side of the call to show. Direction alone gets this wrong: a call made
+   from the web phone is logged as Inbound with our own endpoint as the caller,
+   so the person was shown their own extension instead of who they rang. */
+
+check('a call from the web phone shows who was rung', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({
+      direction: 'Inbound',
+      caller_id_number: '1000_web',
+      destination_number: '917666718264',
+    }),
+    '917666718264',
+  );
+});
+
+check('a real inbound call still shows the caller', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({
+      direction: 'Inbound',
+      caller_id_number: '+14422129488',
+      destination_number: '',
+    }),
+    '+14422129488',
+  );
+});
+
+check('an inbound call to a DID shows the caller, not the DID', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({
+      direction: 'Inbound',
+      caller_id_number: '+14422129488',
+      destination_number: '12568081009',
+    }),
+    '+14422129488',
+  );
+});
+
+check('an outbound call shows the destination, prefix removed', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({
+      direction: 'Outbound',
+      caller_id_number: '12568081010',
+      destination_number: '7770112568081009',
+    }),
+    '12568081009',
+  );
+});
+
+check('an internal call between extensions still shows the caller', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({
+      direction: 'Local',
+      caller_id_number: '1000',
+      destination_number: '1001',
+    }),
+    '1000',
+  );
+});
+
+check('a missing side falls back to the other one', () => {
+  assert.strictEqual(
+    pickCounterpartNumber({ direction: 'Outbound', caller_id_number: '1000', destination_number: '' }),
+    '1000',
+  );
+});
+
+check('our own endpoints are recognised, outside numbers are not', () => {
+  assert.strictEqual(isInternalEndpoint('1000_web'), true);
+  assert.strictEqual(isInternalEndpoint('12568081010_web'), true);
+  assert.strictEqual(isInternalEndpoint('1000'), true);
+  assert.strictEqual(isInternalEndpoint('917666718264'), false);
+  assert.strictEqual(isInternalEndpoint('+14422129488'), false);
+  assert.strictEqual(isInternalEndpoint(''), false);
+});
+
+console.log(`  ${passed} passed in total${process.exitCode ? ' (with failures above)' : ''}`);

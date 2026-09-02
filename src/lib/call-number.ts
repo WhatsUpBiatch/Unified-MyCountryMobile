@@ -65,3 +65,51 @@ export const normalizeCallNumber = (value: unknown): string => {
 
   return hasPlus ? `+${stripped}` : stripped;
 };
+
+/** Longest a number can be and still be one of our own extensions. */
+const MAX_EXTENSION_DIGITS = 6;
+
+/**
+ * Whether a number is one of our own endpoints rather than somebody outside:
+ * either the browser phone's `_web` SIP endpoint, or a bare extension.
+ */
+export const isInternalEndpoint = (value: unknown): boolean => {
+  const raw = String(value ?? '')
+    .trim()
+    .replace(/^sip:/i, '')
+    .split('@')[0];
+
+  if (!raw) return false;
+  if (/_web$/i.test(raw)) return true;
+
+  return new RegExp(`^\\d{1,${MAX_EXTENSION_DIGITS}}$`).test(normalizeCallNumber(raw));
+};
+
+/**
+ * The number to show against a call: the other party, never our own endpoint.
+ *
+ * Direction alone is not enough to decide which side that is. A call started in
+ * the web phone is logged as Inbound with our own `<extension>_web` in the
+ * caller field and the person we rang in the destination field, so going by
+ * direction shows the caller their own extension. Where the caller really is
+ * outside, the destination is empty or holds the number they rang, and the
+ * caller stays correct.
+ */
+export const pickCounterpartNumber = (row: {
+  direction?: unknown;
+  caller_id_number?: unknown;
+  destination_number?: unknown;
+}): string => {
+  const caller = row?.caller_id_number;
+  const destination = row?.destination_number;
+
+  if (String(row?.direction ?? '').toLowerCase() === 'outbound') {
+    return normalizeCallNumber(destination) || normalizeCallNumber(caller);
+  }
+
+  if (destination && isInternalEndpoint(caller) && !isInternalEndpoint(destination)) {
+    return normalizeCallNumber(destination);
+  }
+
+  return normalizeCallNumber(caller) || normalizeCallNumber(destination);
+};

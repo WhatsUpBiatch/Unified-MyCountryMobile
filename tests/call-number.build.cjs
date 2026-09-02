@@ -19,7 +19,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/lib/call-number.ts
 var call_number_exports = {};
 __export(call_number_exports, {
+  isInternalEndpoint: () => isInternalEndpoint,
   normalizeCallNumber: () => normalizeCallNumber,
+  pickCounterpartNumber: () => pickCounterpartNumber,
   stripCarrierRoutingPrefix: () => stripCarrierRoutingPrefix
 });
 module.exports = __toCommonJS(call_number_exports);
@@ -44,8 +46,28 @@ var normalizeCallNumber = (value) => {
   const stripped = stripCarrierRoutingPrefix(hasPlus ? userPart.slice(1) : userPart);
   return hasPlus ? `+${stripped}` : stripped;
 };
+var MAX_EXTENSION_DIGITS = 6;
+var isInternalEndpoint = (value) => {
+  const raw = String(value ?? "").trim().replace(/^sip:/i, "").split("@")[0];
+  if (!raw) return false;
+  if (/_web$/i.test(raw)) return true;
+  return new RegExp(`^\\d{1,${MAX_EXTENSION_DIGITS}}$`).test(normalizeCallNumber(raw));
+};
+var pickCounterpartNumber = (row) => {
+  const caller = row?.caller_id_number;
+  const destination = row?.destination_number;
+  if (String(row?.direction ?? "").toLowerCase() === "outbound") {
+    return normalizeCallNumber(destination) || normalizeCallNumber(caller);
+  }
+  if (destination && isInternalEndpoint(caller) && !isInternalEndpoint(destination)) {
+    return normalizeCallNumber(destination);
+  }
+  return normalizeCallNumber(caller) || normalizeCallNumber(destination);
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  isInternalEndpoint,
   normalizeCallNumber,
+  pickCounterpartNumber,
   stripCarrierRoutingPrefix
 });

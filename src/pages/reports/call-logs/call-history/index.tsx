@@ -1,4 +1,4 @@
-import { normalizeCallNumber } from '@/lib/call-number';
+import { normalizeCallNumber, pickCounterpartNumber } from '@/lib/call-number';
 import TableManager from '@/components/custom/table-manager';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/assets/icons/icon';
@@ -107,8 +107,7 @@ const TERMINAL_DIALPAD_SESSION_STATUSES = new Set(['ended', 'failed']);
 const normalizeCallTarget = (value: unknown) =>
   normalizeCallNumber(value).toLowerCase().replace(/^\+/, '');
 
-const getCallHistoryDialTarget = (data: any) =>
-  data?.direction === 'Outbound' ? data?.destination_number : data?.caller_id_number;
+const getCallHistoryDialTarget = (data: any) => pickCounterpartNumber(data || {});
 
 const isLiveDialpadSession = (session: any) =>
   !TERMINAL_DIALPAD_SESSION_STATUSES.has(String(session?.status || '').toLowerCase());
@@ -188,14 +187,7 @@ const CallHistory = ({
     (data: any) => {
       if (iamOnCall || isOnCallWithUser(data)) return;
 
-      let number = '';
-      if (data?.direction === 'Outbound') {
-        number = data?.destination_number;
-      } else {
-        number = data?.caller_id_number;
-      }
-
-      const normalizedNumber = String(number || '').trim();
+      const normalizedNumber = pickCounterpartNumber(data || {});
       if (!normalizedNumber) return;
 
       const displayCallerNumber = String(data?.display_caller_number ?? '').trim();
@@ -285,14 +277,14 @@ const CallHistory = ({
   const formatCallLogsForCSV = (data = []) => {
     return data?.map((row: any) => ({
       Date: convertDateFormateApis(row?.start_stamp, 'MMM DD hh:mm A'),
-      From: row?.caller_id_number || '',
+      From: normalizeCallNumber(row?.caller_id_number) || '',
       DID: row?.via_did || '',
       To:
         row?.direction === 'Outbound'
-          ? row?.destination_number
+          ? normalizeCallNumber(row?.destination_number)
           : row?.forward_name
             ? `${row?.forward_name} (${row?.forward_value || ''})`
-            : row?.destination_number || 'Unknown',
+            : normalizeCallNumber(row?.destination_number) || 'Unknown',
       Status: row?.status?.toLowerCase()?.replaceAll('_', ' ') || '---',
       Duration: row?.billsectotal
         ? formatSecondsToMMSS(Number(row?.billsectotal))
@@ -669,12 +661,7 @@ const CallHistory = ({
         accessorKey: 'action',
         cell: ({ row }: any) => {
           const data = row?.original;
-          let number = '';
-          if (data?.direction === 'Outbound') {
-            number = data?.destination_number;
-          } else {
-            number = data?.caller_id_number;
-          }
+          const number = pickCounterpartNumber(data || {});
           const hasRecording = data?.recording_file || null;
           const hasTranscription = Boolean(data?.transcript_file);
 

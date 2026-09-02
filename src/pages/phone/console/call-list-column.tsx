@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { normalizeCallNumber } from '@/lib/call-number';
+import { pickCounterpartNumber } from '@/lib/call-number';
 import moment from 'moment';
 import { fetchPhone } from '@/services/api';
 import { useFetchContact } from '@/hooks/common';
@@ -74,10 +74,7 @@ const getEntryLogs = (main: any = {}) => {
   return callLogs.length ? callLogs : main && Object.keys(main).length ? [main] : [];
 };
 
-const getEntryRawNumber = (main: any = {}) =>
-  normalizeCallNumber(
-    main?.direction === 'Outbound' ? main?.destination_number : main?.caller_id_number,
-  );
+const getEntryRawNumber = (main: any = {}) => pickCounterpartNumber(main);
 
 const getEntryNumber = (main: any = {}) => getEntryRawNumber(main).replace(/ /g, '');
 
