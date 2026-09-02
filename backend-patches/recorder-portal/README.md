@@ -28,53 +28,26 @@ The two JS bundles differ **only** in their baked-in Vite env block. The older
 one has a stray trailing `;` inside every value (`"meet.mycountrymobile.com;"`),
 which the newer one fixes. Nothing else changed between them.
 
-## Why the source cannot be recovered
+## The source EXISTS — corrected 2 Sep 2026
 
-- No `.map` files exist anywhere on any of the three boxes.
-- No `sourceMappingURL` comment in either JS bundle or the CSS.
-- No repo on Bitbucket `mycountry` and none on GitHub `bideptart`.
-- The only other copy on this machine, `/root/unified2-backend/recorder-portal`,
-  is the same `dist` again — that import took the built output, not source.
+An earlier version of this file said the source was unrecoverable. That was
+wrong. It is at `git@bitbucket.org:mycountry/video-recorder-portal.git`, checked
+out locally at `/root/UCAAS/mcm-repos/video-recorder-portal` — package name
+`jitsi-direct-join-vite`, version 1.3.3, Vite + React 19 + react-router-dom 7.
 
-The bundle is minified React: 345 KB across 129 lines, every local name reduced
-to one or two letters. Beautifying it gives you working JavaScript, not the
-original TypeScript. Component names, prop names, file boundaries and all
-comments are gone and cannot be derived.
+Verified, not assumed: all **12** of the bundle's error strings appear in `src/`,
+`env.example` lists the same **7** `VITE_*` variables the bundle bakes in, and
+`src/App.tsx` contains the `xmpp_username_override` / `xmpp_password_override`
+handling seen in the bundle.
 
-## What WAS recovered from the bundle
+**Why it was missed:** the repo was cloned into this shared working tree at
+10:18 on 2 Sep by a parallel session, after the searches here had already run.
+The lesson is in [[parallel-sessions-share-one-tree]] — re-check the tree before
+concluding something is absent, because another session may have just added it.
 
-Enough to rebuild it from scratch without guessing at the integration.
-
-**Config it expects (Vite env names, exact):**
-
-    VITE_APP_DOMAIN                 meet.mycountrymobile.com
-    VITE_APP_FOCUS                  focus.meet.mycountrymobile.com
-    VITE_APP_MUC                    conference.meet.mycountrymobile.com
-    VITE_APP_SERVICEURL             wss://meet.mycountrymobile.com/xmpp-websocket
-    VITE_APP_WEBSOCKETKEEPALIVEURL  https://meet.mycountrymobile.com/_unlock
-    VITE_WHITEBOARD_BASE_URL        https://qa.mycountrymobile.com/whiteboard
-    VITE_APP_SLUG                   qa
-
-**The deployed build is a QA build.** `VITE_APP_SLUG` is `qa` and the whiteboard
-points at `qa.mycountrymobile.com`. Both bundles are QA. No production build of
-this app exists on any box.
-
-**Jitsi options it sets:** `enableP2P: false`, `useStunTurn: true`,
-`useTurnUdp: false`, simulcast on, video capped at 720p (min 240), BOSH at
-`https://<domain>/http-bind`, desktop sharing from screen and window. It joins
-with the `iAmRecorder` flag — the Jitsi convention for a participant that
-records and is hidden from the roster.
-
-**Inputs it reads:** meeting code from the route or a `meetCode` query param,
-plus `name`. It also accepts `xmpp_username_override` and
-`xmpp_password_override` from **both** the query string and localStorage.
-
-**Its error messages**, which map out its failure paths: "Meeting code is
-missing in URL.", "No meeting code found in URL.", "Recorder credentials not
-found in URL.", "Loading Jitsi library...", "Jitsi script is not loaded yet.",
-"Connecting to Jitsi server...", "Joining meeting...", "Jitsi connection
-failed.", "Failed to join the conference.", "Conference error occurred.",
-"Meeting Whiteboard", "Whiteboard is unavailable right now."
+This directory is still worth keeping. It holds the **exact artefact that is
+deployed**, which the repo does not: the repo is source at 1.3.3, and what is on
+the three boxes is one specific build of it.
 
 ## Two things worth acting on
 
@@ -92,11 +65,14 @@ to change.
 
 ## Verdict
 
-Do not schedule a reconstruction. This is a QA build of a Jitsi recorder that
-nothing currently serves, and call recording has never produced a file for
-anyone. If the recorder is wanted later, rebuilding it fresh from the
-integration notes above is cheaper and safer than trying to reverse the minified
-bundle — and it avoids inheriting the credentials-in-the-URL design.
+Do not schedule a reconstruction — and not because the source is gone. It is
+not gone: build from `video-recorder-portal` if this is ever wanted. Nothing
+needs to be reversed out of the bundle.
 
-What matters is that the build is now in git. It was previously on three
-disposable boxes and nowhere else.
+What is worth knowing before reviving it: the only build that exists anywhere is
+a **QA** build, **no nginx config serves it** on any box, and it takes an XMPP
+password from the query string. Call recording has never produced a file for
+anyone, so there is nothing for a recorder to do yet either.
+
+This directory's job is narrow and still useful: it holds the exact artefact
+running on the three boxes, which the repo does not.
