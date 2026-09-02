@@ -1,3 +1,4 @@
+import { normalizeCallNumber } from '@/lib/call-number';
 import TableManager from '@/components/custom/table-manager';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/assets/icons/icon';
@@ -103,20 +104,8 @@ const formatWaitTime = (row: any) => {
 
 const TERMINAL_DIALPAD_SESSION_STATUSES = new Set(['ended', 'failed']);
 
-const normalizeCallTarget = (value: unknown) => {
-  const normalizedValue = String(value || '')
-    .replace(/\s+/g, '')
-    .trim()
-    .toLowerCase();
-
-  if (!normalizedValue) return '';
-
-  return normalizedValue
-    .replace(/^sip:/i, '')
-    .split('@')[0]
-    .replace(/_web$/i, '')
-    .replace(/^\+/, '');
-};
+const normalizeCallTarget = (value: unknown) =>
+  normalizeCallNumber(value).toLowerCase().replace(/^\+/, '');
 
 const getCallHistoryDialTarget = (data: any) =>
   data?.direction === 'Outbound' ? data?.destination_number : data?.caller_id_number;

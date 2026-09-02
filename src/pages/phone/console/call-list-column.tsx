@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { normalizeCallNumber } from '@/lib/call-number';
 import moment from 'moment';
 import { fetchPhone } from '@/services/api';
 import { useFetchContact } from '@/hooks/common';
@@ -74,8 +75,8 @@ const getEntryLogs = (main: any = {}) => {
 };
 
 const getEntryRawNumber = (main: any = {}) =>
-  String(
-    (main?.direction === 'Outbound' ? main?.destination_number : main?.caller_id_number) || '',
+  normalizeCallNumber(
+    main?.direction === 'Outbound' ? main?.destination_number : main?.caller_id_number,
   );
 
 const getEntryNumber = (main: any = {}) => getEntryRawNumber(main).replace(/ /g, '');
