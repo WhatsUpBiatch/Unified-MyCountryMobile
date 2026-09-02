@@ -13,6 +13,7 @@ import moment from 'moment';
 import { CalendarClock, Clock3, NotebookPen, Phone, PhoneOff, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DialpadCountdownRingTimer from './dialpad-countdown-ring-timer';
+import { wrapupVerdict } from '@/lib/wrapup-rule';
 import DialpadScheduleCallback from './dialpad-schedule-callback';
 import DialpadSessionSummaryCard from './dialpad-session-summary-card';
 import { formatDialpadDuration } from './dialpad-call-timer';
@@ -170,8 +171,30 @@ const DialpadEndedScreen = ({
     !session?.hasAnswered &&
     ['ended', 'failed'].includes(String(session?.status || '').toLowerCase()),
   );
+  /* Which of the five wrap-up rules this queue chose. Every queue call used to
+     hide the close button outright, so "optional" and "cannot be skipped" were
+     the same product - the supervisor's choice was saved and ignored.
+     
+     The half that still is not honoured is "may leave early once the call is
+     labelled": whether a disposition has been picked is held in the disposition
+     tab, a different component, so it is passed as false here. That makes every
+     mandatory mode behave exactly as it does today, and only the modes that let
+     the agent go are newly obeyed. Nothing gets stricter than it was. */
+  const wrapupRule = wrapupVerdict({
+    mode: session?.queueMetaData?.response?.settings?.after_call?.wrapup_prompt,
+    totalSeconds: wrapupTimeSeconds,
+    elapsedSeconds: wrapupReferenceTimestampMs
+      ? Math.max(0, Math.floor((Date.now() - Number(wrapupReferenceTimestampMs)) / 1000))
+      : 0,
+    hasDisposition: false,
+  });
+
   const shouldHideCloseButton =
-    (isQueueCallFromSession || isCampaignCallFromSession) && !isRejectedCause;
+    (isQueueCallFromSession || isCampaignCallFromSession) &&
+    !isRejectedCause &&
+    /* A campaign keeps the behaviour it always had; only a queue call has a
+       rule of its own to read. */
+    (!isQueueCallFromSession || !wrapupRule.mayLeave);
   const sessionDialTarget = String(session?.remoteNumber || session?.extension || '').trim();
   const isExtensionCallSession = isExtensionDialTarget(sessionDialTarget);
   const monitorCallLabel = getMonitoringCallLabel(

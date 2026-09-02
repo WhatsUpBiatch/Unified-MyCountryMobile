@@ -135,3 +135,25 @@ from one nobody told us about.
     npx esbuild src/lib/allowance-meter.ts --format=cjs --outfile=tests/allowance-meter.build.cjs \
       --bundle --platform=node
     node tests/allowance-meter-test.cjs
+
+What an agent may do in the seconds after a call ends — that the five wrap-up
+rules a queue can choose actually differ from one another, that a rule which
+cannot be read behaves exactly as a plain timer always did, and above all that
+no rule ever traps an agent in a wrap-up with no way out.
+
+    npx esbuild src/lib/wrapup-rule.ts --format=cjs --outfile=tests/wrapup-rule.build.cjs
+    node tests/wrapup-rule-test.cjs
+
+Which queue a live call came through — the switch names the queue id twice, and
+the agent's leg carries the name the app was not reading.
+
+    npx esbuild src/lib/queue-session.ts --format=cjs --outfile=tests/queue-session.build.cjs
+    node tests/queue-session-test.cjs
+
+Putting people on a call queue — the screen could only ever hold one, because
+each tick built the new list from a copy captured when that row last rendered.
+The headline test is the plain one: tick three people, get three people. A
+control reproduces the stale-list bug so the fix is not taken on trust.
+
+    npx esbuild src/lib/queue-members.ts --format=cjs --outfile=tests/queue-members.build.cjs
+    node tests/queue-members-test.cjs

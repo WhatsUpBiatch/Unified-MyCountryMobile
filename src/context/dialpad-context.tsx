@@ -9,6 +9,7 @@ import {
 import { callQueueInfo, getCampaignDetail, getContactInfoV1 } from '@/services/api';
 import { useUser } from '@/hooks/use-user';
 import { handleAlert, makeAISocketConnection } from '@/lib/utils';
+import { queueIdFromHeaders } from '@/lib/queue-session';
 import JsSIP from 'jssip';
 import {
   createContext,
@@ -425,7 +426,10 @@ const isCampaignOrQueueSession = (session: DialpadSession | null | undefined): b
   const queueId = String(session.queueMetaData?.id || '').trim();
   const campaignId = String(session.campaignMetaData?.id || '').trim();
   const forwardTypeFromHeader = getSessionHeaderValue(session, 'x-forwardtype').toUpperCase();
-  const queueIdFromHeader = getSessionHeaderValue(session, 'x-queue');
+  /* The agent's leg carries the queue id as X-ForwardValue, not X-Queue -
+     see queue-session.ts. Reading only X-Queue found nothing on the one leg
+     the agent is actually on. */
+  const queueIdFromHeader = queueIdFromHeaders((name) => getSessionHeaderValue(session, name));
   const campaignIdFromHeader = getSessionHeaderValue(session, 'x-campaignuuid');
   const liveForwardType = String(session.liveCallData?.forward_type || '')
     .trim()
@@ -1950,7 +1954,13 @@ export const DialpadProvider = ({ children }: { children: ReactNode }) => {
             request,
             originator === 'local' ? [sessionMetaDataHeader] : [],
           );
-          const queueIdFromHeader = getHeaderValueFromHeaders(sessionHeaders, 'x-queue');
+          /* Same two names for one id: X-Queue on the caller's leg,
+             X-ForwardValue on the agent's. Without this the agent's session
+             got no queueMetaData, so dispositions, call script and the
+             queue's wrap-up time never loaded. */
+          const queueIdFromHeader = queueIdFromHeaders((name) =>
+            getHeaderValueFromHeaders(sessionHeaders, name),
+          );
           const queueMetaData = queueIdFromHeader
             ? {
                 id: queueIdFromHeader,
