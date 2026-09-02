@@ -323,10 +323,6 @@ const CompanySecurity = () => {
     setLockoutAcknowledged(false);
   }, [savedForm]);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(savedForm),
-    [form, savedForm],
-  );
 
   const { mutate: saveSecurity, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,
