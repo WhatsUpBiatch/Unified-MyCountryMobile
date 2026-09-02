@@ -1,1 +1,0 @@
-import{Q as c,r,bE as l,bF as i,bG as E,j as s}from"./index-DdklLgUG.js";function f({children:n}){const t=c(),a=r.useRef(!1),o=localStorage.getItem(l),u=localStorage.getItem(i)==="true",e=!!(o&&u);return r.useEffect(()=>{e&&!a.current&&(a.current=!0,sessionStorage.setItem(E,"1"),t("/renew-plan",{replace:!0}))},[e,t]),e?null:s.jsx(s.Fragment,{children:n})}export{f as default};

@@ -1,1 +1,0 @@
-import{j as e}from"./index-DdklLgUG.js";const i=({title:s})=>e.jsxs("div",{className:"flex h-full w-full flex-col items-center justify-center gap-2 text-center",children:[e.jsx("div",{className:"text-lg font-semibold text-gray-800",children:s}),e.jsx("div",{className:"text-sm text-gray-500",children:"This section is coming soon."})]});export{i as C};

@@ -1,6 +1,0 @@
-import{ab as u}from"./index-DdklLgUG.js";/**
- * @license lucide-react v0.513.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const d=[["path",{d:"M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0",key:"1dfaln"}],["path",{d:"M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4",key:"1qnva7"}]],C=u("ear",d),g=["*86","*87","*88","*89"],_={"*86":"Whisper","*87":"Listen","*88":"Barge","*89":"Intercept"},I=new Set(["ended","failed"]),a=t=>String(t||"").replace(/\s+/g,"").trim(),c=t=>{if(!t||typeof t!="object")return"";const e=String((t==null?void 0:t.direction)||"").toLowerCase()==="outbound"?t==null?void 0:t.call_uuid:(t==null?void 0:t.b_leg_uuid)||(t==null?void 0:t.call_uuid);return a(e)},f=t=>{const n=a(t);if(!n)return null;const e=g.find(i=>n.startsWith(i));if(!e)return null;const r=a(n.slice(e.length));return{actionCode:e,targetCallId:r}},O=(t,n)=>{const e=a(n);return e?Object.values(t||{}).some(r=>{const i=String((r==null?void 0:r.status)||"").toLowerCase();if(I.has(i))return!1;const o=f((r==null?void 0:r.remoteNumber)||(r==null?void 0:r.extension));return o!=null&&o.targetCallId?o.targetCallId===e:!1}):!1};export{C as E,_ as M,c as g,O as i,a as n};

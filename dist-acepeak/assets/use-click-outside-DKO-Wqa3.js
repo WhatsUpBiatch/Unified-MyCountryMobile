@@ -1,1 +1,0 @@
-import{r as s}from"./index-DdklLgUG.js";const l=(e,n=()=>null)=>{s.useEffect(()=>{function r(c){let u=!0;if(e.current&&e.current.length>0){for(let t=0;t<e.current.length;t++){const o=e.current[t];if(o&&o.contains(c.target)){u=!1;break}}u&&n()}}return document.addEventListener("mousedown",r),()=>{document.removeEventListener("mousedown",r)}},[e,n])};export{l as u};

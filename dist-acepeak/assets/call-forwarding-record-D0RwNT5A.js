@@ -1,1 +1,0 @@
-const a=n=>{if(!n)return{};if(typeof n!="string")return n;try{const c=JSON.parse(n);return c&&typeof c=="object"?c:{}}catch{return{}}},i=n=>typeof n=="object"&&n!==null&&!Array.isArray(n),t=(n,c)=>{const o=a(n),s={...o,...c},r=o==null?void 0:o.incoming_calls;return i(r)&&i(c==null?void 0:c.incoming_calls)&&(s.incoming_calls={...r,...c.incoming_calls}),s};export{t as m};

@@ -1,1 +1,0 @@
-.dash-shell{background:var(--ground)}.dash-shell .dash-bar{flex:none;background:var(--surface);border-bottom:1px solid var(--line);padding:0 16px}.dash-shell .dash-bar .ptabstrip{margin:0;border-bottom:0}.dash-shell .dash-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}.dash-shell .dash-legacy{flex:1;min-height:0;overflow:auto;background:var(--ground)}

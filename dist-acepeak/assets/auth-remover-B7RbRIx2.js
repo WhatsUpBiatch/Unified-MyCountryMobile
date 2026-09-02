@@ -1,1 +1,0 @@
-import{a as s,bF as n,j as t,lf as i,iw as u}from"./index-DdklLgUG.js";function d({children:a}){const{user:e,loader:r}=s(),o=typeof window<"u"?localStorage.getItem(n)==="true":!1;return r?t.jsx(i,{}):!(e!=null&&e.token)||o?a:t.jsx(u,{to:"/dashboard",replace:!0})}export{d as default};

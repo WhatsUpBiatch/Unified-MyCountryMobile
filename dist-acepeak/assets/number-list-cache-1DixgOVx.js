@@ -1,1 +1,0 @@
-const a=["allNumbersList","usedNumbersList","inventoryNumbersList","allNumbersListInInventory","numbersByLine"],r=["getUsersDetails"],t=(s,{includeRelated:i=!0}={})=>{s!=null&&s.invalidateQueries&&(a.forEach(e=>{s.invalidateQueries({queryKey:[e]})}),i&&r.forEach(e=>{s.invalidateQueries({queryKey:[e]})}))};export{t as i};

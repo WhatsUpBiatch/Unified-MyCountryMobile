@@ -1,1 +1,0 @@
-import{a as s}from"./index-DdklLgUG.js";const l=()=>{var t,e,r;const{user:a}=s(),n=((e=(t=a==null?void 0:a.plan_info)==null?void 0:t.dataValues)==null?void 0:e.plan_name)??((r=a==null?void 0:a.plan_info)==null?void 0:r.plan_name);return typeof n!="string"?!1:["starter","starter plan"].includes(n.trim().toLowerCase())};export{l as u};
