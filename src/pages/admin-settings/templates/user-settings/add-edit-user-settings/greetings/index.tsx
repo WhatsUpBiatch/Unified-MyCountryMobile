@@ -24,15 +24,8 @@ interface IGREETINGPROPS {
    than beside this component: outside it, it stays put while the settings
    scroll under it. Optional, and unused by the other screens here. */
 const GreetingNotification: FC<IGREETINGPROPS> = ({ footer, containerClass }: any) => {
-  const { greetingList, voicemailList } = useGetGreetings();
+  const { greetingList, voicemailList, allGreetings } = useGetGreetings();
   const isStarterPlan = useIsStarterPlan();
-  const optionsData: Record<string, GreetingItem[]> = {
-    welcome_greeting: greetingList,
-    on_hold: greetingList,
-    on_hold_music: greetingList,
-    ring_tone: greetingList,
-    voicemail: voicemailList,
-  };
 
   const {
     formState: { errors },
@@ -41,6 +34,75 @@ const GreetingNotification: FC<IGREETINGPROPS> = ({ footer, containerClass }: an
   } = useFormContext();
 
   const watchMedia = watch('greetings');
+
+  /* One entry per row, named after the row.
+   *
+   * These four rows shared the whole recording library, so each dropdown listed
+   * everything the company had ever recorded — including IVR prompts like
+   * "Wrong input" and "No action", offered as a welcome message. Picking a
+   * recording for a slot became a matter of knowing which of a dozen names
+   * happened to belong there.
+   *
+   * Each row now offers exactly one, and calls it what the row is for. Which
+   * recording that is, in order of preference:
+   *   1. one made from this row — an upload already carries the row's name as
+   *      its type, so anything added here belongs here;
+   *   2. whatever the row currently has saved, so an existing choice is never
+   *      dropped out from under somebody;
+   *   3. a recording whose name matches the row, for libraries filled in before
+   *      any of this;
+   *   4. the first recording of the right kind, so the row is never empty.
+   *
+   * The name shown is the row's, not the file's. That is the point of the
+   * change and also its cost: the row will read "On hold music" whatever the
+   * underlying recording actually is, so the recording chosen for a row has to
+   * be one that genuinely suits it. Add the right one from the row itself and
+   * rule 1 keeps it there. */
+  const SLOT_OPTION_LABEL: Record<string, string> = {
+    welcome_greeting: 'Welcome',
+    on_hold: 'On hold music',
+    on_hold_music: 'On hold music',
+    ring_tone: 'Ringback tone',
+    voicemail: 'Voicemail message',
+  };
+
+  const forSlot = (slot: string, fallback: GreetingItem[]) => {
+    const saved = watchMedia?.[slot]?.value;
+    const named = SLOT_OPTION_LABEL[slot]?.toLowerCase();
+
+    const chosen =
+      allGreetings.find((item: GreetingItem) => item.type === slot) ??
+      fallback.find((item: GreetingItem) => item.id === saved?.value || item.name === saved?.label) ??
+      fallback.find((item: GreetingItem) => item.name?.toLowerCase() === named) ??
+      fallback[0];
+
+    /* Renamed for display only. The record keeps its own name everywhere else,
+       so the recordings library still shows what the file is really called. */
+    return chosen ? [{ ...chosen, name: SLOT_OPTION_LABEL[slot] ?? chosen.name }] : [];
+  };
+
+  /* The same rename applied to what the closed box shows.
+   *
+   * The list and the selected value come from different places: the list is
+   * built here, the value is whatever was saved into the form, label and all.
+   * Relabelling only the list left the row showing the old recording's name —
+   * "Hey" — above a list whose single entry read "Welcome". This keeps the two
+   * saying the same thing. Only the label is swapped; the saved value is
+   * untouched, so nothing about which file is chosen changes. */
+  const displayValue = (slot: string) => {
+    const saved = watchMedia?.[slot]?.value;
+    if (!saved?.value) return saved;
+    return { ...saved, label: SLOT_OPTION_LABEL[slot] ?? saved.label };
+  };
+
+  const optionsData: Record<string, GreetingItem[]> = {
+    welcome_greeting: forSlot('welcome_greeting', greetingList),
+    on_hold: forSlot('on_hold', greetingList),
+    on_hold_music: forSlot('on_hold_music', greetingList),
+    ring_tone: forSlot('ring_tone', greetingList),
+    voicemail: forSlot('voicemail', voicemailList),
+  };
+
 
   const mediaOptionsGreetingNotifications = [
     {
@@ -144,7 +206,7 @@ const GreetingNotification: FC<IGREETINGPROPS> = ({ footer, containerClass }: an
                     label: item.name,
                     value: item.filename,
                   }))}
-                  value={watch(`greetings.${name}.value`)}
+                  value={displayValue(name)}
                   errors={(errors.greetings as any)?.[name]?.value?.value?.message}
                 />
               </SettingRow>

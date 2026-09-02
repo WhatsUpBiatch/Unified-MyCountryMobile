@@ -900,6 +900,20 @@
    console blue. Following --primary made these three controls the only orange
    things on an otherwise blue screen. */
 
+/* Stop, and anything else that ends something in progress. Red because that is
+   what a recording control is expected to be, and filled because it has to be
+   found at a glance while the microphone is live. */
+.mcm-page .cs-btn-danger {
+  background: var(--crit);
+  color: #fff;
+  border-color: transparent;
+}
+@media (hover: hover) {
+  .mcm-page .cs-btn-danger:hover {
+    background: color-mix(in oklab, var(--crit) 88%, black);
+  }
+}
+
 /* A quiet second action beside a primary one — Back. */
 .mcm-page .cs-btn-outline {
   background: var(--surface);

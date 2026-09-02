@@ -25,7 +25,6 @@ import { COMPANY_ROOT, COMPANY_SECTIONS } from './company-sections';
 export const BackButton = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-
   const target = useMemo(() => {
     /* The section is the first segment after the area root; anything deeper is
        a screen inside that section and still belongs to it. */

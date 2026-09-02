@@ -7,6 +7,9 @@ import DialpadConferenceMembersList from '@/components/dialpad/components/dialpa
 import DialpadMaxiScriptSidebar from '@/components/dialpad/components/dialpad-maxi-script-sidebar';
 import { useDialpadCallerIdOptions } from '@/hooks/use-dialpad-caller-id-options';
 import { useUsersDirectory } from '@/hooks/use-users-directory';
+import { useSocketEvents } from '@/hooks/use-socket-events';
+import { useUser } from '@/hooks/use-user';
+import { getHeaderFirstValue } from '@/components/dialpad/session-display';
 import Flag from '@/components/flag';
 import type { DialpadSession } from '@/context/dialpad-context';
 import type { ConsoleCallRow } from './call-list-column';
@@ -22,6 +25,19 @@ import {
   lineHealth,
   type ConsoleTurn,
 } from './copilot-adapter';
+
+/* Mirrors dialpad-transcript-manager.tsx's own helper of the same name - the
+   manual "Transcribe" button needs the same call id the automatic path uses
+   to start transcription, and it isn't exported from that file. */
+const getSessionSipCallId = (session: DialpadSession | null | undefined): string => {
+  if (!session) return '';
+  return String(
+    session?.liveCallData?.sip_call_id ||
+      getHeaderFirstValue(session?.headers, 'x-cid') ||
+      getHeaderFirstValue(session?.headers, 'call-id') ||
+      '',
+  ).trim();
+};
 
 const KEYS: [string, string][] = [
   ['1', ''],
@@ -355,6 +371,8 @@ const StageColumn = ({
   const [callerIdOpen, setCallerIdOpen] = useState(false);
   const { users } = useUsersDirectory();
   const { dial: dial2 } = useConsoleDialer();
+  const { socketEventsManager } = useSocketEvents();
+  const { user } = useUser();
 
   // same resolution order the dialpad's maxi side panel uses
   const scriptId = String(
@@ -836,13 +854,35 @@ const StageColumn = ({
             <button
               type="button"
               className="ctl"
-              onClick={() =>
-                session &&
-                dialpad.handleTranscription(
-                  session,
-                  session.transcriptionHasStarted === 'start' ? 'stop' : 'start',
-                )
-              }
+              onClick={() => {
+                if (!session) return;
+                const startingNow = session.transcriptionHasStarted !== 'start';
+                /* dialpad.handleTranscription only updates local UI state - it
+                   never asks the switch to actually start transcribing. The
+                   automatic path (dialpad-transcript-manager.tsx) separately
+                   emits this same request; this button skipped that step
+                   entirely, so clicking it showed "streaming" with no turns
+                   ever arriving. Mirror the automatic path's request here. */
+                if (startingNow && socketEventsManager) {
+                  socketEventsManager.emit('transcript', {
+                    data: {
+                      type: 'transcript',
+                      agent_extension: user?.user_info?.extension || '',
+                      agent_name: `${user?.user_info?.first_name || ''} ${user?.user_info?.last_name || ''}`.trim(),
+                      contact_number: session.remoteNumber || '',
+                      direction: session.direction === 'outgoing' ? 'outbound' : 'inbound',
+                      sipCallId: getSessionSipCallId(session),
+                      sentiment_monitoring: false,
+                      bot_enabled: false,
+                    },
+                  });
+                } else if (!startingNow && socketEventsManager) {
+                  socketEventsManager.emit('transcript-stop', {
+                    data: { type: 'transcript-stop', sipCallId: getSessionSipCallId(session) },
+                  });
+                }
+                dialpad.handleTranscription(session, startingNow ? 'start' : 'stop');
+              }}
             >
               <Ic n="book" />
               {session?.transcriptionHasStarted === 'start' ? 'Stop ASR' : 'Transcribe'}

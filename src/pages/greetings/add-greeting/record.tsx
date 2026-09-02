@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, FC, useMemo } from 'react';
+import { Mic, Square } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { formatDuration } from '@/lib/utils';
 import RecordingGif from '@/assets/images/recordingimg.webp';
@@ -83,7 +85,18 @@ const Record: FC = () => {
         <div className="gap-4 flex flex-col p-3 justify-center">
           <div className="flex flex-col gap-2 justify-center w-full items-center">
             {!recording && !WatchUploadFile && (
-              <Button variant={'outline'} type="button" onClick={handleStartRecording}>
+              /* The one thing to do on this tab, and until now an outline button
+                 adrift in the middle of a large empty box — and inside a
+                 .mcm-page screen the reset there strips an outline of its
+                 border, fill and colour, so it arrived as bare text. Filled,
+                 with the icon that names it. */
+              <Button
+                variant="primary"
+                type="button"
+                className="cs-save px-5"
+                onClick={handleStartRecording}
+              >
+                <Mic className="h-4 w-4" />
                 Start Recording
               </Button>
             )}
@@ -98,7 +111,15 @@ const Record: FC = () => {
                     {formatDuration(duration)}
                   </small>
                 </div>
-                <Button type="button" variant={'outline'} onClick={handleStopRecording}>
+                {/* Red while the microphone is live, so the way to end it is
+                    the one obvious control on screen. */}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="cs-btn-danger px-5"
+                  onClick={handleStopRecording}
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
                   Stop Recording
                 </Button>
               </>
@@ -111,7 +132,13 @@ const Record: FC = () => {
                   <Button type="button" variant={'secondary'} onClick={handleCloseAudio}>
                     Close
                   </Button>
-                  <Button type="button" variant={'outline'} onClick={handleRecordAgain}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cs-btn-outline"
+                    onClick={handleRecordAgain}
+                  >
+                    <Mic className="h-4 w-4" />
                     Record Again
                   </Button>
                 </div>

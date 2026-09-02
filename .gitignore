@@ -32,3 +32,13 @@ secrets-backup/
 
 # Live-managed by Claude Code; accumulates local command text incl. credentials
 .claude/settings.json
+
+# Timestamped backups left behind by in-place patch scripts (*.bak-20260902-...)
+*.bak
+*.bak-*
+*.orig
+*.rej
+*~
+
+# Generated lint report
+eslint-output.json

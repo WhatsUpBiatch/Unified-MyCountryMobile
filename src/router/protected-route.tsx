@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import AccessDenied from '@/components/access-denied';
 import UpgradeRequired from '@/components/plan-upgrade-required';
 import { useCompanyFeatures } from '@/hooks/rbac';
 import { useUser } from '@/hooks/use-user';
@@ -18,11 +19,15 @@ interface ProtectedRouteProps {
   element: React.ReactElement;
   guard?: FeatureGuard;
   trialRestricted?: boolean;
+  /* What this route is called in the navigation, so a refusal can name it
+     rather than saying "this section". */
+  sectionName?: string;
 }
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   element,
   guard,
   trialRestricted = false,
+  sectionName,
 }) => {
   const { features, companyFeatures, IS_ADMIN } = useCompanyFeatures();
   const { user } = useUser();
@@ -43,10 +48,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   /* Checked before the plan and permission gates: an administrator-only page is
-     not an upgrade problem, so a non-admin is sent away rather than shown a
-     screen offering them a bigger plan. */
+     not an upgrade problem, so this must not offer them a bigger plan.
+
+     It says so in place rather than redirecting. A silent bounce to the
+     dashboard reads as a broken link — you click Security and end up on the
+     home page with nothing said — and the tab strip cannot help someone who
+     arrived from a bookmark or a pasted address. */
   if (guard?.adminOnly && !IS_ADMIN) {
-    return <Navigate to="/dashboard" replace />;
+    return <AccessDenied section={sectionName} />;
   }
 
   // Plan availability must always come from the company subscription, even

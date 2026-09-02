@@ -32,10 +32,19 @@ const getHeaderFirstValue = (
 const isTruthyHeaderValue = (value: string): boolean =>
   ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
 
+/* The settings-editor UI (admin-settings/templates/user-settings, and the
+   campaign/queue settings forms) writes this as `{enabled, override}`, not a
+   bare boolean - `users.settings.transcription` and `.ai_call_monitoring`
+   have historically been saved as a plain boolean instead, so both shapes
+   exist. Treating an object as automatically falsy silently disabled
+   auto-start for any user whose setting was saved through that editor. */
 const isTruthySettingValue = (value: unknown): boolean => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value === 1;
   if (typeof value === 'string') return isTruthyHeaderValue(value);
+  if (value && typeof value === 'object') {
+    return isTruthySettingValue((value as { enabled?: unknown }).enabled);
+  }
   return false;
 };
 

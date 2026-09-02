@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { callQueueInfo, getCampaignDetail, getContactInfoV1 } from '@/services/api';
 import { useUser } from '@/hooks/use-user';
-import { handleAlert, makeAISocketConnection } from '@/lib/utils';
+import { getEnv, handleAlert, makeAISocketConnection, SESSION_NAME } from '@/lib/utils';
 import { queueIdFromHeaders } from '@/lib/queue-session';
 import JsSIP from 'jssip';
 import {
@@ -116,6 +116,7 @@ export type DialpadSession = {
   isMuted: boolean;
   isSpeakerOn: boolean;
   isRecording: boolean;
+  recordingLocked?: boolean;
   hasAnswered: boolean;
   username?: string;
   email?: string;
@@ -676,6 +677,7 @@ export const DialpadProvider = ({ children }: { children: ReactNode }) => {
 
   const uaRef = useRef<any>(null);
   const sessionRef = useRef<Record<string, any>>({});
+  const recordingStatusCheckedRef = useRef<Set<string>>(new Set());
   const isStartingRef = useRef(false);
   const credentialKeyRef = useRef<string | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
@@ -2885,11 +2887,47 @@ export const DialpadProvider = ({ children }: { children: ReactNode }) => {
     const session = sessionRef.current[sessionId];
     if (!session || !tone) return;
     session.sendDTMF(tone, {
-      duration: 160,
+      duration: 100,
       interToneGap: 500,
-      transportType: 'RFC2833',
+      transportType: 'INFO',
     });
   }, []);
+
+  // Ask the switch whether this live call is recording (and whether it is
+  // locked by automatic recording), so the Record button reflects reality on
+  // every call, inbound or outbound, regardless of the agent's own settings.
+  useEffect(() => {
+    Object.entries(sessions).forEach(([sessionId, sess]: [string, any]) => {
+      const st = String(sess?.status || '').toLowerCase();
+      if (
+        (st === 'accepted' || st === 'confirmed' || st === 'connected') &&
+        !recordingStatusCheckedRef.current.has(sessionId)
+      ) {
+        recordingStatusCheckedRef.current.add(sessionId);
+        const s = sessionRef.current[sessionId];
+        const sipCallId = s?._request?.call_id || s?.id || sessionId;
+        const token = localStorage.getItem(SESSION_NAME) || '';
+        fetch(`${getEnv().VITE_API_BASE_URL}/api/internal/recording-control/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ sip_call_id: sipCallId, action: 'status' }),
+        })
+          .then((r) => r.json().catch(() => ({})))
+          .then((res: any) => {
+            if (res && res.success) {
+              patchSession(sessionId, {
+                isRecording: !!res.recording,
+                recordingLocked: !!res.locked,
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    });
+    recordingStatusCheckedRef.current.forEach((id) => {
+      if (!sessions[id]) recordingStatusCheckedRef.current.delete(id);
+    });
+  }, [sessions, patchSession]);
 
   const toggleRecordingCall = useCallback(
     (sessionId: string) => {
@@ -2897,22 +2935,53 @@ export const DialpadProvider = ({ children }: { children: ReactNode }) => {
       const sessionState = sessions[sessionId];
       if (!session || !sessionState) return;
       if (!isLiveSessionStatus(sessionState.status)) return;
+      if ((sessionState as any).recordingLocked) return;
 
       const shouldStartRecording = !sessionState.isRecording;
-      const dtmfTone = shouldStartRecording ? '*2' : '*3';
+      // The SIP Call-ID FreeSWITCH stores as sip_call_id, so the server can find
+      // this exact live channel. DTMF does not survive this WebRTC path, so the
+      // Record button asks the server to toggle recording instead of sending a tone.
+      const sipCallId =
+        session?._request?.call_id || session?.id || sessionId;
+
+      // Optimistic UI; roll back if the server rejects.
+      patchSession(sessionId, { isRecording: shouldStartRecording });
 
       try {
-        // JsSIP sendDTMF supports multi-symbol strings such as '*2' and '*3'.
-        sendDtmf(sessionId, dtmfTone);
-        patchSession(sessionId, { isRecording: shouldStartRecording });
+        const token = localStorage.getItem(SESSION_NAME) || '';
+        fetch(`${getEnv().VITE_API_BASE_URL}/api/internal/recording-control/toggle`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sip_call_id: sipCallId,
+            action: shouldStartRecording ? 'start' : 'stop',
+          }),
+        })
+          .then((response) => response.json().catch(() => ({})))
+          .then((result: any) => {
+            if (!result?.success) {
+              patchSession(sessionId, { isRecording: !shouldStartRecording });
+              setLastError(
+                result?.message ||
+                  (shouldStartRecording
+                    ? 'Unable to start recording'
+                    : 'Unable to stop recording'),
+              );
+            }
+          })
+          .catch((error: any) => {
+            patchSession(sessionId, { isRecording: !shouldStartRecording });
+            setLastError(error?.message || 'Unable to toggle recording');
+          });
       } catch (error: any) {
-        setLastError(
-          error?.message ||
-            (shouldStartRecording ? 'Unable to start recording' : 'Unable to stop recording'),
-        );
+        patchSession(sessionId, { isRecording: !shouldStartRecording });
+        setLastError(error?.message || 'Unable to toggle recording');
       }
     },
-    [patchSession, sendDtmf, sessions],
+    [patchSession, sessions],
   );
 
   useEffect(() => {

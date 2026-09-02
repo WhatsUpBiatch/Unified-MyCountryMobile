@@ -265,11 +265,13 @@ const DialpadConnectedScreen = ({
     manualRecordingOverride === null
       ? automaticRecordingEnabled || isRecording
       : manualRecordingOverride;
-  const canToggleRecording = isInboundCall
-    ? inboundRecordDynamicEnabled
-    : isOutboundCall
-      ? outboundOnDemandRecordingEnabled
-      : false;
+  const canToggleRecording = (automaticRecordingEnabled || Boolean(sessionForStatus?.recordingLocked))
+    ? false
+    : isInboundCall
+      ? inboundRecordDynamicEnabled
+      : isOutboundCall
+        ? outboundOnDemandRecordingEnabled
+        : false;
   const sessionStatus = String(sessionForStatus?.status || '').toLowerCase();
   const shouldShowRecordAction = !['connecting', 'ringing'].includes(sessionStatus);
   const isSessionConnected = ['accepted', 'confirmed'].includes(sessionStatus);

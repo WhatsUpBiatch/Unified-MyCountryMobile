@@ -47,7 +47,15 @@ const SelectGreeting: FC<IGREETINGPROPS> = ({
   audioCustomClass = '',
   selectCustomClass = '',
   selectCustomClassSecond = '',
-  width = '',
+  /* A width for the Add-a-recording drawer, because leaving it blank does not
+     mean "default" — the drawer falls back to `calc(100% - 16rem - 5rem)`, very
+     nearly the whole window. A dropzone, a name and a type do not need a
+     thousand pixels, and stretched that wide the form read as an empty page
+     with a few controls stranded in it.
+
+     Capped against the viewport as well as fixed, so a narrow window gets the
+     room it has rather than a drawer wider than the screen. */
+  width = 'min(560px, calc(100vw - 2rem))',
   isRefetchable = true,
   refetch = () => {},
   onGreetingUploadStart = () => {},

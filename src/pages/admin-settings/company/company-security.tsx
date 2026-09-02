@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, ShieldCheck, Timer, Network, Info, UserMinus } from 'lucide-react';
+import {
+  KeyRound,
+  ShieldCheck,
+  Timer,
+  Network,
+  Info,
+  UserMinus,
+  History,
+  Unlock,
+  AlertTriangle,
+} from 'lucide-react';
 
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
@@ -11,6 +21,16 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { handleAlert } from '@/lib/utils';
 import { getUserList } from '@/services/api';
+import { useUser } from '@/hooks/use-user';
+import {
+  type AllowlistAuditEntry,
+  type AllowlistEntry,
+  type AllowlistKind,
+  type BreakGlassWindow,
+  appendAudit,
+  migrateLegacyAllowlist,
+} from '@/lib/ip-allowlist';
+import IpListPanel, { type IpListPanelHandle, IP_LIST_MAX_ENTRIES } from './ip-list-panel';
 import {
   COMPANY_DEFAULTS_QUERY_KEY,
   fetchCompanyDefaults,
@@ -70,8 +90,17 @@ const IDLE_MIN_MINUTES = 5;
 const IDLE_MAX_MINUTES = 480;
 const IDLE_HIPAA_MINUTES = 15;
 
-/* other established systems caps the allowlist at 150 blocks and accepts IPv4 only. */
-const MAX_CIDR_BLOCKS = 150;
+/* How long a pre-armed emergency bypass stays open. Long enough to be useful
+   if a home connection's address changes overnight; short enough that arming
+   it and forgetting about it is not a standing hole. */
+const BREAK_GLASS_HOURS = 2;
+
+/* Where a browser can ask what its own public address is. Run client-side
+   because the alternative - a same-origin endpoint that echoes the request's
+   source IP back - needs a backend deploy this session cannot make (see the
+   file header). api64.ipify.org answers with IPv6 when the browser has v6
+   connectivity and falls back to IPv4 otherwise, so one call covers both. */
+const MY_IP_LOOKUP_URL = 'https://api64.ipify.org?format=json';
 
 /* Roles this platform treats as administrative. the usual hard rule is that
    Company, Office and Regional Admins cannot be put on the MFA exception list;
@@ -86,8 +115,12 @@ interface SecurityForm {
   mfa_exempt_user_uuids: string[];
   idle_timeout_enabled: boolean;
   idle_timeout_minutes: string;
-  ip_allowlist_enabled: boolean;
-  ip_allowlist_text: string;
+  ip_allow_enabled: boolean;
+  ip_allow_entries: AllowlistEntry[];
+  ip_block_enabled: boolean;
+  ip_block_entries: AllowlistEntry[];
+  ip_allowlist_audit: AllowlistAuditEntry[];
+  ip_allowlist_break_glass: BreakGlassWindow | null;
   sso_enabled: boolean;
   sso_idp_entity_id: string;
   sso_idp_sso_url: string;
@@ -104,8 +137,12 @@ const DEFAULT_FORM: SecurityForm = {
   mfa_exempt_user_uuids: [],
   idle_timeout_enabled: false,
   idle_timeout_minutes: '30',
-  ip_allowlist_enabled: false,
-  ip_allowlist_text: '',
+  ip_allow_enabled: false,
+  ip_allow_entries: [],
+  ip_block_enabled: false,
+  ip_block_entries: [],
+  ip_allowlist_audit: [],
+  ip_allowlist_break_glass: null,
   sso_enabled: false,
   sso_idp_entity_id: '',
   sso_idp_sso_url: '',
@@ -144,7 +181,7 @@ const buildFormFromSettings = (settings: Record<string, any>): SecurityForm => {
   const security = settings?.[SECURITY_KEY] || {};
   const mfa = security?.mfa || {};
   const idle = security?.idle_timeout || {};
-  const allowlist = security?.ip_allowlist || {};
+  const allowlist = migrateLegacyAllowlist(security?.ip_allowlist);
   const sso = security?.sso || {};
 
   const storedSeconds = Number(idle?.seconds);
@@ -158,10 +195,12 @@ const buildFormFromSettings = (settings: Record<string, any>): SecurityForm => {
     mfa_exempt_user_uuids: toUuidList(mfa?.exempt_user_uuids),
     idle_timeout_enabled: toBoolean(idle?.enabled, DEFAULT_FORM.idle_timeout_enabled),
     idle_timeout_minutes: storedMinutes,
-    ip_allowlist_enabled: toBoolean(allowlist?.enabled, DEFAULT_FORM.ip_allowlist_enabled),
-    ip_allowlist_text: Array.isArray(allowlist?.cidr_blocks)
-      ? allowlist.cidr_blocks.filter((block: any) => typeof block === 'string').join('\n')
-      : DEFAULT_FORM.ip_allowlist_text,
+    ip_allow_enabled: allowlist.allow.enabled,
+    ip_allow_entries: allowlist.allow.entries,
+    ip_block_enabled: allowlist.block.enabled,
+    ip_block_entries: allowlist.block.entries,
+    ip_allowlist_audit: allowlist.audit_log,
+    ip_allowlist_break_glass: allowlist.break_glass ?? null,
     sso_enabled: toBoolean(sso?.enabled, DEFAULT_FORM.sso_enabled),
     sso_idp_entity_id: toStringValue(sso?.idp_entity_id, DEFAULT_FORM.sso_idp_entity_id),
     sso_idp_sso_url: toStringValue(sso?.idp_sso_url, DEFAULT_FORM.sso_idp_sso_url),
@@ -172,13 +211,6 @@ const buildFormFromSettings = (settings: Record<string, any>): SecurityForm => {
     ),
   };
 };
-
-/** Splits the textarea into trimmed, non-empty lines. */
-const parseCidrLines = (text: string): string[] =>
-  text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '');
 
 const buildSecurityPayload = (form: SecurityForm) => ({
   version: SECURITY_SCHEMA_VERSION,
@@ -195,8 +227,21 @@ const buildSecurityPayload = (form: SecurityForm) => ({
     seconds: form.idle_timeout_enabled ? Number(form.idle_timeout_minutes) * 60 : null,
   },
   ip_allowlist: {
-    enabled: form.ip_allowlist_enabled,
-    cidr_blocks: form.ip_allowlist_enabled ? parseCidrLines(form.ip_allowlist_text) : [],
+    /* Two fully independent lists, each with its own toggle - not a single
+       list with a mode switch. A block match is always checked first and
+       always wins, whatever the allow list says (see evaluateIpAllowlist in
+       lib/ip-allowlist.ts); entries are kept even while a list is off, so
+       pausing one never means retyping it later. */
+    allow: {
+      enabled: form.ip_allow_enabled,
+      entries: form.ip_allow_entries,
+    },
+    block: {
+      enabled: form.ip_block_enabled,
+      entries: form.ip_block_entries,
+    },
+    audit_log: form.ip_allowlist_audit,
+    break_glass: form.ip_allowlist_break_glass,
   },
   sso: {
     enabled: form.sso_enabled,
@@ -212,23 +257,6 @@ const isWholeNumberInRange = (value: string, min: number, max: number) => {
   const parsed = Number(value);
   return parsed >= min && parsed <= max;
 };
-
-/* IPv4 CIDR only, because that is all other established systems accepts. Written out rather than
-   pulled from a library so the rules are visible: four octets of 0-255, then a
-   prefix length of 0-32. An IPv6 block is detected separately so the error can
-   say why it was refused instead of just "invalid". */
-const isIpv4Cidr = (block: string): boolean => {
-  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(block);
-  if (!match) return false;
-  const octets = [match[1], match[2], match[3], match[4]];
-  if (octets.some((octet) => octet.length > 1 && octet.startsWith('0'))) return false;
-  if (octets.some((octet) => Number(octet) > 255)) return false;
-  const prefix = match[5];
-  if (prefix.length > 1 && prefix.startsWith('0')) return false;
-  return Number(prefix) <= 32;
-};
-
-const looksLikeIpv6 = (block: string): boolean => block.includes(':');
 
 const isHttpsUrl = (value: string): boolean => {
   try {
@@ -281,13 +309,53 @@ const textareaClass =
 
 const CompanySecurity = () => {
   const queryClient = useQueryClient();
+  const { user } = useUser();
+  const actorUuid = String(user?.user_info?.uuid || '');
+  const actorName =
+    `${user?.user_info?.first_name || ''} ${user?.user_info?.last_name || ''}`.trim() ||
+    String(user?.user_info?.email || 'An admin');
+
   const [form, setForm] = useState<SecurityForm>(DEFAULT_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [peopleSearch, setPeopleSearch] = useState('');
-  /* The lockout acknowledgement is deliberately not stored: it is a decision
-     made at the moment of saving, not a company setting. Re-ticking it on every
-     save is the point. */
-  const [lockoutAcknowledged, setLockoutAcknowledged] = useState(false);
+  /* The lockout acknowledgement is deliberately not stored, and deliberately
+     kept as two independent booleans: the allow list and the block list are
+     two independent decisions to save, each with its own lockout risk, and
+     ticking the box for one must never silently cover the other. Re-ticking
+     on every save is the point. */
+  const [allowLockoutAcknowledged, setAllowLockoutAcknowledged] = useState(false);
+  const [blockLockoutAcknowledged, setBlockLockoutAcknowledged] = useState(false);
+
+  /* ------------------------------------------------------- the allowlist UI */
+
+  /* Which list's table is currently on screen. The two lists are independent
+     data - own toggle, own entries - but only one is shown at a time, so a
+     save-time error routes here too (switch to the tab with the problem)
+     rather than leaving the admin to go hunting for it. */
+  const [activeListTab, setActiveListTab] = useState<AllowlistKind>('allow');
+  const allowPanelRef = useRef<IpListPanelHandle | null>(null);
+  const blockPanelRef = useRef<IpListPanelHandle | null>(null);
+
+  /* Looked up once per visit to the page, not on every keystroke or render -
+     it is a real network call to a third party, and there is no reason to
+     repeat it. `null` = not looked up yet, `''` = looked up and failed. */
+  const [myIp, setMyIp] = useState<string | null>(null);
+  const [myIpLoading, setMyIpLoading] = useState(false);
+  const lookupStarted = useRef(false);
+
+  useEffect(() => {
+    if (lookupStarted.current) return;
+    lookupStarted.current = true;
+    setMyIpLoading(true);
+    fetch(MY_IP_LOOKUP_URL)
+      .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
+      .then((data) => setMyIp(typeof data?.ip === 'string' ? data.ip : ''))
+      .catch(() => setMyIp(''))
+      .finally(() => setMyIpLoading(false));
+  }, []);
+
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [breakGlassReason, setBreakGlassReason] = useState('');
 
   const {
     data: companyDefaultTemplate = null,
@@ -320,9 +388,9 @@ const CompanySecurity = () => {
   useEffect(() => {
     setForm(savedForm);
     setErrors({});
-    setLockoutAcknowledged(false);
+    setAllowLockoutAcknowledged(false);
+    setBlockLockoutAcknowledged(false);
   }, [savedForm]);
-
 
   const { mutate: saveSecurity, isPending: isSaving } = useMutation({
     mutationFn: saveCompanyDefaults,
@@ -337,11 +405,100 @@ const CompanySecurity = () => {
          built on a stale blob and silently drops what was just written. */
       queryClient.invalidateQueries({ queryKey: COMPANY_DEFAULTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['userTemplateList'] });
-      setLockoutAcknowledged(false);
+      setAllowLockoutAcknowledged(false);
+      setBlockLockoutAcknowledged(false);
     },
   });
 
   const updateForm = (patch: Partial<SecurityForm>) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const logAllowlistAction = (action: AllowlistAuditEntry['action'], detail: string) => {
+    updateForm({
+      ip_allowlist_audit: appendAudit(form.ip_allowlist_audit, {
+        at: new Date().toISOString(),
+        actor_uuid: actorUuid || undefined,
+        actor_name: actorName,
+        action,
+        detail,
+      }),
+    });
+  };
+
+  /* One pair of handlers, parameterised by which list, rather than four
+     near-identical functions - the allow list and the block list add/remove
+     entries and enable/disable the same way, they just write into a
+     different half of `form` and log a different word. */
+  const addEntry = (kind: AllowlistKind, entry: AllowlistEntry) => {
+    if (kind === 'allow') {
+      updateForm({ ip_allow_entries: [...form.ip_allow_entries, entry] });
+    } else {
+      updateForm({ ip_block_entries: [...form.ip_block_entries, entry] });
+    }
+    logAllowlistAction(
+      'add',
+      `${kind === 'block' ? 'Block list' : 'Allow list'}: ${
+        entry.label ? `${entry.cidr} (${entry.label})` : entry.cidr
+      }`,
+    );
+  };
+
+  const removeEntry = (kind: AllowlistKind, entry: AllowlistEntry) => {
+    if (kind === 'allow') {
+      updateForm({
+        ip_allow_entries: form.ip_allow_entries.filter((item) => item.id !== entry.id),
+      });
+    } else {
+      updateForm({
+        ip_block_entries: form.ip_block_entries.filter((item) => item.id !== entry.id),
+      });
+    }
+    logAllowlistAction(
+      'remove',
+      `${kind === 'block' ? 'Block list' : 'Allow list'}: ${
+        entry.label ? `${entry.cidr} (${entry.label})` : entry.cidr
+      }`,
+    );
+  };
+
+  /* Turning a list on reveals its own panel below - it does not, on its own,
+     restrict anything yet. Nothing is enforced until the whole page is
+     saved, and `validateForm` refuses that save while a list is on and empty
+     (allow list only - an empty block list is a normal, harmless state), or
+     its own lockout checkbox is unticked. */
+  const toggleAllow = (enabled: boolean) => {
+    updateForm({ ip_allow_enabled: enabled });
+    logAllowlistAction(enabled ? 'enable' : 'disable', 'Allow list');
+  };
+
+  const toggleBlock = (enabled: boolean) => {
+    updateForm({ ip_block_enabled: enabled });
+    logAllowlistAction(enabled ? 'enable' : 'disable', 'Block list');
+  };
+
+  const armBreakGlass = () => {
+    const expires = new Date(Date.now() + BREAK_GLASS_HOURS * 60 * 60 * 1000).toISOString();
+    const window: BreakGlassWindow = {
+      active: true,
+      expires_at: expires,
+      created_by_uuid: actorUuid || undefined,
+      created_by_name: actorName,
+      reason: breakGlassReason.trim() || 'No reason given',
+    };
+    updateForm({ ip_allowlist_break_glass: window });
+    logAllowlistAction('break_glass_armed', `${BREAK_GLASS_HOURS}h window - ${window.reason}`);
+    setBreakGlassReason('');
+  };
+
+  const clearBreakGlass = () => {
+    updateForm({ ip_allowlist_break_glass: null });
+    logAllowlistAction('break_glass_cleared', 'Cleared before it expired');
+  };
+
+  const activeBreakGlass =
+    form.ip_allowlist_break_glass?.active &&
+    Date.parse(form.ip_allowlist_break_glass.expires_at) > Date.now()
+      ? form.ip_allowlist_break_glass
+      : null;
 
   const rosterByUuid = useMemo(() => {
     const map = new Map<string, RosterPerson>();
@@ -369,11 +526,6 @@ const CompanySecurity = () => {
         .map((uuid) => rosterByUuid.get(uuid))
         .filter((person): person is RosterPerson => Boolean(person?.isAdmin)),
     [form.mfa_exempt_user_uuids, rosterByUuid],
-  );
-
-  const cidrBlocks = useMemo(
-    () => parseCidrLines(form.ip_allowlist_text),
-    [form.ip_allowlist_text],
   );
 
   const toggleExempt = (person: RosterPerson, checked: boolean) => {
@@ -407,27 +559,33 @@ const CompanySecurity = () => {
       nextErrors.idle_timeout_minutes = `Enter a whole number of minutes between ${IDLE_MIN_MINUTES} and ${IDLE_MAX_MINUTES} (8 hours)`;
     }
 
-    if (form.ip_allowlist_enabled) {
-      if (!cidrBlocks.length) {
-        nextErrors.ip_allowlist_text =
-          'Add at least one CIDR block, or turn the allowlist off. An empty allowlist that is switched on would mean nobody.';
-      } else if (cidrBlocks.length > MAX_CIDR_BLOCKS) {
-        nextErrors.ip_allowlist_text = `${cidrBlocks.length} blocks entered. The limit is ${MAX_CIDR_BLOCKS}.`;
-      } else {
-        const ipv6 = cidrBlocks.filter(looksLikeIpv6);
-        const invalid = cidrBlocks.filter((block) => !looksLikeIpv6(block) && !isIpv4Cidr(block));
-        if (ipv6.length) {
-          nextErrors.ip_allowlist_text = `IPv6 is not supported: ${ipv6.slice(0, 3).join(', ')}${
-            ipv6.length > 3 ? ` and ${ipv6.length - 3} more` : ''
-          }. Use IPv4 blocks such as 203.0.113.0/24.`;
-        } else if (invalid.length) {
-          nextErrors.ip_allowlist_text = `Not valid IPv4 CIDR: ${invalid.slice(0, 3).join(', ')}${
-            invalid.length > 3 ? ` and ${invalid.length - 3} more` : ''
-          }. Each line must look like 203.0.113.0/24.`;
-        } else if (!lockoutAcknowledged) {
-          nextErrors.ip_allowlist_text =
-            'Confirm you have checked that your own public IP falls inside one of these blocks.';
-        }
+    /* Two fully independent lists - each validated on its own, against its
+       own lockout checkbox, with its own error key so one list's problem
+       never blocks or masks the other's save. */
+    if (form.ip_allow_enabled) {
+      if (form.ip_allow_entries.length > IP_LIST_MAX_ENTRIES) {
+        nextErrors.ip_allow_entries = `${form.ip_allow_entries.length} entries. The limit is ${IP_LIST_MAX_ENTRIES}.`;
+      } else if (!form.ip_allow_entries.length) {
+        /* An empty, enabled allow list means "let nobody in" - the one state
+           the block list has no equivalent of, since an empty block list
+           just means "block nobody", a perfectly ordinary starting point. */
+        nextErrors.ip_allow_entries =
+          'Add at least one address or block, or turn the allow list off. An empty allow list that is switched on would mean nobody.';
+      } else if (!allowLockoutAcknowledged) {
+        nextErrors.ip_allow_entries =
+          'Confirm you have checked that your own public IP falls inside one of these blocks.';
+      }
+    }
+
+    if (form.ip_block_enabled) {
+      if (form.ip_block_entries.length > IP_LIST_MAX_ENTRIES) {
+        nextErrors.ip_block_entries = `${form.ip_block_entries.length} entries. The limit is ${IP_LIST_MAX_ENTRIES}.`;
+      } else if (form.ip_block_entries.length > 0 && !blockLockoutAcknowledged) {
+        /* An empty, enabled block list blocks nobody yet - nothing to
+           acknowledge. Only entries that could actually match something,
+           including the admin's own address, need confirming. */
+        nextErrors.ip_block_entries =
+          'Confirm you have checked that your own public IP is not matched by any of these blocks.';
       }
     }
 
@@ -459,6 +617,16 @@ const CompanySecurity = () => {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
       handleAlert({ text: 'Please fix the highlighted fields', type: 'error' });
+      /* Whichever list is the reason, switch to its tab and focus the field -
+         scrolled to rather than left for the admin to go hunting for among
+         five other cards on this page. */
+      if (nextErrors.ip_allow_entries) {
+        setActiveListTab('allow');
+        window.setTimeout(() => allowPanelRef.current?.focusNewEntry(), 0);
+      } else if (nextErrors.ip_block_entries) {
+        setActiveListTab('block');
+        window.setTimeout(() => blockPanelRef.current?.focusNewEntry(), 0);
+      }
       return;
     }
 
@@ -691,74 +859,156 @@ const CompanySecurity = () => {
 
           <SettingCard
             icon={<Network className="h-5 w-5" />}
-            title="IP allowlist"
-            description="The networks people are allowed to sign in from, written as IPv4 CIDR blocks."
-            status="coming-soon"
-            note="Coming soon. Signing in is not restricted by network yet, so this list keeps nobody out today. Write it down now and it is ready for the day it does."
+            title="IP allowlist / blocklist"
+            description="The networks people may — or may not — sign in from: individual addresses or CIDR blocks, IPv4 or IPv6."
+            note="Stored, validated and ready — server-side enforcement is written and tested (backend-patches/default-api/) but has not been deployed, so signing in is not restricted by network yet. Everything below is real: what you save here is what starts enforcing the moment it is."
           >
-            <SettingRow
-              label="Restrict sign-in by IP address"
-              description="When this is off, no network restriction is recorded and the saved list is cleared."
-              control={
-                <Switch
-                  checked={form.ip_allowlist_enabled}
-                  onCheckedChange={(checked) => updateForm({ ip_allowlist_enabled: checked })}
-                />
-              }
-            />
+            {/* Two independent lists - own toggle, own entries, own table -
+                shown one at a time. Switching tabs never mixes the two
+                tables together; only the selected list's panel is mounted
+                below. */}
+            <div className="inline-flex w-fit overflow-hidden rounded-lg border border-gray-300">
+              {(['allow', 'block'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setActiveListTab(kind)}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeListTab === kind
+                      ? 'bg-primary text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {kind === 'block' ? 'Block these' : 'Only allow these'}
+                </button>
+              ))}
+            </div>
 
-            {form.ip_allowlist_enabled && (
-              <>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="ip-allowlist">
-                    CIDR blocks, one per line
-                  </label>
-                  <textarea
-                    id="ip-allowlist"
-                    rows={7}
-                    spellCheck={false}
-                    className={`${textareaClass} font-mono ${
-                      errors.ip_allowlist_text ? 'border-red-500' : ''
-                    }`}
-                    placeholder={'203.0.113.0/24\n198.51.100.14/32'}
-                    value={form.ip_allowlist_text}
-                    onChange={(event) => updateForm({ ip_allowlist_text: event.target.value })}
-                  />
-                  <p className="text-xs text-gray-500">
-                    {cidrBlocks.length} of {MAX_CIDR_BLOCKS} blocks used. IPv4 only — other
-                    established systems does not accept IPv6 here, so neither does this. A single
-                    address is written as /32.
+            {activeListTab === 'allow' ? (
+              <IpListPanel
+                ref={allowPanelRef}
+                kind="allow"
+                enabled={form.ip_allow_enabled}
+                entries={form.ip_allow_entries}
+                onToggle={toggleAllow}
+                onAddEntry={(entry) => addEntry('allow', entry)}
+                onRemoveEntry={(entry) => removeEntry('allow', entry)}
+                myIp={myIp || ''}
+                myIpLoading={myIpLoading}
+                actorUuid={actorUuid}
+                actorName={actorName}
+                lockoutAcknowledged={allowLockoutAcknowledged}
+                onLockoutAcknowledgedChange={setAllowLockoutAcknowledged}
+                saveError={errors.ip_allow_entries}
+              />
+            ) : (
+              <IpListPanel
+                ref={blockPanelRef}
+                kind="block"
+                enabled={form.ip_block_enabled}
+                entries={form.ip_block_entries}
+                onToggle={toggleBlock}
+                onAddEntry={(entry) => addEntry('block', entry)}
+                onRemoveEntry={(entry) => removeEntry('block', entry)}
+                myIp={myIp || ''}
+                myIpLoading={myIpLoading}
+                actorUuid={actorUuid}
+                actorName={actorName}
+                lockoutAcknowledged={blockLockoutAcknowledged}
+                onLockoutAcknowledgedChange={setBlockLockoutAcknowledged}
+                saveError={errors.ip_block_entries}
+              />
+            )}
+
+            {/* Break-glass: armed while you can still get in, in case your own
+              address changes before you are back to fix a list. Shared by
+              both tabs - not something a locked-out admin can reach for -
+              the escape route for that case is the operations runbook in
+              backend-patches/default-api/, not a button on this screen. */}
+            <div className="rounded-lg border border-gray-200 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-900">
+                <Unlock className="h-3.5 w-3.5" />
+                Emergency bypass
+              </p>
+              {activeBreakGlass ? (
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-amber-800">
+                    <AlertTriangle className="mr-1 inline h-3 w-3" />
+                    Open until {new Date(activeBreakGlass.expires_at).toLocaleString()} — every
+                    network is allowed through until then, regardless of either list. Armed by{' '}
+                    {activeBreakGlass.created_by_name || 'an admin'}
+                    {activeBreakGlass.reason ? `: “${activeBreakGlass.reason}”` : '.'}
                   </p>
-                  {errors.ip_allowlist_text && (
-                    <p className="text-xs font-semibold text-red-600">{errors.ip_allowlist_text}</p>
+                  <Button
+                    type="button"
+                    variant="destructiveOutline"
+                    size="sm"
+                    onClick={clearBreakGlass}
+                  >
+                    Close it now
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Arm a {BREAK_GLASS_HOURS}-hour window where every network is allowed through,
+                    for the case where your address changes before you can fix a list. Do this
+                    now, while you can still get in — it is no help once you are already locked
+                    out.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="min-w-[14rem] flex-1">
+                      <Input
+                        placeholder="Reason — e.g. travelling next week"
+                        value={breakGlassReason}
+                        onChange={(event) => setBreakGlassReason(event.target.value)}
+                      />
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={armBreakGlass}>
+                      Arm {BREAK_GLASS_HOURS}h window
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Recorded here on every add, remove, enable and disable, across
+              both lists — the quick view. The durable, tamper-evident record
+              is the server table, written to once enforcement is deployed. */}
+            <div>
+              <button
+                type="button"
+                className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900"
+                onClick={() => setShowAuditLog((prev) => !prev)}
+              >
+                <History className="h-3.5 w-3.5" />
+                {showAuditLog ? 'Hide' : 'Show'} recent activity ({form.ip_allowlist_audit.length}
+                )
+              </button>
+              {showAuditLog && (
+                <div className="mt-2 flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border border-gray-200 p-2">
+                  {form.ip_allowlist_audit.length === 0 ? (
+                    <p className="px-1 py-2 text-xs text-gray-500">Nothing recorded yet.</p>
+                  ) : (
+                    form.ip_allowlist_audit.map((entry, index) => (
+                      <div
+                        key={`${entry.at}-${index}`}
+                        className="flex flex-wrap items-baseline gap-x-2 rounded px-2 py-1 text-xs odd:bg-gray-50"
+                      >
+                        <span className="font-medium text-gray-900">
+                          {entry.actor_name || 'Someone'}
+                        </span>
+                        <span className="text-gray-500">{entry.action.replace(/_/g, ' ')}</span>
+                        <span className="text-gray-700">{entry.detail}</span>
+                        <span className="ml-auto text-gray-400">
+                          {new Date(entry.at).toLocaleString()}
+                        </span>
+                      </div>
+                    ))
                   )}
                 </div>
-
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs font-semibold text-amber-900">
-                    You can lock yourself out with this list.
-                  </p>
-                  <p className="mt-1 text-xs text-amber-800">
-                    other established systems refuses to save an allowlist that does not cover the
-                    address the admin is saving from, precisely because getting it wrong locks you
-                    out of your own account. This page cannot do that check: a browser does not know
-                    its own public IP without asking an outside service, and nothing here does. So
-                    the check falls to you. Find your public IP, confirm it sits inside one of the
-                    blocks above, and remember that a home connection&rsquo;s address usually
-                    changes over time.
-                  </p>
-                  <label className="mt-3 flex cursor-pointer items-start gap-2">
-                    <Checkbox
-                      checked={lockoutAcknowledged}
-                      onCheckedChange={(checked) => setLockoutAcknowledged(checked === true)}
-                    />
-                    <span className="text-xs text-amber-900">
-                      I have checked that my own public IP address is inside one of these blocks.
-                    </span>
-                  </label>
-                </div>
-              </>
-            )}
+              )}
+            </div>
           </SettingCard>
 
           <SettingCard

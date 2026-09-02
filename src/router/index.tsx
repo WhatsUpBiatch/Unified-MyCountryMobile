@@ -62,13 +62,9 @@ const CaptainSettings = lazy(() => import('@/pages/admin-settings/captain/settin
 const CompanyLayout = lazy(() => import('@/pages/admin-settings/company/company-layout'));
 const CompanyPhoneRules = lazy(() => import('@/pages/admin-settings/company/page-phone-rules'));
 const CompanyGreetings = lazy(() => import('@/pages/admin-settings/company/page-greetings'));
-const CompanyVoicemailPage = lazy(() => import('@/pages/admin-settings/company/page-voicemail'));
 const CompanyHolidaysPage = lazy(() => import('@/pages/admin-settings/company/page-holidays'));
 const CompanyEmergency = lazy(
   () => import('@/pages/admin-settings/company/company-emergency-address'),
-);
-const CompanyCalling = lazy(
-  () => import('@/pages/admin-settings/company/company-calling-permissions'),
 );
 const CompanyMessagingPage = lazy(() => import('@/pages/admin-settings/company/company-messaging'));
 const CompanyPoliciesPage = lazy(() => import('@/pages/admin-settings/company/company-policies'));
@@ -638,10 +634,8 @@ export const router = createBrowserRouter([
                 children: [
                   { path: 'phone-rules', element: <CompanyPhoneRules /> },
                   { path: 'greetings', element: <CompanyGreetings /> },
-                  { path: 'voicemail', element: <CompanyVoicemailPage /> },
                   { path: 'emergency-address', element: <CompanyEmergency /> },
                   { path: 'holidays', element: <CompanyHolidaysPage /> },
-                  { path: 'calling', element: <CompanyCalling /> },
                   { path: 'messaging', element: <CompanyMessagingPage /> },
                   { path: 'policies', element: <CompanyPoliciesPage /> },
                   {
@@ -652,6 +646,7 @@ export const router = createBrowserRouter([
                       <ProtectedRoute
                         element={<CompanySecurityPage />}
                         guard={{ adminOnly: true }}
+                        sectionName="Security"
                       />
                     ),
                   },

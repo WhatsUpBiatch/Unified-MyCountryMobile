@@ -122,16 +122,7 @@ export const adminSettingArr = (features: any, IS_ADMIN: boolean) =>
            in the order they happened to be built. The reference table sits last:
            it explains the model but decides nothing. */
         {
-          /* Step 1 — the front door, and the only screen that says what order
-             the rest go in. */
-          title: 'How access works',
-          icon: 'LockFilled',
-          path: '/admin-settings/access-control',
-          enabled: IS_ADMIN,
-          visible: IS_ADMIN,
-        },
-        {
-          /* Step 2 — what a role can do. */
+          /* What a role can do. */
           title: 'Roles',
           icon: 'RoleIcon',
           path: '/admin-settings/roles',
@@ -146,23 +137,6 @@ export const adminSettingArr = (features: any, IS_ADMIN: boolean) =>
            navigation entry is a claim that a thing is available. The route and
            the code stay; put this back the day canActOn is wired into the
            permission checks. */
-        {
-          /* Step 4 — what a role should hold, as opposed to what one happens
-             to hold, and what a brand-new person starts on. */
-          title: 'Default permissions',
-          icon: 'RoleIcon',
-          path: '/admin-settings/default-permissions',
-          enabled: IS_ADMIN,
-          visible: IS_ADMIN,
-        },
-        {
-          /* The reference table. Every capability against every kind of person. */
-          title: 'What each role can do',
-          icon: 'RoleIcon',
-          path: '/admin-settings/capability-matrix',
-          enabled: IS_ADMIN,
-          visible: IS_ADMIN,
-        },
       ].filter(Boolean),
     },
     {
@@ -356,32 +330,6 @@ export const adminSettingArr = (features: any, IS_ADMIN: boolean) =>
       visible: Boolean(features?.plan_features?.omni_channel?.action?.view),
     },
 
-    {
-      key: 'admin-settings.template',
-      id: 'templates',
-      title: 'Templates',
-      icon: 'Templates',
-      type: 'accordion',
-      value: 'template',
-      children: [
-        {
-          key: 'admin-settings.template.user_settings',
-          id: 'user_settings',
-          title: 'User Settings',
-          path: '/admin-settings/templates/user-settings',
-          icon: 'SettingsUserIcon2',
-        },
-        {
-          key: 'admin-settings.template.call_handling',
-          id: 'call_handling',
-          title: 'Call Handling',
-          path: '/admin-settings/templates/call-handling',
-          icon: 'PersonSupport',
-          enabled: Boolean(features?.plan_features?.phone_system_action?.access?.DEPARTMENT),
-          visible: Boolean(features?.plan_features?.phone_system_action?.action?.view),
-        },
-      ],
-    },
     {
       key: 'admin-settings.calling_rates',
       id: 'calling_rates',

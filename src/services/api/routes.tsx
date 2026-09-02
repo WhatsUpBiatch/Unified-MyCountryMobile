@@ -180,8 +180,13 @@ export const routes = {
     URL: '/api/contact/group/contact-lead/list',
     METHOD: 'POST',
   },
+  /* Was pointed at the call-list report endpoint, whose rows were never
+     keyed by number - every screen reading fetchContact()[number] (call
+     history, inbox, contact-call-log-content) always got undefined,
+     regardless of whether the number was really saved. This is the actual
+     contacts endpoint the Contacts page itself uses. */
   FETCH_CONTACT: {
-    URL: '/api/tenant/report/call-list',
+    URL: '/api/contact/list',
     METHOD: 'POST',
   },
   FETCH_ALL_PHONE: {

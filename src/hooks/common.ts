@@ -63,6 +63,10 @@ export const useGetGreetings = (params?: any) => {
 
   return {
     ...greetingData,
+    /* Every recording, unfiltered. The lists above answer "what may go in a
+       greeting slot"; this answers "what exists", which is what a screen needs
+       when it wants only the recordings made for one particular slot. */
+    allGreetings: greetingData ?? [],
     greetingList,
     voicemailList,
     promptList,
@@ -145,11 +149,44 @@ export const useGetQueueList = (params?: any) => {
     select: (data) => data?.data?.data?.result?.rows || [],
   });
 };
+/* Every caller of this hook looks the result up as data[number] - a
+   number-keyed map of saved contacts, not a page of rows. The endpoint
+   returns Mongo contact documents (`name.first/last`, `contact.phone`), and
+   phone numbers are saved in whatever form the user typed them, so each
+   contact is indexed under several forms of its number: as saved, digits
+   only, and with a leading "+". That way a direct single-key lookup (inbox,
+   contact-call-log-content) and the fallback-scanning lookup in the console
+   (findContact) both land on the same contact. */
+const contactKeyVariants = (raw: string): string[] => {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return [];
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return [trimmed];
+  return [trimmed, digits, `+${digits}`];
+};
+
 export const useFetchContact = (payload?: any) => {
   return useQuery({
     queryKey: ['fetchContact', payload],
     queryFn: () => fetchContact(payload),
-    select: (data) => data?.data?.data?.result,
+    select: (data) => {
+      const rows = data?.data?.data?.result?.rows || [];
+      const map: Record<string, any> = {};
+      rows.forEach((row: any) => {
+        const phone = row?.contact?.phone;
+        if (!phone) return;
+        const value = {
+          id: row?._id || row?.id,
+          first_name: row?.name?.first || '',
+          last_name: row?.name?.last || '',
+          name: `${row?.name?.first || ''} ${row?.name?.last || ''}`.trim(),
+        };
+        contactKeyVariants(phone).forEach((key) => {
+          map[key] = value;
+        });
+      });
+      return map;
+    },
   });
 };
 

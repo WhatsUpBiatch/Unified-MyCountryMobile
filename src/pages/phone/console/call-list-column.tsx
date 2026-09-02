@@ -10,7 +10,6 @@ import DateDropdown from '@/components/custom/date-dropdown';
 import { dropdownCallInitialVal, handleDate } from '@/components/custom/date-dropdown/constant';
 import { Ic } from './icons';
 import { DialNumber, useConsoleDialer } from './dial-number';
-import { isNumberLike } from './copilot-adapter';
 
 /** The three call-log sources the old phone page exposed, same `tabType` values. */
 export type ConsoleLogSource = 'call' | 'recording' | 'voicemail';
@@ -122,12 +121,14 @@ export const toCallRow = (raw: any, contactsByNumber: Record<string, any>): Cons
   const savedName = contact?.first_name
     ? `${contact.first_name}${contact.last_name ? ` ${contact.last_name}` : ''}`.trim()
     : String(contact?.name || '').trim();
-  // The carrier's caller-id name is only a fallback, and is often a
-  // placeholder rather than a person.
-  const carrierName = String(raw?.contact_name || raw?.caller_id_name || '').trim();
-  const contactName =
-    savedName ||
-    (/^(unknown|anonymous|private|restricted|n\/?a)$/i.test(carrierName) ? '' : carrierName);
+  /* `contact_name`/`caller_id_name` on the row do NOT reliably identify the
+     other party — for a call started in the web phone the switch stamps the
+     agent's own name there (it means "received by", not "calling from"), so
+     showing it as this row's identity attached the agent's name to numbers
+     that were never saved as a contact. Only a real saved-contact match earns
+     a name here; everyone else reads "Unknown Contact", same as the legacy
+     Phone page. */
+  const contactName = savedName;
 
   const accLogs = getEntryLogs(raw);
   const hasRecording = accLogs.some((log: any) =>
@@ -138,7 +139,7 @@ export const toCallRow = (raw: any, contactsByNumber: Record<string, any>): Cons
     id: String(raw?.uuid || raw?.id || raw?.sip_call_id || `${number}-${raw?.start_stamp}`),
     raw,
     direction,
-    name: contactName || number || 'Unknown',
+    name: contactName || 'Unknown Contact',
     number,
     time: timeLabel(raw?.start_stamp),
     duration: secondsToClock(raw?.billsec ?? raw?.duration),
@@ -391,20 +392,16 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
                   <div className="cr-body">
                     <div className="cr-top">
                       <span className="cr-name">
-                        {/* an unknown number is its own title — don't print it twice */}
-                        {isNumberLike(row.name) ? (
-                          <DialNumber number={row.number} className="num" />
-                        ) : (
-                          row.name
-                        )}
+                        {/* an unsaved number is its own title — don't print it twice */}
+                        {row.contactId ? row.name : <DialNumber number={row.number} className="num" />}
                       </span>
                       <span className="cr-time num">{row.time}</span>
                     </div>
                     <div className="cr-num">
-                      {isNumberLike(row.name) ? (
-                        <span style={{ color: 'var(--ink-4)' }}>Not in contacts</span>
-                      ) : (
+                      {row.contactId ? (
                         <DialNumber number={row.number} className="num" />
+                      ) : (
+                        <span style={{ color: 'var(--ink-4)' }}>Not in contacts</span>
                       )}
                       {row.duration !== '—' ? (
                         <span style={{ color: 'var(--ink-4)' }}> · {row.duration}</span>

@@ -150,10 +150,14 @@ export const deleteContact = (data: any) => {
   });
 };
 export const fetchContact = (data?: any) => {
+  /* Every current caller reads the result as a number-keyed lookup map, not
+     a page of results - a small default page would silently drop contacts
+     past it. None of them pass a limit today, so give the request a page
+     large enough to cover a company's whole address book. */
   return apiClient({
     method: routes.FETCH_CONTACT.METHOD,
     url: routes.FETCH_CONTACT.URL,
-    data,
+    data: { page: 1, limit: 5000, ...data },
   });
 };
 

@@ -16,10 +16,8 @@ export interface CompanySection {
 export const COMPANY_SECTIONS: CompanySection[] = [
   { path: 'phone-rules', label: 'Phone rules' },
   { path: 'greetings', label: 'Greetings' },
-  { path: 'voicemail', label: 'Ringing & voicemail' },
   { path: 'emergency-address', label: 'Emergency address' },
   { path: 'holidays', label: 'Holidays' },
-  { path: 'calling', label: 'Calling' },
   { path: 'messaging', label: 'Messaging' },
   { path: 'policies', label: 'Policies' },
   { path: 'security', label: 'Security' },
