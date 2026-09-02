@@ -1,0 +1,772 @@
+<title>The First Real Customer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --paper:      #EDEFF0;
+    --surface:    #F7F8F8;
+    --card:       #F7F8F8;
+    --sunken:     #E2E6E8;
+    --ink:        #141C22;
+    --ink-soft:   #3A4750;
+    --ink-faint:  #6B7A84;
+    --rule:       #CDD4D8;
+    --rule-soft:  #DEE3E6;
+    --signal:     #14646B;
+    --signal-dim: #d7e6e7;
+    --stop:       #9E3328;
+    --stop-dim:   #f2dedb;
+    --hold:       #96660F;
+    --hold-dim:   #f4e8d2;
+    --clear:      #34633F;
+    --clear-dim:  #dfe9e0;
+    --shadow:     0 1px 2px rgba(20,28,34,.06), 0 8px 24px -16px rgba(20,28,34,.35);
+
+    --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --f-body: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0F161B;
+      --surface:    #172128;
+      --card:       #172128;
+      --sunken:     #101A20;
+      --ink:        #E4EAED;
+      --ink-soft:   #B0BEC6;
+      --ink-faint:  #7C8C96;
+      --rule:       #2A3841;
+      --rule-soft:  #212D35;
+      --signal:     #57B3B9;
+      --signal-dim: #123336;
+      --stop:       #E0796B;
+      --stop-dim:   #2E1B18;
+      --hold:       #D6A445;
+      --hold-dim:   #2C2314;
+      --clear:      #7DB98A;
+      --clear-dim:  #182818;
+      --shadow:     0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0F161B;
+    --surface:    #172128;
+    --card:       #172128;
+    --sunken:     #101A20;
+    --ink:        #E4EAED;
+    --ink-soft:   #B0BEC6;
+    --ink-faint:  #7C8C96;
+    --rule:       #2A3841;
+    --rule-soft:  #212D35;
+    --signal:     #57B3B9;
+    --signal-dim: #123336;
+    --stop:       #E0796B;
+    --stop-dim:   #2E1B18;
+    --hold:       #D6A445;
+    --hold-dim:   #2C2314;
+    --clear:      #7DB98A;
+    --clear-dim:  #182818;
+    --shadow:     0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px 96px; }
+  .col  { max-width: 700px; }
+
+  /* ---------- masthead ---------- */
+  .mast {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 26px;
+    margin-bottom: 40px;
+  }
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: clamp(38px, 6.2vw, 66px);
+    line-height: .98;
+    letter-spacing: -.028em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 640px;
+    margin: 0 0 28px;
+  }
+  .stampline {
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+  .stampline b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---------- verdict ---------- */
+  .verdict {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-left: 5px solid var(--stop);
+    border-radius: 3px;
+    padding: 26px 28px;
+    margin: 0 0 20px;
+    box-shadow: var(--shadow);
+  }
+  .verdict h2 {
+    font-family: var(--f-display);
+    font-size: 24px; font-weight: 700; letter-spacing: -.015em;
+    margin: 0 0 10px; color: var(--stop);
+  }
+  .verdict p { margin: 0 0 12px; max-width: 66ch; }
+  .verdict p:last-child { margin-bottom: 0; }
+
+  .tally {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    margin: 0 0 56px;
+    overflow: hidden;
+  }
+  .tally div { background: var(--card); padding: 18px 20px; }
+  .tally .n {
+    font-family: var(--f-display);
+    font-size: 34px; font-weight: 800; line-height: 1;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    display: block; margin-bottom: 6px;
+  }
+  .tally .l {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-faint); line-height: 1.4;
+  }
+  .n.stop { color: var(--stop); }
+  .n.hold { color: var(--hold); }
+  .n.clear { color: var(--clear); }
+  .n.sig  { color: var(--signal); }
+
+  /* ---------- sections ---------- */
+  section { margin: 0 0 64px; scroll-margin-top: 20px; }
+  .sechead {
+    display: flex; align-items: baseline; gap: 14px;
+    border-top: 2px solid var(--ink);
+    padding-top: 14px; margin-bottom: 22px;
+  }
+  .sechead .tag {
+    font-family: var(--f-mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-faint); white-space: nowrap;
+    padding-top: 8px;
+  }
+  h2.sec {
+    font-family: var(--f-display);
+    font-size: clamp(26px, 3.4vw, 36px);
+    font-weight: 700; letter-spacing: -.024em; line-height: 1.08;
+    margin: 0; text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--f-display);
+    font-size: 20px; font-weight: 600; letter-spacing: -.012em;
+    margin: 34px 0 10px;
+  }
+  p { margin: 0 0 16px; max-width: 68ch; }
+  a { color: var(--signal); }
+
+  /* ---------- finding cards ---------- */
+  .find {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--rule);
+    border-radius: 3px;
+    padding: 20px 22px;
+    margin: 0 0 14px;
+  }
+  .find.stop  { border-left-color: var(--stop); }
+  .find.hold  { border-left-color: var(--hold); }
+  .find.clear { border-left-color: var(--clear); }
+  .find h4 {
+    font-family: var(--f-display);
+    font-size: 18px; font-weight: 600; letter-spacing: -.01em;
+    margin: 0 0 8px; line-height: 1.25;
+  }
+  .find p { margin: 0 0 10px; font-size: 16.5px; }
+  .find p:last-child { margin-bottom: 0; }
+  .ev {
+    font-family: var(--f-mono);
+    font-size: 12.5px; line-height: 1.65;
+    background: var(--sunken);
+    border-radius: 2px;
+    padding: 10px 12px;
+    color: var(--ink-soft);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 10px 0 0;
+    max-width: 100%;
+  }
+  .ev b { color: var(--ink); font-weight: 600; }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--f-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 2px;
+    vertical-align: 2px; margin-right: 10px;
+  }
+  .chip.stop  { background: var(--stop-dim);  color: var(--stop); }
+  .chip.hold  { background: var(--hold-dim);  color: var(--hold); }
+  .chip.clear { background: var(--clear-dim); color: var(--clear); }
+  .chip.sig   { background: var(--signal-dim); color: var(--signal); }
+
+  code {
+    font-family: var(--f-mono); font-size: .86em;
+    background: var(--sunken); padding: 1px 5px; border-radius: 2px;
+    word-break: break-word;
+  }
+
+  /* ---------- call path diagram ---------- */
+  .path {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 24px 22px;
+    margin: 0 0 26px;
+    overflow-x: auto;
+  }
+  .path-title {
+    font-family: var(--f-mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+  .hops { display: flex; align-items: stretch; gap: 0; min-width: 720px; }
+  .hop {
+    flex: 1 1 0;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 12px 13px;
+    background: var(--paper);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .hop.ok  { border-color: var(--clear); }
+  .hop.bad { border-color: var(--stop); background: var(--stop-dim); }
+  .hop .h {
+    font-family: var(--f-display); font-weight: 600; font-size: 14px;
+    letter-spacing: -.005em; line-height: 1.2;
+  }
+  .hop .s {
+    font-family: var(--f-mono); font-size: 10.5px; line-height: 1.45;
+    color: var(--ink-faint);
+  }
+  .arrow {
+    flex: 0 0 26px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint); font-family: var(--f-mono); font-size: 15px;
+  }
+
+  /* ---------- tables ---------- */
+  .tablewrap { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--rule); border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--card); }
+  th, td {
+    text-align: left; padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-size: 14px;
+  }
+  th {
+    font-family: var(--f-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-faint); background: var(--sunken);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td { font-family: var(--f-body); color: var(--ink-soft); vertical-align: top; }
+  td.m { font-family: var(--f-mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  tr:last-child td { border-bottom: none; }
+  td strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- ranked list ---------- */
+  ol.ranked { list-style: none; padding: 0; margin: 0; counter-reset: r; }
+  ol.ranked > li {
+    counter-increment: r;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 18px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  ol.ranked > li:first-child { border-top: 1px solid var(--rule); }
+  ol.ranked > li::before {
+    content: counter(r, decimal-leading-zero);
+    font-family: var(--f-display); font-weight: 800; font-size: 26px;
+    letter-spacing: -.03em; color: var(--rule);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  ol.ranked li h4 {
+    font-family: var(--f-display); font-size: 18px; font-weight: 600;
+    margin: 0 0 6px; letter-spacing: -.01em;
+  }
+  ol.ranked li p { margin: 0; font-size: 16px; color: var(--ink-soft); }
+  ol.ranked li .meta {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-faint); margin-top: 8px;
+  }
+
+  ul.plain { padding-left: 20px; margin: 0 0 16px; max-width: 68ch; }
+  ul.plain li { margin-bottom: 7px; }
+
+  .note {
+    border-left: 3px solid var(--signal);
+    background: var(--signal-dim);
+    padding: 14px 18px;
+    border-radius: 0 3px 3px 0;
+    margin: 0 0 22px;
+    max-width: 72ch;
+  }
+  .note p { margin: 0; font-size: 16px; }
+
+  footer {
+    border-top: 2px solid var(--ink);
+    padding-top: 18px; margin-top: 20px;
+    font-family: var(--f-mono); font-size: 12px; color: var(--ink-faint);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px 64px; }
+    ol.ranked > li { grid-template-columns: 40px 1fr; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">Pre-launch system review</p>
+    <h1>The First Real Customer</h1>
+    <p class="standfirst">A walk through every part of the platform, as the owner would walk it the week before opening: can it take a call, can it charge for one, and will it still be standing on Monday.</p>
+    <div class="stampline">
+      <span><b>Checked</b> 2 September 2026</span>
+      <span><b>Live systems</b> api2 · unified · 142.93.121.121</span>
+      <span><b>Method</b> read from the running machine, not the repo</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <h2>Not ready — but closer than it looks</h2>
+    <p>The hard part is done. A phone call comes in from the public network, finds the right customer, rings the right person, and hangs up cleanly. I watched six live calls while writing this. That is the part most people never finish.</p>
+    <p>What is missing is everything around the call. <strong>The platform cannot charge anyone for talking.</strong> It cannot stop a customer who owes money from dialling. It cannot hand back a recording it promised to make. And it is all running on one small server with nobody watching it.</p>
+    <p>None of these are hard problems. They are unfinished ones. The list at the bottom is in the order I would fix them.</p>
+  </div>
+
+  <div class="tally">
+    <div><span class="n stop">6</span><span class="l">Must fix before<br>taking money</span></div>
+    <div><span class="n hold">6</span><span class="l">Fix in the<br>first month</span></div>
+    <div><span class="n clear">9</span><span class="l">Verified<br>working today</span></div>
+    <div><span class="n sig">30</span><span class="l">Phone numbers<br>live now</span></div>
+    <div><span class="n sig">20</span><span class="l">Customer<br>accounts</span></div>
+  </div>
+
+  <!-- ============ 1. THE SHAPE ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">The shape of it</span>
+      <h2 class="sec">What you actually own</h2>
+    </div>
+
+    <p>Strip away the names and there are three things: a website, a pile of small APIs, and a telephone switch. They all live on one machine.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Piece</th><th>What it does</th><th>Where it runs</th></tr></thead>
+        <tbody>
+          <tr><td><strong>The portal</strong></td><td>What customers see. React, built once per site.</td><td class="m">unified.mycountrymobile.com</td></tr>
+          <tr><td><strong>14 Node services</strong></td><td>Accounts, billing, numbers, SMS, chat, video, campaigns.</td><td class="m">142.93.121.121 (PM2)</td></tr>
+          <tr><td><strong>Kamailio</strong></td><td>The front door for phone traffic. Decides who is allowed in.</td><td class="m">port 5060 / 5061 / 8080</td></tr>
+          <tr><td><strong>FreeSWITCH</strong></td><td>The switch itself. Bridges legs, plays audio, records.</td><td class="m">Docker, loopback only</td></tr>
+          <tr><td><strong>The call router</strong></td><td>Decides what happens to every single call. 2,007 lines of Python.</td><td class="m">127.0.0.1:9000</td></tr>
+          <tr><td><strong>Two databases</strong></td><td>One shared account database, plus one database per customer.</td><td class="m">DigitalOcean MySQL + Mongo</td></tr>
+          <tr><td><strong>Carrier</strong></td><td>DIDWW brings calls in. 46 Labs takes calls out.</td><td class="m">out via 38.147.130.91</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Twenty customer accounts exist. Thirty phone numbers are live. Eleven phones were registered and six calls were up while I was looking.</p>
+  </section>
+
+  <!-- ============ 2. CALLS ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Calls</span>
+      <h2 class="sec">Does the phone ring?</h2>
+    </div>
+
+    <p>Yes. I asked the live call router what it would do with a real customer number and read the answer it gave back.</p>
+
+    <div class="path">
+      <p class="path-title">Someone dials +1 256 808 1009</p>
+      <div class="hops">
+        <div class="hop ok"><span class="h">DIDWW</span><span class="s">carrier sends<br>the call in</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">Kamailio</span><span class="s">recognises the<br>carrier's IP</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">FreeSWITCH</span><span class="s">public profile<br>port 4066</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">Call router</span><span class="s">looks up the<br>number's owner</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">Extension 1000</span><span class="s">rings for 30s,<br>2-call cap</span></div>
+      </div>
+      <p class="ev">POST 127.0.0.1:9000 → <b>bridge user/1000_web@1785223442786.mycountrymobile.com</b>
+limit hash company_channels d1718d40… <b>2</b> !USER_BUSY   ·   call_timeout=<b>30</b></p>
+    </div>
+
+    <p>Outgoing calls work the same way in reverse, out through 46 Labs. Over the last week roughly one call in eight ends in <code>NORMAL_TEMPORARY_FAILURE</code> — mostly long-distance attempts the carrier refuses. Everything else connects and holds. Average answered call runs 15 to 40 seconds.</p>
+
+    <h3>The five choices that lead nowhere</h3>
+    <p>When a customer sets up a number, the screen offers eleven things the call can do. The call router understands six of them.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Offered on screen</th><th>What happens on a real call</th></tr></thead>
+        <tbody>
+          <tr><td class="m">Extension · Voicemail · IVR · Queue · Phone · Hang up</td><td><strong>Works.</strong> All six are handled.</td></tr>
+          <tr><td class="m">Department</td><td>Router has no code for it. Caller gets nothing.</td></tr>
+          <tr><td class="m">Ring my device</td><td>Router has no code for it. Caller gets nothing.</td></tr>
+          <tr><td class="m">Greeting</td><td>Router has no code for it. Caller gets nothing.</td></tr>
+          <tr><td class="m">Message</td><td>Router has no code for it. Caller gets nothing.</td></tr>
+          <tr><td class="m">AI receptionist</td><td>Router has no code for it. Caller gets nothing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>No customer has been bitten yet, because every live number is pointed at an extension or a queue. But the choices are sitting there, one click away.</p>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Departments are fully built and cannot ring a phone</h4>
+      <p>A Department (a ring group) stores everything you would expect: its members, its ring strategy, a timeout, a failover to voicemail, hold music, recording settings, its own opening hours, its own extension number. Customers have already made them. Nothing anywhere can dial one.</p>
+      <p>Point a number at a Department and the caller hears nothing. Dial the Department's own extension from a desk phone and the router says "unknown extension" and hangs up, because it only ever looks in the people table.</p>
+      <p class="ev">ring_groups in live tenants: <b>2, 1, 3</b> rows — with extensions <b>9324</b>, <b>4332</b>, full settings JSON
+dialplan_service.py lookup_user_by_extension → <b>SELECT … FROM users</b> only
+build_inbound_dialplan → no DEPARTMENT branch → <b>"unhandled route type"</b> → not found</p>
+    </div>
+  </section>
+
+  <!-- ============ 3. MONEY ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Money</span>
+      <h2 class="sec">Nobody is being charged for talking</h2>
+    </div>
+
+    <p>This is the one that would hurt most on day one. Calls are written down. They are not priced, and nothing is taken off anyone's balance.</p>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Voice calls have been rated at zero since 29 August</h4>
+      <p>Something used to price calls. Up to 28 August, call records carry real costs. From 29 August onward the job that loads calls into the database was replaced with one that has no pricing step in it at all — I read all 392 lines; the words <em>cost</em>, <em>rate</em> and <em>charge</em> do not appear.</p>
+      <p>Text messages and faxes <em>are</em> metered — they check the balance and take money off it. Voice is the one that isn't.</p>
+      <p class="ev">Last 5 days across all customers: <b>108</b> answered calls, <b>103</b> rated at $0.00, about <b>67 minutes</b> of talk time billed as nothing.
+companies.call_duration_used → read in 3 places, <b>written in none</b>.
+Rate data is fine and complete: <b>92,622</b> call rates, <b>651</b> SMS rates loaded.</p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>An unpaid customer can still dial out</h4>
+      <p>The call router never asks whether a customer has money or a live plan. Five accounts are sitting on an expired plan right now. Any of them could pick up and dial internationally, and the carrier bill would land on you.</p>
+      <p>It <em>does</em> check which countries a customer is allowed to call, and it refuses those properly before the carrier is ever contacted. The balance check is simply not there next to it.</p>
+      <p class="ev">grep credit|balance|plan_status in dialplan_service.py → <b>0 matches</b> (control: call_blocked → 4 matches)
+companies with plan_expiration_date &lt;= today: <b>5</b> — Capanicus, Na, BA Luxury Homes, infunny, Testers4</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>The nightly renewal writes the same charge three or four times</h4>
+      <p>Every night at 00:10 the renewal job runs. On 2 September it wrote four identical charge attempts for one customer inside five seconds, and four for another.</p>
+      <p>The good news: the actual card charge carries an idempotency key, so Stripe would refuse the duplicates. The ledger and any "we charged your card" email would still be wrong four times over, and support would be answering for it.</p>
+      <p class="ev">billings ids <b>122, 123, 124, 128</b> — same company, $30.00, 00:10:03 → 00:10:04
+billings ids <b>126, 127, 129, 130</b> — same company, $27.99, 00:10:04 → 00:10:08
+Lifetime: Plan Payment <b>Failed 53</b> / <b>Completed 21</b>. All failures read "Renewal skipped - no card".</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Most phone numbers are priced at zero</h4>
+      <p>Twenty-four of the thirty live numbers have a monthly cost of <code>0.000</code>. The number-renewal job charges what the record says, so it charges nothing. Several renewal dates have already gone past without moving.</p>
+      <p class="ev">did_numbers: <b>24 of 30</b> rows with monthly_cost = 0.000
+Renewal dates already in the past: 2026-08-26, 08-27, 08-28, 08-30, 09-02</p>
+    </div>
+  </section>
+
+  <!-- ============ 4. CARRIER ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Carrier</span>
+      <h2 class="sec">You cannot buy a number today</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Live outage</span>DIDWW is rejecting your API key right now</h4>
+      <p>I called four different DIDWW endpoints from the production server using the key in the live environment file. All four came back <code>401 Unauthorized</code>. The last successful number order was yesterday morning, so this broke within the last day.</p>
+      <p>Existing numbers keep working — incoming calls arrive over the phone network, not the API. But right now nobody can buy a number, release one, or check the account balance. A new customer signing up would stall at the step that matters.</p>
+      <p class="ev">GET api.didww.com/v3/{balance, dids, countries, voice_in_trunks} → <b>401 Unauthorized</b> ×4
+Last successful order in wholesale_api_logs: <b>2026-09-01 08:03:50</b>
+default-api error log, repeating: <b>Axios Error: 404 Route Not Found</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Half the carrier code reads settings that do not exist</h4>
+      <p><code>DidwwService.ts</code> looks for <code>DIDWW_API_KEY</code> and <code>DIDWW_API_URL</code>. Neither is in the environment file — the real ones are called <code>DID_WW_KEY</code> and <code>DID_WW_URL</code>. Every path through that class sends the literal word "undefined" as its key and always has.</p>
+      <p>Separately, the working ordering path is hardcoded to <code>wholesale-api.mycountrymobile.com</code> in the source, and certificate checking is switched off for carrier calls.</p>
+      <p class="ev">grep "^DIDWW_API_KEY=" in production .env → <b>0</b>
+didHelper.ts: HTTP_AGENT = new https.Agent({ <b>rejectUnauthorized: false</b> })</p>
+    </div>
+  </section>
+
+  <!-- ============ 5. RECORDINGS ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Recordings</span>
+      <h2 class="sec">The play button points at nothing</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Recordings are made, then stranded</h4>
+      <p>Recording finally works — four audio files are sitting on the server from the last two days. The job that moves them into storage and links them to a call has failed every single minute since 1 September, because it cannot work out which customer each file belongs to. It has now failed 4,303 times. Nobody was told.</p>
+      <p>Worse, thousands of call records already carry a filename in the recording column from an earlier era. The portal shows a play button for every one of them. None of those files exist. Zero calls have ever been transcribed.</p>
+      <p class="ev">recording-upload.service: <b>4,303</b> failures since Sep 01 13:21, all "SKIP — no company_uuid found in CDRs"
+Files on disk: <b>4</b>. Call rows claiming a recording: <b>6,630</b> across four tenants. Transcripts: <b>0</b>.</p>
+    </div>
+  </section>
+
+  <!-- ============ 6. SECURITY ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Security</span>
+      <h2 class="sec">Three doors left open</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>A fixed six-digit code skips two-factor login, in production</h4>
+      <p>There is a master code that lets staff past the login code prompt from a list of seventeen offices and home addresses. Someone already recognised this was wrong and fixed it in the source — the fix disables the code entirely whenever the system is in production mode.</p>
+      <p><strong>That fix has never been deployed.</strong> The build that is actually running still honours the code, and its own log shows it being used dozens of times in the last few days, on production, against real accounts.</p>
+      <p class="ev">Source AuthController.ts:2635 → <b>isProduction ? "" : process.env.MASTER_OTP</b>
+Deployed dist/controllers/AuthController.js → <b>process.env.MASTER_OTP || ""</b> (guard absent)
+Error log, repeating: <b>[MASTER_OTP] bypass used email=… env=production</b></p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Bot protection is switched off, and off is the default</h4>
+      <p>Cloudflare Turnstile is bought, configured, and bypassed: <code>CAPTCHA_BYPASS=true</code> in production. The code is also written so that if that setting were simply missing, it would still be off. There is nothing stopping automated signups or password guessing.</p>
+      <p class="ev">production .env → <b>CAPTCHA_BYPASS=true</b>
+captchaConfig.ts:8 → <b>(process.env.CAPTCHA_BYPASS ?? "true")</b> — fails open</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Your complete API map is public, and sixteen money-spending routes need no login</h4>
+      <p>The Swagger documentation page answers on the open internet with a 200 — every endpoint, every parameter, handed to anyone who asks. Separately, sixteen of the twenty number-buying routes have no login check at all, including the one that places a real order on your carrier account. They happen to be failing upstream today, which is the only reason that is not urgent.</p>
+      <p class="ev">GET https://api2.mycountrymobile.com/api-docs/ → <b>200</b>, 3,106 bytes
+didWRoute.ts: <b>20 routes, 4 with auth</b> — /order, /reservation/*, /owned-list unprotected
+GET /api/user/me with no token → <b>200</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Nobody knows who is actually using the product</h4>
+      <p>All 4,079 user accounts have an empty last-login field. It is never written. You cannot see who is active, who has gone dormant, or whether a stolen account is being used.</p>
+      <p class="ev">SELECT COUNT(*), SUM(last_login_at IS NOT NULL) FROM users → <b>4079, 0</b></p>
+    </div>
+  </section>
+
+  <!-- ============ 7. LAUNCH DAY ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Launch day</span>
+      <h2 class="sec">Will it still be standing?</h2>
+    </div>
+
+    <p>Everything above assumes the machine keeps running. That is the assumption I am least comfortable with.</p>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Every call queues behind one single-threaded Python script</h4>
+      <p>The call router — the thing FreeSWITCH asks about every single call — is a plain Python web server that handles one request at a time, with a waiting queue five deep, sharing one database connection. If a database query takes a tenth of a second, that is about ten calls a second, ceiling. If the database stalls, all call routing stops.</p>
+      <p>It is fine for six concurrent calls. It is not fine for a launch.</p>
+      <p class="ev">dialplan_service.py:2001 → <b>HTTPServer</b>, not ThreadingHTTPServer
+ss -lntp → <b>LISTEN 0 5</b> on 127.0.0.1:9000
+One module-level <b>_db_conn</b> shared by every request</p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>One server, no monitoring, no backups</h4>
+      <p>Web server, fourteen APIs, the SIP proxy, the switch, the media relay, three video containers, Redis, message queue and both Python routers all share a two-processor machine with seven gigabytes of memory. The disk is 69% full. There is no monitoring agent of any kind, no alerting, and no backup job on the box.</p>
+      <p>The 4,303 silent recording failures are the proof: a service failed every minute for twenty-eight hours and the first anyone knew was this review.</p>
+      <p class="ev">nproc <b>2</b> · free <b>7 GB</b> · df / <b>69%</b> · uptime <b>5 days</b>
+No prometheus / node_exporter / netdata / datadog / zabbix running. crontab -l → <b>empty</b>.
+default-api restart count: <b>44</b>, error log: "Mongodb connection lost. Reconnecting…"</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>The two most important files are in no repository</h4>
+      <p>The call router (2,007 lines) and the queue engine (49 KB of Lua) exist only on this one server. Beside them sit about thirty <code>.bak</code> files with dates in the names — the record of people editing production by hand. If the disk goes, the routing logic goes with it.</p>
+      <p>The repository does contain a Go service of the same name. It is not what is running.</p>
+      <p class="ev">/opt/fs-xml-api-1.2.5/: <b>dialplan_service.py</b> + <b>28 .bak files</b>, systemd runs the Python
+/etc/freeswitch/scripts/: <b>callcenter-queue.lua</b> + 4 .bak files</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Placeholder carrier credentials still in the SIP proxy</h4>
+      <p>If the outgoing carrier ever asks Kamailio to authenticate, it will answer with the words <code>CHANGEME_USERNAME</code> and <code>CHANGEME_PASSWORD</code>. Today the carrier authenticates by IP address instead, so this never fires — until the day the carrier changes something.</p>
+      <p class="ev">/etc/kamailio/include/routing.cfg, failure_route[OUTBOUND_FAILOVER]:
+$avp(auser) = <b>"CHANGEME_USERNAME"</b>; $avp(apass) = <b>"CHANGEME_PASSWORD"</b>;</p>
+    </div>
+  </section>
+
+  <!-- ============ 8. WORKING ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Credit where due</span>
+      <h2 class="sec">Nine things I checked and they work</h2>
+    </div>
+
+    <p>It is easy to read a list of problems and conclude nothing works. These I verified against the running system, each with a control so a blank result could not be mistaken for a pass.</p>
+
+    <ul class="plain">
+      <li><strong>Incoming calls route correctly</strong> — asked the live router about a real number, got a valid bridge back.</li>
+      <li><strong>The per-customer call cap works</strong> — a one-number customer is capped at two simultaneous calls, and I saw the cap in the generated instructions.</li>
+      <li><strong>Opening hours and holidays are honoured</strong> — a closed office diverts to voicemail instead of ringing an empty desk.</li>
+      <li><strong>Country restrictions are enforced before the carrier</strong> — a barred destination is refused without ever reaching a paid trunk.</li>
+      <li><strong>Mistyped extensions no longer dial out</strong> — three digits that match nobody hang up instead of becoming a chargeable call.</li>
+      <li><strong>The queue engine is loaded</strong> — <code>mod_callcenter</code> answers, and the queue script reads the ring strategy the admin actually chose.</li>
+      <li><strong>Call recordings are no longer readable by strangers</strong> — only faxes and meeting recordings are public now; everything else needs a login.</li>
+      <li><strong>Unknown SIP sources are dropped</strong> — the proxy's trusted list is empty and the switch listens only on loopback, so there is no open relay.</li>
+      <li><strong>Certificates and the host firewall are healthy</strong> — valid to 21 October, auto-renewing, fail2ban actively banning.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 9. ORDER ============ -->
+  <section>
+    <div class="sechead">
+      <span class="tag">If it were mine</span>
+      <h2 class="sec">The order I would fix them in</h2>
+    </div>
+
+    <p>Ranked by what a paying customer would notice first, not by how hard each one is.</p>
+
+    <ol class="ranked">
+      <li>
+        <div>
+          <h4>Deploy the two-factor fix that already exists</h4>
+          <p>The code is written and correct. It has simply never reached the machine. This is a build and a restart, and it closes an open login bypass that is being used today.</p>
+          <p class="meta">Hours · no new code</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Get the DIDWW key working again</h4>
+          <p>Nobody can buy a number. Everything downstream of signup is blocked until this is answered — a rotated key, a revoked key, or an IP restriction on their side.</p>
+          <p class="meta">Hours · a phone call to the carrier</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Put pricing back into the call ingester</h4>
+          <p>The rate tables are complete and the old logic exists to copy. Until this lands, every minute of talk is free and the ledger is fiction.</p>
+          <p class="meta">Days · rate lookup plus a backfill for calls since 29 August</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Check the balance before dialling out</h4>
+          <p>One lookup in the call router, right beside the country check that already works. Without it, pricing calls only tells you how much you lost.</p>
+          <p class="meta">Days · sits next to existing code</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Turn bot protection on</h4>
+          <p>Flip the setting, then change the code so a missing setting means "on" rather than "off".</p>
+          <p class="meta">Hours</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Make the call router survive more than one call at a time</h4>
+          <p>Threaded server, a small connection pool, a deeper listen queue. Small change, and it is the difference between six calls and six hundred.</p>
+          <p class="meta">Days</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Put monitoring and alerting on the box</h4>
+          <p>Anything at all. A service that fails 4,303 times in a day should reach a human before a review does.</p>
+          <p class="meta">Days</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Get the routing code into version control</h4>
+          <p>The Python router and the Lua queue engine, committed, with a deployment script that replaces hand-editing on the server.</p>
+          <p class="meta">Days · the .bak files stop here</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Finish the recording pipeline</h4>
+          <p>Fix the owner lookup so files upload, then clear the thousands of records pointing at recordings that were never kept.</p>
+          <p class="meta">Days</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Hide the choices that do not work</h4>
+          <p>Five forwarding options lead a caller into silence. Either build Departments properly — the settings are already there — or take the dead options off the screen until you do.</p>
+          <p class="meta">Hours to hide · weeks to build Departments</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Stop the nightly renewal writing duplicates</h4>
+          <p>Stripe is protecting you from double charges. Your ledger and your emails are not protected.</p>
+          <p class="meta">Days</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h4>Take the API documentation off the public internet, and price the numbers</h4>
+          <p>Two small chores. One stops handing attackers a map; the other stops renewing thirty phone numbers for nothing every month.</p>
+          <p class="meta">Hours</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="note" style="margin-top:34px">
+      <p><strong>One habit worth keeping.</strong> The single most expensive pattern on this project is work that is genuinely finished and genuinely absent from the running machine. The two-factor fix is the clearest example: correct in the source, missing in production, being exploited daily. Before closing anything on this list, check the machine that takes the calls, not the repository.</p>
+    </div>
+  </section>
+
+  <footer>
+    Reviewed 2 September 2026 against the live production system at 142.93.121.121, api2.mycountrymobile.com and the shared DigitalOcean databases.<br>
+    Every finding here was read from the running machine — process listings, live configuration, the production database, and a live query to the call router — not from source code alone.
+  </footer>
+
+</div>

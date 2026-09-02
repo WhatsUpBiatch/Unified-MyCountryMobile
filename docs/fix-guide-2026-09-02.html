@@ -1,0 +1,1174 @@
+<title>The Fix List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --paper:#EDEFF0; --surface:#F7F8F8; --card:#F7F8F8; --sunken:#E2E6E8;
+    --ink:#141C22; --ink-soft:#3A4750; --ink-faint:#6B7A84;
+    --rule:#CDD4D8; --rule-soft:#DEE3E6;
+    --signal:#14646B; --signal-dim:#d7e6e7;
+    --stop:#9E3328; --stop-dim:#f2dedb;
+    --hold:#96660F; --hold-dim:#f4e8d2;
+    --clear:#34633F; --clear-dim:#dfe9e0;
+    --code-bg:#1B252C; --code-fg:#DCE5E9;
+    --shadow:0 1px 2px rgba(20,28,34,.06), 0 8px 24px -16px rgba(20,28,34,.35);
+    --f-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+    --f-body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --f-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+      --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+      --rule:#2A3841; --rule-soft:#212D35;
+      --signal:#57B3B9; --signal-dim:#123336;
+      --stop:#E0796B; --stop-dim:#2E1B18;
+      --hold:#D6A445; --hold-dim:#2C2314;
+      --clear:#7DB98A; --clear-dim:#182818;
+      --code-bg:#0A1015; --code-fg:#CFDBE1;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+    --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+    --rule:#2A3841; --rule-soft:#212D35;
+    --signal:#57B3B9; --signal-dim:#123336;
+    --stop:#E0796B; --stop-dim:#2E1B18;
+    --hold:#D6A445; --hold-dim:#2C2314;
+    --clear:#7DB98A; --clear-dim:#182818;
+    --code-bg:#0A1015; --code-fg:#CFDBE1;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--f-body);
+         font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1160px; margin:0 auto; padding:0 24px 96px; }
+
+  .mast { border-bottom:2px solid var(--ink); padding:56px 0 26px; margin-bottom:34px; }
+  .kicker { font-family:var(--f-mono); font-size:11.5px; font-weight:600; letter-spacing:.16em;
+            text-transform:uppercase; color:var(--signal); margin:0 0 18px; }
+  h1 { font-family:var(--f-display); font-weight:800; font-size:clamp(38px,6.4vw,68px);
+       line-height:.96; letter-spacing:-.03em; margin:0 0 20px; text-wrap:balance; }
+  .standfirst { font-size:20px; line-height:1.5; color:var(--ink-soft); max-width:660px; margin:0 0 28px; }
+  .stampline { display:flex; flex-wrap:wrap; gap:8px 28px; font-family:var(--f-mono);
+               font-size:12px; color:var(--ink-faint); }
+  .stampline b { color:var(--ink-soft); font-weight:500; }
+
+  .howto { background:var(--card); border:1px solid var(--rule); border-left:5px solid var(--signal);
+           border-radius:3px; padding:24px 26px; margin:0 0 40px; box-shadow:var(--shadow); }
+  .howto h2 { font-family:var(--f-display); font-size:21px; font-weight:700; margin:0 0 10px;
+              letter-spacing:-.015em; }
+  .howto p { margin:0 0 10px; max-width:70ch; font-size:16.5px; }
+  .howto p:last-child { margin-bottom:0; }
+
+  /* ---------- board ---------- */
+  .board { overflow-x:auto; margin:0 0 52px; border:1px solid var(--rule); border-radius:3px; }
+  table { border-collapse:collapse; width:100%; min-width:720px; background:var(--card); }
+  th,td { text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule-soft); font-size:14px;
+          vertical-align:top; }
+  th { font-family:var(--f-mono); font-size:10.5px; font-weight:600; letter-spacing:.1em;
+       text-transform:uppercase; color:var(--ink-faint); background:var(--sunken);
+       border-bottom:1px solid var(--rule); white-space:nowrap; position:sticky; top:0; }
+  td { font-family:var(--f-body); color:var(--ink-soft); }
+  td.num { font-family:var(--f-mono); font-size:12px; color:var(--ink-faint); width:34px;
+           font-variant-numeric:tabular-nums; }
+  td.what { color:var(--ink); font-weight:600; font-family:var(--f-display); font-size:14.5px; }
+  td.eff { font-family:var(--f-mono); font-size:11.5px; white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  tr.groupsep td { background:var(--sunken); font-family:var(--f-mono); font-size:10.5px;
+                   letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);
+                   font-weight:600; padding:7px 13px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:1px; }
+  .dot.stop{background:var(--stop);} .dot.hold{background:var(--hold);} .dot.clear{background:var(--clear);}
+
+  /* ---------- sections ---------- */
+  section { margin:0 0 60px; }
+  .sechead { display:flex; align-items:baseline; gap:14px; border-top:2px solid var(--ink);
+             padding-top:14px; margin-bottom:8px; }
+  .sechead .tag { font-family:var(--f-mono); font-size:11px; font-weight:600; letter-spacing:.14em;
+                  text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; padding-top:8px; }
+  h2.sec { font-family:var(--f-display); font-size:clamp(26px,3.4vw,36px); font-weight:700;
+           letter-spacing:-.024em; line-height:1.08; margin:0; text-wrap:balance; }
+  .secnote { font-size:16px; color:var(--ink-faint); margin:0 0 24px; max-width:66ch;
+             font-family:var(--f-mono); font-size:12.5px; letter-spacing:.02em; }
+
+  /* ---------- fix block ---------- */
+  .fix { background:var(--card); border:1px solid var(--rule); border-radius:3px;
+         margin:0 0 18px; overflow:hidden; }
+  .fix > .head { display:flex; gap:14px; align-items:flex-start; padding:18px 22px 14px;
+                 border-left:4px solid var(--rule); }
+  .fix.stop > .head { border-left-color:var(--stop); }
+  .fix.hold > .head { border-left-color:var(--hold); }
+  .fix.clear > .head { border-left-color:var(--clear); }
+  .fix .idx { font-family:var(--f-display); font-weight:800; font-size:22px; color:var(--rule);
+              letter-spacing:-.03em; line-height:1.15; font-variant-numeric:tabular-nums; flex:0 0 auto; }
+  .fix h3 { font-family:var(--f-display); font-size:19px; font-weight:600; letter-spacing:-.012em;
+            margin:0 0 6px; line-height:1.28; }
+  .fix .sym { margin:0; font-size:16px; color:var(--ink-soft); max-width:72ch; }
+  .fix .body { padding:0 22px 20px 22px; border-left:4px solid transparent; }
+  .fix .label { font-family:var(--f-mono); font-size:10.5px; font-weight:600; letter-spacing:.13em;
+                text-transform:uppercase; color:var(--signal); margin:16px 0 7px; }
+  .fix .body p { margin:0 0 10px; font-size:16px; max-width:72ch; }
+  .fix ol, .fix ul { margin:0 0 10px; padding-left:22px; max-width:72ch; }
+  .fix li { margin-bottom:6px; font-size:16px; }
+
+  pre { font-family:var(--f-mono); font-size:12.5px; line-height:1.62; background:var(--code-bg);
+        color:var(--code-fg); border-radius:3px; padding:13px 15px; overflow-x:auto;
+        margin:0 0 10px; white-space:pre; }
+  pre .c { color:#7FA6A8; }
+  code { font-family:var(--f-mono); font-size:.86em; background:var(--sunken);
+         padding:1px 5px; border-radius:2px; word-break:break-word; }
+
+  .verify { background:var(--clear-dim); border-left:3px solid var(--clear);
+            padding:11px 15px; border-radius:0 3px 3px 0; margin:8px 0 0; }
+  .verify .label { color:var(--clear); margin:0 0 5px; }
+  .verify p, .verify pre { margin:0; }
+  .verify pre { background:transparent; color:var(--ink-soft); padding:0; font-size:12.5px; }
+
+  .warn { background:var(--hold-dim); border-left:3px solid var(--hold);
+          padding:11px 15px; border-radius:0 3px 3px 0; margin:10px 0 0; }
+  .warn p { margin:0; font-size:15.5px; color:var(--ink-soft); }
+
+  .note { border-left:3px solid var(--signal); background:var(--signal-dim); padding:14px 18px;
+          border-radius:0 3px 3px 0; margin:0 0 22px; max-width:74ch; }
+  .note p { margin:0; font-size:16px; }
+
+  footer { border-top:2px solid var(--ink); padding-top:18px; margin-top:20px;
+           font-family:var(--f-mono); font-size:12px; color:var(--ink-faint); line-height:1.7; }
+
+  @media (max-width:620px) {
+    body { font-size:16px; }
+    .wrap { padding:0 18px 64px; }
+    .fix > .head { padding:16px 16px 12px; gap:10px; }
+    .fix .body { padding:0 16px 18px; }
+    pre { font-size:11.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation:none!important; transition:none!important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">Both audits, merged · with the repair for each</p>
+    <h1>The Fix List</h1>
+    <p class="standfirst">Everything found in the launch review and the deep pass, in one place, ordered by what to do first — and for each one, the actual change, where it goes, and how to prove it worked.</p>
+    <div class="stampline">
+      <span><b>34 faults</b></span>
+      <span><b>Checked</b> 2 September 2026 against live production</span>
+      <span><b>Nothing here has been applied</b></span>
+    </div>
+  </header>
+
+  <div class="howto">
+    <h2>How to use this</h2>
+    <p>Work top to bottom. The order is deliberate: the first four are happening to real customers right now and take under an hour between them. Everything below is grouped by the session you'd do it in.</p>
+    <p>Every fix has three parts — <strong>what is wrong</strong>, <strong>the change</strong>, and <strong>how to check</strong>. Do the check every time. On this system the most expensive mistake has been assuming a correct fix reached the machine: the two-factor fix is written, committed, correct, and has never been deployed.</p>
+    <p>Commands assume you are on the production box (<code>ssh mcm-new</code>, 142.93.121.121). Take a backup before each edit — the convention already in use is <code>cp x x.bak-$(date +%Y%m%d-%H%M%S)</code>.</p>
+  </div>
+
+  <!-- ==================== BOARD ==================== -->
+  <div class="board">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Fault</th><th>Who feels it</th><th>Effort</th></tr>
+      </thead>
+      <tbody>
+        <tr class="groupsep"><td colspan="4">Today — under an hour, customers are affected right now</td></tr>
+        <tr><td class="num">01</td><td class="what"><span class="dot stop"></span>Two signups today have no database</td><td>A paying customer, locked out</td><td class="eff">10 min</td></tr>
+        <tr><td class="num">02</td><td class="what"><span class="dot stop"></span>12 calls stuck open up to 26 hours</td><td>Two customers, unbillable calls</td><td class="eff">15 min</td></tr>
+        <tr><td class="num">03</td><td class="what"><span class="dot stop"></span>Carrier API key rejected (401)</td><td>Nobody can buy a number</td><td class="eff">1 call</td></tr>
+        <tr><td class="num">04</td><td class="what"><span class="dot stop"></span>Two-factor bypass live in production</td><td>Every account</td><td class="eff">20 min</td></tr>
+
+        <tr class="groupsep"><td colspan="4">This week — money and trust</td></tr>
+        <tr><td class="num">05</td><td class="what"><span class="dot stop"></span>Voice calls rated at zero since 29 Aug</td><td>All revenue</td><td class="eff">2–3 days</td></tr>
+        <tr><td class="num">06</td><td class="what"><span class="dot stop"></span>No balance check before dialling out</td><td>Your carrier bill</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">07</td><td class="what"><span class="dot stop"></span>Bot protection switched off, fails open</td><td>Signup, login</td><td class="eff">30 min</td></tr>
+        <tr><td class="num">08</td><td class="what"><span class="dot stop"></span>Supervisor buttons dial your carrier</td><td>Supervisors, your bill</td><td class="eff">1 hour</td></tr>
+        <tr><td class="num">09</td><td class="what"><span class="dot stop"></span>Signup never creates the database</td><td>Every future customer</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">10</td><td class="what"><span class="dot stop"></span>Security alerts never delivered</td><td>You</td><td class="eff">2 hours</td></tr>
+
+        <tr class="groupsep"><td colspan="4">Before launch — features that do not work</td></tr>
+        <tr><td class="num">11</td><td class="what"><span class="dot stop"></span>IVR has never played a menu</td><td>Anyone with a phone menu</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">12</td><td class="what"><span class="dot stop"></span>Voicemail never stores a message</td><td>Every missed call</td><td class="eff">½ day</td></tr>
+        <tr><td class="num">13</td><td class="what"><span class="dot hold"></span>Queues ring randomly regardless of setting</td><td>Every call centre</td><td class="eff">10 min</td></tr>
+        <tr><td class="num">14</td><td class="what"><span class="dot hold"></span>Queues never pushed, agents logged out</td><td>Every call centre</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">15</td><td class="what"><span class="dot stop"></span>Departments cannot ring a phone</td><td>Anyone using teams</td><td class="eff">2–3 days</td></tr>
+        <tr><td class="num">16</td><td class="what"><span class="dot hold"></span>5 forwarding choices lead to silence</td><td>Number setup</td><td class="eff">1 hour to hide</td></tr>
+        <tr><td class="num">17</td><td class="what"><span class="dot stop"></span>Recordings made then stranded</td><td>Compliance, QA</td><td class="eff">fixed by #02</td></tr>
+        <tr><td class="num">18</td><td class="what"><span class="dot hold"></span>Everyone shows online, always</td><td>Every screen</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">19</td><td class="what"><span class="dot hold"></span>7 screens call a dead endpoint</td><td>Invoices, call detail, meetings</td><td class="eff">2 days</td></tr>
+        <tr><td class="num">20</td><td class="what"><span class="dot hold"></span>Live dashboard has no data source</td><td>Supervisors</td><td class="eff">2 days</td></tr>
+
+        <tr class="groupsep"><td colspan="4">Before launch — platform</td></tr>
+        <tr><td class="num">21</td><td class="what"><span class="dot stop"></span>Four one-at-a-time services on the call path</td><td>Everyone, at scale</td><td class="eff">1–2 days</td></tr>
+        <tr><td class="num">22</td><td class="what"><span class="dot stop"></span>No monitoring, no alerting, no backups</td><td>You</td><td class="eff">1–2 days</td></tr>
+        <tr><td class="num">23</td><td class="what"><span class="dot stop"></span>Routing code exists only on one disk</td><td>Everything</td><td class="eff">½ day</td></tr>
+        <tr><td class="num">24</td><td class="what"><span class="dot stop"></span>Permissions never enforced on the server</td><td>Every tenant</td><td class="eff">1–2 weeks</td></tr>
+        <tr><td class="num">25</td><td class="what"><span class="dot hold"></span>Audio has no fallback on strict networks</td><td>Corporate customers</td><td class="eff">1 hour</td></tr>
+
+        <tr class="groupsep"><td colspan="4">Tidy-up — small, cheap, worth doing</td></tr>
+        <tr><td class="num">26</td><td class="what"><span class="dot hold"></span>Nightly renewal writes duplicate ledger rows</td><td>Accounts, support</td><td class="eff">½ day</td></tr>
+        <tr><td class="num">27</td><td class="what"><span class="dot hold"></span>24 of 30 numbers priced at zero</td><td>Revenue</td><td class="eff">1 hour</td></tr>
+        <tr><td class="num">28</td><td class="what"><span class="dot hold"></span>API documentation public on the internet</td><td>Security</td><td class="eff">10 min</td></tr>
+        <tr><td class="num">29</td><td class="what"><span class="dot hold"></span>16 number-buying routes need no login</td><td>Your carrier account</td><td class="eff">2 hours</td></tr>
+        <tr><td class="num">30</td><td class="what"><span class="dot hold"></span>Last-login never recorded for anyone</td><td>Security, support</td><td class="eff">1 hour</td></tr>
+        <tr><td class="num">31</td><td class="what"><span class="dot hold"></span>Call logs show rewritten numbers</td><td>Every customer</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">32</td><td class="what"><span class="dot hold"></span>No text message has ever been sent</td><td>SMS customers</td><td class="eff">1 day</td></tr>
+        <tr><td class="num">33</td><td class="what"><span class="dot hold"></span>Three switch modules fail to load</td><td>Transcription, CDRs</td><td class="eff">1 hour</td></tr>
+        <tr><td class="num">34</td><td class="what"><span class="dot hold"></span>Carrier calls skip certificate checking</td><td>Security</td><td class="eff">30 min</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ==================== TODAY ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Session 1</span><h2 class="sec">Today, in under an hour</h2></div>
+    <p class="secnote">Four things. Real customers are affected by three of them at this moment.</p>
+
+    <!-- 01 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">01</span>
+        <div>
+          <h3>Two accounts created today have no database</h3>
+          <p class="sym"><code>hamza@mcmbpo.com</code> paid and cannot use the product. <code>amar@mcmbpo.com</code> the same. Each customer gets their own database; theirs was never created, so every screen errors with <code>Unknown database</code>.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — repair the two now</p>
+        <p>There is already a routine that finds every company missing a database and builds it. Nothing runs it on a schedule. Run it by hand:</p>
+<pre><span class="c"># 1. See who is broken</span>
+mysql ... mycountrymobile_db -e \
+  'SELECT id,name,db_name,payment_verified FROM companies WHERE db_status=0'
+
+<span class="c"># 2. Build the missing databases (sweeps every db_status=0 company)</span>
+cd /var/www/prod/default-api
+node -e "const m=require('./dist/controllers/AuthController.js'); \
+         (m.default||m).databaseHandle().then(()=>process.exit(0))"</pre>
+        <div class="warn"><p><strong>Before running:</strong> this creates databases and runs migrations. Take a snapshot of the DigitalOcean cluster first, and run it once — not in a loop. It is safe to re-run (it only touches <code>db_status=0</code> rows) but there is no reason to.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>mysql ... -e "SHOW DATABASES LIKE 'mcm_%'" | wc -l     # was 20, expect 22
+mysql ... mycountrymobile_db -e 'SELECT COUNT(*) FROM companies WHERE db_status=0'   # expect 0
+tail -f /root/.pm2/logs/tenant-api-error.log            # "Unknown database" should stop</pre>
+        </div>
+        <p class="label">Then tell them</p>
+        <p>Both accounts have been sitting broken since early afternoon. The paid one deserves a message.</p>
+      </div>
+    </div>
+
+    <!-- 02 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">02</span>
+        <div>
+          <h3>Twelve calls have been stuck open for up to 26 hours</h3>
+          <p class="sym">Each answered, then the browser's audio never connected. Because <strong>no audio timeout is configured anywhere</strong>, the switch held them open. They produce no call record, so they are invisible and unbillable — and they are why the recording uploader has failed 4,303 times.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — part 1, stop it happening again</p>
+        <p><code>/etc/freeswitch</code> is mounted from the host, so edit it there. Add two lines to <code>vars.xml</code>:</p>
+<pre>cp /etc/freeswitch/vars.xml /etc/freeswitch/vars.xml.bak-$(date +%Y%m%d-%H%M%S)
+
+<span class="c"># insert inside &lt;include&gt;, next to the other X-PRE-PROCESS lines</span>
+&lt;X-PRE-PROCESS cmd="set" data="rtp_timeout_sec=30"/&gt;
+&lt;X-PRE-PROCESS cmd="set" data="rtp_hold_timeout_sec=1800"/&gt;
+
+docker exec mcm-freeswitch fs_cli -x "reloadxml"</pre>
+        <p>30 seconds of silence ends the call. 30 minutes on hold is still allowed. A call with no audio should die in seconds, not days.</p>
+
+        <p class="label">The change — part 2, clear the twelve corpses</p>
+<pre><span class="c"># look first — confirm they are old, not live calls</span>
+docker exec mcm-freeswitch fs_cli -x "show channels as delim |" \
+  | awk -F"|" 'NR>1{print $1, $3}'
+
+<span class="c"># hang up anything created before today</span>
+docker exec mcm-freeswitch fs_cli -x "hupall NORMAL_CLEARING"</pre>
+        <div class="warn"><p><code>hupall</code> ends <em>every</em> call including any genuine one in progress. Run it out of hours, or hang up the twelve individually with <code>uuid_kill &lt;uuid&gt;</code> after checking each one's age.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>docker exec mcm-freeswitch fs_cli -x "global_getvar rtp_timeout_sec"   # expect 30, not "-ERR no reply"
+docker exec mcm-freeswitch fs_cli -x "show calls count"               # expect 0
+journalctl -u recording-upload -n 20     # the four skips should turn into uploads
+ls /opt/call-recordings/tmp/             # should empty out as they upload</pre>
+        </div>
+        <p class="label">Note</p>
+        <p>This is a bandage, not a cure. The underlying fault is that browser audio fails to establish on some networks — see <strong>#25</strong>. But the timeout should go in regardless: a stuck call is never correct.</p>
+      </div>
+    </div>
+
+    <!-- 03 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">03</span>
+        <div>
+          <h3>The carrier is rejecting your API key</h3>
+          <p class="sym">DIDWW returns <code>401 Unauthorized</code> on every endpoint, tested from your own server. The last successful number order was 1 September 08:03. Nobody can buy, release or check a number — and that is what blocks #09.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li>Reproduce it, so you have something to show them:
+<pre>set -a; . /var/www/prod/default-api/.env; set +a
+curl -s -H "Api-Key: $DID_WW_KEY" https://api.didww.com/v3/balance
+<span class="c"># {"errors":[{"title":"Unauthorized","code":"401"}]}</span></pre></li>
+          <li>Ask DIDWW support which it is: key rotated, key revoked, or an IP allowlist on their side that no longer includes <code>142.93.121.121</code>. All three look identical from here.</li>
+          <li>Put the new key in <code>/var/www/prod/default-api/.env</code> as <code>DID_WW_KEY</code>, then <code>pm2 restart default-api</code>.</li>
+        </ol>
+        <div class="warn"><p><strong>While you are in that file:</strong> <code>DidwwService.ts</code> reads <code>DIDWW_API_KEY</code> and <code>DIDWW_API_URL</code>. Neither exists — the real names are <code>DID_WW_KEY</code> and <code>DID_WW_URL</code>. Every call through that class has always sent the literal word "undefined". Fix the names in the code, not by adding duplicate variables.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>curl -s -H "Api-Key: $DID_WW_KEY" https://api.didww.com/v3/balance   # expect a balance, not 401
+grep -c "Route Not Found" /root/.pm2/logs/default-api-error.log      # should stop growing</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">04</span>
+        <div>
+          <h3>Deploy the two-factor fix that already exists</h3>
+          <p class="sym">A fixed six-digit code lets staff skip the login code from seventeen addresses. Somebody already fixed this correctly in the source — <strong>the fix has never reached the machine</strong>, and the live log shows it being used dozens of times against real accounts.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — no new code, just a build</p>
+<pre><span class="c"># the source already has the guard:</span>
+<span class="c">#   src/controllers/AuthController.ts:2635 and :2831</span>
+<span class="c">#   const masterOtp = isProduction ? "" : String(process.env.MASTER_OTP || "").trim();</span>
+<span class="c"># the deployed build does not. Build and ship it.</span>
+
+cd /root/UCAAS/mcm-repos/default-api
+npm ci && npm run build
+rsync -a --delete dist/ mcm-new:/var/www/prod/default-api/dist/
+ssh mcm-new "pm2 restart default-api"</pre>
+        <div class="warn"><p><strong>Two dist-only patches live on that machine and a rebuild wipes them</strong> — the recording permission gate and the IP allowlist. They are committed under <code>backend-patches/</code>. Re-apply them straight after the deploy and re-test both, or roll back. Check <code>/var/www/prod/default-api/dist.rollback-*</code> exists before you start.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>ssh mcm-new "grep -c 'isProduction ? \"\" : String(process.env.MASTER_OTP' \
+  /var/www/prod/default-api/dist/controllers/AuthController.js"   <span class="c"># expect 2, currently 0</span>
+<span class="c"># control: this must still be non-zero, proving the search works</span>
+ssh mcm-new "grep -c MASTER_OTP /var/www/prod/default-api/dist/controllers/AuthController.js"
+<span class="c"># then watch: no new "[MASTER_OTP] bypass used" lines should appear</span></pre>
+        </div>
+        <p>Do <strong>not</strong> "fix" this by deleting <code>MASTER_OTP_ALLOWED_IPS</code> from the environment. That only returns you to a state where one edit turns it back on. Ship the build.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== WEEK 1 ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Session 2</span><h2 class="sec">This week — money and trust</h2></div>
+    <p class="secnote">Nothing here can wait for a customer to complain, because by then it has already cost you.</p>
+
+    <!-- 05 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">05</span>
+        <div>
+          <h3>Put pricing back into the call ingester</h3>
+          <p class="sym">Since 29 August every call is written with <code>cost = 0.000, charge = 0.000</code>. The job that loads calls has no pricing step in it — 392 lines, and the words <em>cost</em>, <em>rate</em> and <em>charge</em> do not appear. Last five days: 108 answered calls, 103 charged nothing.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The good news</p>
+        <p>The rate data is complete and correct — <strong>92,622 call rates</strong> and 651 SMS rates. Only the lookup is missing. And you already have a working model to copy: text messages and faxes both read the balance, refuse when it is short, and deduct. Voice is the only unmetered service.</p>
+        <p class="label">The change — in <code>/opt/cdr-ingest.py</code></p>
+        <ol>
+          <li>After a row is parsed and before it is inserted, look the rate up by longest matching prefix:
+<pre>SELECT rate, billingblock, progressiveblock
+FROM mycountrymobile_db.call_rates
+WHERE service='CALL' AND status='A'
+  AND %s LIKE CONCAT(dialprefix, '%%')
+ORDER BY CHAR_LENGTH(dialprefix) DESC
+LIMIT 1</pre></li>
+          <li>Bill in blocks, not raw seconds — <code>billingblock</code> is the first block, <code>progressiveblock</code> the increment (default 60). Write the result into <code>cost</code> and <code>charge</code>.</li>
+          <li>Deduct from <code>companies.credits</code> in the same transaction as the insert, so a crash cannot charge twice. The insert is already idempotent on <code>xml_cdr_uuid</code> — keep it that way.</li>
+          <li>Increment <code>companies.call_duration_used</code>. It is read in three places and written in none, so plan minute allowances currently do nothing.</li>
+        </ol>
+        <p class="label">Then back-fill</p>
+        <p>Re-rate everything since 29 August. The rows exist and carry <code>billsec</code> and <code>destination_number</code>; only the price is missing. Do it as a separate one-off script so the nightly job stays simple.</p>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># make one test call, then:</span>
+SELECT id,destination_number,billsec,cost,charge FROM call_history ORDER BY id DESC LIMIT 1;
+<span class="c"># charge must be > 0 for a billsec > 0 row</span>
+<span class="c"># and the company's credits must have gone down by exactly that amount</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 06 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">06</span>
+        <div>
+          <h3>Check the balance before letting a call out</h3>
+          <p class="sym">The call router never asks whether a customer has money or a live plan. Five accounts are on an expired plan right now; any of them could dial internationally and the bill lands on you. Pricing calls (#05) without this only tells you how much you lost.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — in <code>/opt/fs-xml-api-1.2.5/dialplan_service.py</code></p>
+        <p>There is already a refusal that works, and the new check belongs directly beside it. In <code>build_user_dialplan</code>, right after the country check:</p>
+<pre><span class="c"># existing — a barred country is refused before a carrier is picked</span>
+rules = get_calling_rules(domain_to_dbname(domain), company_uuid, user_uuid)
+refusal = international_refusal(dest, caller_id, rules)
+if refusal:
+    ... hangup CALL_REJECTED ...
+
+<span class="c"># ADD: same shape, for money</span>
+if not company_can_pay(company_uuid):
+    log("warn", "outbound refused, no balance", company=company_uuid, dst=dest)
+    actions = [
+        {"application": "set",    "data": "call_blocked=no-balance"},
+        {"application": "hangup", "data": "CALL_REJECTED"},
+    ]
+    return build_internal_xml(context, "nobalance-%s" % dest, actions)</pre>
+        <p>Write <code>company_can_pay()</code> to read <code>plan_status</code> and <code>credits</code> from <code>companies</code>, and cache it for ~30 seconds the way <code>get_outbound_provider()</code> already caches.</p>
+        <div class="warn"><p><strong>Fail open, not closed.</strong> If the lookup throws, allow the call. A database hiccup must never silently block every customer's phone — that is a worse outage than a few unpaid minutes. The channel-limit code in the same file already follows this rule; copy its comment as well as its shape.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># ask the live router directly — no test call needed</span>
+curl -s -X POST http://127.0.0.1:9000/ \
+  --data-urlencode "Caller-Context=internal" \
+  --data-urlencode "variable_domain_name=&lt;a broke tenant's domain&gt;" \
+  --data-urlencode "Caller-Username=1000_web" \
+  --data-urlencode "Hunt-Destination-Number=919004583988"
+<span class="c"># expect: extension name="nobalance-..."   NOT "outbound-..."</span>
+<span class="c"># control: a tenant in credit must still return "outbound-..."</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 07 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">07</span>
+        <div>
+          <h3>Turn bot protection on, and make "on" the default</h3>
+          <p class="sym">Cloudflare Turnstile is bought, configured and bypassed. The code is also written so a <em>missing</em> setting means off — the worst possible default.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — two parts</p>
+<pre><span class="c"># 1. the setting, on the server</span>
+sed -i 's/^CAPTCHA_BYPASS=true/CAPTCHA_BYPASS=false/' /var/www/prod/default-api/.env
+pm2 restart default-api
+
+<span class="c"># 2. the default, in src/config/captchaConfig.ts:8</span>
+<span class="c">-  String(process.env.CAPTCHA_BYPASS ?? "true")</span>
+<span class="c">+  String(process.env.CAPTCHA_BYPASS ?? "false")</span></pre>
+        <p>Part 2 matters more than part 1. A missing variable on a new box currently means no bot protection, silently.</p>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+          <p>Submit the signup form with the captcha token removed. It must be refused. Then complete a real signup and confirm it still succeeds — this is the check people skip, and turning captcha on has broken signup before.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 08 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">08</span>
+        <div>
+          <h3>Stop Listen, Whisper, Barge and Intercept dialling your carrier</h3>
+          <p class="sym">Each button dials a star code with the call's id glued on — <code>*87c6897a28…</code>. The switch has no star-code handling, so it treats it as an outside number, stamps it billable, adds your carrier prefix and sends it to 46 Labs. Four screens, plus your pricing page.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — today, hide them</p>
+        <p>They cost money and do nothing. Gate all four behind a feature flag that is off, on all four screens:</p>
+<pre>src/pages/monitoring/all-calls/index.tsx
+src/pages/monitoring/all-users/index.tsx
+src/pages/monitoring/department/index.tsx
+src/pages/dashboard/live-dashboard/index.tsx</pre>
+        <p>And take "advanced call monitoring including whisper, barge, and monitor" off <code>src/pages/pricing/index.tsx</code> until it exists.</p>
+
+        <p class="label">The change — later, build them properly</p>
+        <p>The switch already has the capability: <code>mod_dptools</code> is loaded and provides <code>eavesdrop</code> and <code>native_eavesdrop</code>. Nothing is wired to it. Add a star-code branch in <code>build_user_dialplan</code>, <em>before</em> the extension match at line 1573:</p>
+<pre>m = re.match(r'^\*(8[6-9])(.+)$', dest_clean)
+if m:
+    code, target_uuid = m.group(1), m.group(2)
+    <span class="c"># *87 listen  *86 whisper  *88 barge  *89 intercept</span>
+    <span class="c"># check the supervisor is in the same company as the target call</span>
+    ... eavesdrop with the right dtmf/flags ...</pre>
+        <div class="warn"><p><strong>Scope it to the company.</strong> The call id comes from the browser. Without a check that the target call belongs to the supervisor's own company, this becomes a way to listen to another customer's calls. That check is the whole feature — do not ship the eavesdrop without it.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># ask the live router what a star code does now</span>
+curl -s -X POST http://127.0.0.1:9000/ \
+  --data-urlencode "Caller-Context=internal" \
+  --data-urlencode "variable_domain_name=&lt;domain&gt;" \
+  --data-urlencode "Caller-Username=1000_web" \
+  --data-urlencode "Hunt-Destination-Number=*87c6897a28" | grep -o 'extension name="[^"]*"'
+
+<span class="c"># today  : extension name="outbound-*87c6897a28"   ← goes to the carrier</span>
+<span class="c"># hidden : the button is gone, nothing to test</span>
+<span class="c"># built  : extension name="eavesdrop-..."           ← correct</span>
+<span class="c"># control: dialling 7242 must still return "user-7242"</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 09 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">09</span>
+        <div>
+          <h3>Make signup create the customer's database</h3>
+          <p class="sym">Today it does not. The database is created as a side effect of the buy-a-number flow, so any failure there — like #03 — leaves a paid customer with an account that errors everywhere. Nothing retries.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — three parts</p>
+        <ol>
+          <li><strong>Provision at signup.</strong> In <code>AuthController.Registeration</code>, after the company, user and site are created and the transaction commits, call <code>AuthController.databaseHandle(company.uuid)</code>. It is already called from three places in <code>Admin/CompanyController</code>; this is a fourth.</li>
+          <li><strong>Add a sweeper.</strong> In <code>src/app.ts</code>, add <code>databaseHandle()</code> with no argument to the hourly cron beside <code>planInactive()</code>. It already sweeps every <code>db_status=0</code> company — it just never runs on its own.</li>
+          <li><strong>Fail loudly.</strong> Right now a failure is logged and swallowed. Raise a security-alert event so somebody hears about it — once #10 is fixed, that reaches a person.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># complete a real signup in a private window, then within a minute:</span>
+mysql ... mycountrymobile_db -e 'SELECT name,db_status FROM companies ORDER BY id DESC LIMIT 1'
+<span class="c"># db_status must be 1</span>
+mysql ... -e "SHOW DATABASES LIKE 'mcm_%'" | wc -l
+<span class="c"># must have gone up by one</span></pre>
+        </div>
+        <p>A successful signup response does not mean a working account. Always check <code>db_status</code> afterwards.</p>
+      </div>
+    </div>
+
+    <!-- 10 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">10</span>
+        <div>
+          <h3>Point the security alerts at an endpoint that exists</h3>
+          <p class="sym">The security service raises alerts and posts them to <code>/internal/notifications/security-alert</code>, which answers 404. Twenty-eight alerts have been thrown away. This is the only thing on the platform trying to tell you something is wrong.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>The route <em>does</em> exist — it is mounted at <code>/api/internal/notifications/security-alert</code> in <code>default-api</code>. The dispatcher in <code>security-api</code> is posting to the path without the <code>/api</code> prefix.</p>
+<pre><span class="c"># in security-api: SecurityAlertNotificationDispatcher</span>
+<span class="c">-  ${base}/internal/notifications/security-alert</span>
+<span class="c">+  ${base}/api/internal/notifications/security-alert</span>
+
+<span class="c"># confirm which one answers before changing anything:</span>
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:3000/internal/notifications/security-alert
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:3000/api/internal/notifications/security-alert
+<span class="c"># 404 vs 401/400 tells you which path is real</span></pre>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>grep -c "security-alert" /root/.pm2/logs/security-api-error.log   <span class="c"># was 28, must stop growing</span>
+<span class="c"># then trigger a real alert (several failed payment attempts) and confirm it arrives</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FEATURES ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Session 3</span><h2 class="sec">Before launch — features that do not work</h2></div>
+    <p class="secnote">Each of these is on a screen, or on the pricing page, and does not do what it says.</p>
+
+    <!-- 11 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">11</span>
+        <div>
+          <h3>Make IVR menus actually play</h3>
+          <p class="sym">"Press 1 for sales" has never run once — zero IVR executions in the switch's entire log. Two separate causes, both about files the switch cannot reach.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">Cause 1 — greetings are downloaded where the switch cannot see them</p>
+        <p>The configuration service downloads a customer's greeting to <code>/var/lib/freeswitch/sounds/&lt;company&gt;/</code>. It runs on the host. FreeSWITCH runs in a container that mounts only <code>/etc/freeswitch</code> and <code>/opt/call-recordings</code>. So the file is written somewhere the switch cannot open. Proof: that host directory exists and is empty, and inside the container the path does not exist at all.</p>
+<pre><span class="c"># fs-configuration-api</span>
+<span class="c"># internal/freeswitch/xmlcurl/configuration/common/httpapi.go:19</span>
+<span class="c">-  freeSwitchSoundsPath = "/var/lib/freeswitch/sounds"</span>
+<span class="c">+  freeSwitchSoundsPath = "/etc/freeswitch/sounds/ivr"</span>
+<span class="c"># then rebuild and restart fs-configuration-api</span></pre>
+        <p>That path is already mounted and already holds the customer greetings under <code>/etc/freeswitch/sounds/mcm/greetings/&lt;company&gt;/</code>, so the switch can read it today.</p>
+
+        <p class="label">Cause 2 — the stock sound library was never installed</p>
+        <p><code>/usr/share/freeswitch/sounds/</code> is empty. So the invalid-entry prompt, the goodbye prompt and every other system message are missing. Install the sound package into the mounted path and repoint the switch at it:</p>
+<pre><span class="c"># on the host, into the mounted directory</span>
+cd /etc/freeswitch/sounds
+curl -O https://files.freeswitch.org/releases/sounds/freeswitch-sounds-en-us-callie-8000-latest.tar.gz
+tar xzf freeswitch-sounds-en-us-callie-8000-latest.tar.gz
+
+<span class="c"># then in vars.xml</span>
+&lt;X-PRE-PROCESS cmd="set" data="sounds_dir=/etc/freeswitch/sounds"/&gt;
+
+docker exec mcm-freeswitch fs_cli -x "reloadxml"</pre>
+        <div class="warn"><p>Getting the sound library in also unblocks <strong>#12 voicemail prompts</strong> and every announcement in the product. Do this one before the others in this section.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>docker exec mcm-freeswitch fs_cli -x "global_getvar sounds_dir"
+docker exec mcm-freeswitch ls /etc/freeswitch/sounds/en/us/callie/ivr/ | head
+<span class="c"># then point a test number at an IVR and call it — you must hear the menu</span>
+docker exec mcm-freeswitch grep -c "EXECUTE.*ivr(" /var/log/freeswitch/freeswitch.log
+<span class="c"># was 0 for all time; must be > 0 after one test call</span></pre>
+        </div>
+        <p class="label">One more, while you are here</p>
+        <p>In the live menu I pulled, pressing <strong>1</strong> transfers to a <code>message</code> destination — one of the five route types the call router has no code for (#16). Even with audio fixed, that option goes nowhere.</p>
+      </div>
+    </div>
+
+    <!-- 12 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">12</span>
+        <div>
+          <h3>Make voicemail store a message</h3>
+          <p class="sym">Voicemail is a selectable destination and the router builds a proper branch for it. No message has ever been stored for any current customer — the folder has never even been created.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li><strong>Create the folder and prove it persists.</strong> <code>voicemail_save</code> writes to <code>base_dir .. "storage/voicemail/default/"</code>, which resolves to <code>/opt/call-recordings/storage/voicemail/default/</code> — a mounted path, so this part of the design is right. It just has never been created.
+<pre>mkdir -p /opt/call-recordings/storage/voicemail/default
+chown -R root:root /opt/call-recordings/storage</pre></li>
+          <li><strong>Fix the two stale paths in <code>config.lua</code>.</strong> <code>voicemail_greeting_path</code> and <code>voicemail_folders_path</code> still point at <code>/usr/share/freeswitch/…</code>, which is not mounted — the file's own comment says files there vanish on restart. Point both at <code>/etc/freeswitch/sounds/…</code> or <code>/opt/call-recordings/…</code>.</li>
+          <li><strong>Install the sound library</strong> (#11) so <code>vm-goodbye.wav</code> exists.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># call a number set to Voicemail, leave 10 seconds, hang up</span>
+find /opt/call-recordings/storage -name "msg_*.wav"      <span class="c"># expect one file</span>
+SELECT id,is_voicemail,duration FROM call_history ORDER BY id DESC LIMIT 1;
+<span class="c"># is_voicemail must be 1</span>
+<span class="c"># then open the message in the portal and confirm it plays</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 13 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">13</span>
+        <div>
+          <h3>Stop the queue script overwriting the ring strategy</h3>
+          <p class="sym">Whatever an admin chooses, every queue rings randomly. The lookup service is correct — it returns the queue's real strategy. The queue script sends its own value first, and its own value defaults to <code>random</code> because nothing sets it.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">Proof, before you change anything</p>
+<pre>curl -s "http://localhost:9006/api/callcenter/queues/6124@1785223442786.mycountrymobile.com/agents"
+<span class="c">→ "strategy":"ring-all", "rings_together":true   ← what the admin chose</span>
+
+curl -s "http://localhost:9006/api/callcenter/queues/6124@.../agents?strategy=random"
+<span class="c">→ "strategy":"random",  "rings_together":false  ← what actually happens</span></pre>
+
+        <p class="label">The change — in the dialplan, not the Lua</p>
+        <p>The cleanest place is the QUEUE branch of <code>dialplan_service.py</code>, which already reads the queue record for its greetings. Set the variable the Lua is looking for:</p>
+<pre><span class="c"># in the QUEUE branch, beside cc_queue_name and cc_queue_exten</span>
+{"application": "set", "data": f"cc_ring_strategy={queue_ring_strategy(route_value)}"},</pre>
+        <p>Read it from the same place the lookup service does — <code>settings.ring_strategy.value</code> on the queue record.</p>
+        <div class="warn"><p><strong>Do not just change the Lua default from <code>"random"</code> to <code>""</code>.</strong> Later branches compare <code>ring_strategy == "ring-all"</code> to decide whether to ring everyone at once, so an empty value silently changes behaviour again. And <code>normalize_strategy</code> is declared at line 390, <em>after</em> <code>get_available_agents</code> at line 237 — so it is not in scope inside that function and calling it there resolves to nil. Fix it in the dialplan and the Lua needs no change at all.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>docker exec mcm-freeswitch grep "QUEUE SETTINGS" /var/log/freeswitch/freeswitch.log | tail -1
+<span class="c"># ring_strategy=[ring-all] — must match what the admin picked, not [random]</span>
+<span class="c"># control: change the setting in the UI, call again, watch the log value follow it</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 14 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">14</span>
+        <div>
+          <h3>Push the queues to the switch, and get agents signed in</h3>
+          <p class="sym">All sixteen queues are flagged as never configured. Twenty-eight of thirty-seven agents are logged out, so most queues answer "nobody can take it right now".</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li>Find what sets <code>config_applied</code> and why it has never run. Every one of the sixteen is <code>false</code>, which means the push has never succeeded for anybody — that is a broken step, not sixteen unlucky queues.</li>
+          <li>Give agents a visible way to sign in and out. Twenty-eight logged out with two available is not a configuration accident; it suggests nobody is being prompted to go available.</li>
+          <li>Decide the default. A new agent added to a queue should probably start available, not logged out.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>docker exec mcm-freeswitch fs_cli -x "callcenter_config queue list"   <span class="c"># expect rows, not just headers</span>
+curl -s "http://localhost:9006/api/callcenter/queues/&lt;q&gt;/agents" | head -c 200
+<span class="c"># "agents" must not be empty, and "reason" must not say "signed out"</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 15 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">15</span>
+        <div>
+          <h3>Make Departments able to ring a phone</h3>
+          <p class="sym">A Department stores everything you would expect — members, ring strategy, timeout, failover to voicemail, hold music, its own hours, its own extension. Customers have made them. Nothing anywhere can dial one.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — two branches in <code>dialplan_service.py</code></p>
+        <ol>
+          <li><strong>Inbound.</strong> Add a <code>DEPARTMENT</code> branch to <code>build_inbound_dialplan</code>. The QUEUE branch is the closest model — read the <code>ring_groups</code> row, build a bridge across its members honouring <code>ring_strategy</code> and <code>call_handling.timeout</code>, and fall through to <code>call_handling.failover</code> when nobody answers.</li>
+          <li><strong>Internal.</strong> <code>lookup_user_by_extension</code> only searches the people table, so dialling a Department's own extension (9324, 4332) hits "unknown extension" and hangs up. Extend it to also match <code>ring_groups.extension</code>, and route accordingly.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># inbound: point a number at a Department and ask the router</span>
+curl -s -X POST http://127.0.0.1:9000/ -d "Caller-Context=public&amp;Hunt-Destination-Number=&lt;did&gt;" \
+  | grep -o 'extension name="[^"]*"'
+<span class="c"># expect department-&lt;did&gt;, not &lt;result status="not found"&gt;</span>
+
+<span class="c"># internal: dial the department extension from a softphone</span>
+<span class="c"># expect the members' phones to ring, not NO_ROUTE_DESTINATION</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 16 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">16</span>
+        <div>
+          <h3>Hide the five forwarding choices that lead to silence</h3>
+          <p class="sym">The number-setup screen offers eleven things a call can do. The router understands six. Choose <strong>Ring my device</strong>, <strong>Greeting</strong>, <strong>Message</strong>, <strong>Department</strong> or <strong>AI receptionist</strong> and the caller gets nothing.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — today</p>
+        <p>Remove the five unsupported entries from the option lists in:</p>
+<pre>src/pages/admin-settings/numbers/set-number-forwarding/call-handling/hours/index.tsx
+src/pages/admin-settings/numbers/utils.ts</pre>
+        <p>Nobody is hurt by this yet — every live number points at an extension or a queue — but they are one click away.</p>
+        <p class="label">Then build them back, in this order</p>
+        <ol>
+          <li><strong>Department</strong> — highest value, and #15 covers it.</li>
+          <li><strong>Greeting / Message</strong> — play an audio file and hang up. Small, once the sound path from #11 works.</li>
+          <li><strong>Ring my device</strong> — arguably already covered by Extension; consider removing it rather than building it.</li>
+          <li><strong>AI receptionist</strong> — biggest piece of work, and the AI stack is a separate system.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+          <p>Open the number-forwarding screen and count the options. Then, for each one that remains, save it and ask the router what it produces — every remaining option must return a real extension, not <code>not found</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 17 -->
+    <div class="fix clear">
+      <div class="head">
+        <span class="idx">17</span>
+        <div>
+          <h3>Recordings — no separate work needed</h3>
+          <p class="sym">Four recordings are stranded on disk and the uploader has failed 4,303 times since 1 September, once a minute, with nobody told.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">Why this needs no fix of its own</p>
+        <p>The uploader finds a recording's owner by reading the call record. Those four files belong to four of the stuck calls in <strong>#02</strong> — calls that never ended, so no record was ever written. Fix the hang, the calls end, records appear, and the uploads go through.</p>
+        <p class="label">One thing that does need doing</p>
+        <p>Thousands of older rows carry a recording filename from an earlier era, and the portal shows a play button for every one. Those files do not exist. Clear the column where the file is genuinely gone, so the button stops appearing.</p>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>journalctl -u recording-upload -n 20     <span class="c"># "ok=4" not "kept/failed=4"</span>
+ls /opt/call-recordings/tmp/             <span class="c"># should empty</span>
+<span class="c"># then open a recent call in the portal and press play</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 18 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">18</span>
+        <div>
+          <h3>Add an offline presence state</h3>
+          <p class="sym">A person's presence can be online, holiday, away, busy or do-not-disturb. <strong>Offline is not one of them.</strong> It cannot be stored, so it is never shown: 2,063 users are "online" against 11 phones actually registered. Every green dot in the product is meaningless.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li>Add the value to the column:
+<pre>ALTER TABLE users
+  MODIFY socket_status
+  ENUM('online','offline','holiday','away','busy','dnd')
+  NOT NULL DEFAULT 'offline';</pre></li>
+          <li>Set it on disconnect. <code>socket-api</code> already logs <code>connectionRegister</code> on every connect — it needs the matching disconnect to write <code>offline</code>.</li>
+          <li>Sweep on startup. After a restart every socket is gone but the column still says online. Set everyone offline when the socket service starts.</li>
+        </ol>
+        <div class="warn"><p>Changing the default to <code>offline</code> will make the directory look empty until people connect. That is correct — but tell support before you do it, or it reads as an outage.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>SELECT socket_status, COUNT(*) FROM users WHERE deleted_at IS NULL GROUP BY 1;
+<span class="c"># the online count should land near the registered-phone count, not 2,063</span>
+docker exec mcm-freeswitch fs_cli -x "show registrations" | tail -1
+<span class="c"># close a browser tab, wait, and watch that person flip to offline</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 19 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">19</span>
+        <div>
+          <h3>Fix the seven screens calling an endpoint that is not there</h3>
+          <p class="sym">Of the 321 API calls the portal makes, 314 are fine. Seven answer 404.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The list, worst first</p>
+<pre>/api/payment/info            viewing an invoice
+/api/tenant/report/history   opening one call's detail from the log
+/api/meeting/join            joining a video meeting
+/api/v1/meeting/detail       meeting details panel
+/api/download                downloading a PDF
+/api/upload/temp             uploading a summary PDF
+/api/agent/list              the agent list</pre>
+        <p>Invoice detail and call detail are the two a customer hits first. Start there.</p>
+        <p class="label">How to re-run the whole comparison</p>
+        <p>The test is cheap and worth keeping: a missing route answers <strong>404</strong>, a route that exists but needs a login answers <strong>401</strong>. Pull every URL out of <code>src/services/api/routes.tsx</code> and probe each one unauthenticated.</p>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api2.mycountrymobile.com/api/payment/info/x
+<span class="c"># expect 401, not 404</span>
+<span class="c"># control: /api/tenant/report/call-list already returns 401 — that is what "exists" looks like</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 20 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">20</span>
+        <div>
+          <h3>Give the live dashboard something to read</h3>
+          <p class="sym">Six calls were up while I looked. The collection the live dashboard and queue supervisor screens read held zero documents. Per-member call analytics is empty too.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Something has to write a row when a call starts and delete it when it ends. <code>kamailio-live-calls.service</code> is running and appears intended for this; it is producing nothing. Either fix it or move the job into <code>esl-manager</code>, which already receives every channel event from the switch and is the natural place for it.</p>
+        <div class="warn"><p>Do <strong>#02</strong> first. With calls that never end, a live-calls table would fill with corpses and the dashboard would be wrong in a new way.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre><span class="c"># with one call up:</span>
+docker exec mcm-freeswitch fs_cli -x "show calls count"    <span class="c"># e.g. 1</span>
+<span class="c"># mongo live_calls count must match — and drop back to 0 when the call ends</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== PLATFORM ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Session 4</span><h2 class="sec">Before launch — the platform underneath</h2></div>
+    <p class="secnote">None of this is visible until the day it matters, and on that day all of it matters at once.</p>
+
+    <!-- 21 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">21</span>
+        <div>
+          <h3>Make the call-path services handle more than one call at a time</h3>
+          <p class="sym">Four services sit between the switch and every call. All four are one-request-at-a-time Python servers with a five-deep waiting queue and a single shared database connection.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The four</p>
+<pre>127.0.0.1:9000   the call router      LISTEN 0 5
+127.0.0.1:9001   the phone directory  LISTEN 0 5
+127.0.0.1:9002   switch configuration LISTEN 0 5
+127.0.0.1:9006   queue agent lookup   LISTEN 0 5</pre>
+        <p>At a 100 ms database round trip that is roughly ten calls a second, ceiling — and any database stall stops all call routing rather than slowing it.</p>
+        <p class="label">The change — the same three edits, four times</p>
+<pre><span class="c">- server = HTTPServer((host, port), Handler)</span>
+<span class="c">+ class Server(ThreadingHTTPServer):</span>
+<span class="c">+     daemon_threads = True</span>
+<span class="c">+     request_queue_size = 128</span>
+<span class="c">+ server = Server((host, port), Handler)</span></pre>
+        <p>Then replace the single module-level <code>_db_conn</code> with a small connection pool — threads sharing one pymysql connection will corrupt each other's results. Keep <code>autocommit=True</code>; that fix is already in and is load-bearing.</p>
+        <div class="warn"><p>Threading without the pool is <em>worse</em> than what you have now: single-threaded at least serialises access to that one connection. Do both edits together or neither.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>ss -lntp | grep -E "900[0-2]|9006"      <span class="c"># backlog should read 128, not 5</span>
+<span class="c"># then fire 50 concurrent dialplan lookups and confirm every one returns</span>
+<span class="c"># the same XML a single request returns — a control matters here</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 22 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">22</span>
+        <div>
+          <h3>Put monitoring, alerting and backups on the box</h3>
+          <p class="sym">Everything runs on one two-processor machine with 7 GB of memory, 69% disk used. There is no monitoring agent of any kind, no alerting, and no backup job. A service failed every minute for twenty-eight hours and the first anyone knew was this review.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — smallest useful version</p>
+        <ol>
+          <li><strong>Alert on failed services.</strong> A systemd <code>OnFailure=</code> hook on the units that matter — <code>cdr-ingest</code>, <code>recording-upload</code>, <code>fs-xml-api</code>, <code>kamailio</code> — is a few lines and would have caught #02 and #17 on day one.</li>
+          <li><strong>Watch four numbers:</strong> disk, memory, calls up, and PM2 restart count. <code>default-api</code> has restarted 44 times with "Mongodb connection lost" in its log; nobody was told.</li>
+          <li><strong>Back up.</strong> There is no backup job on this machine. The DigitalOcean databases have their own snapshots, but <code>/etc/freeswitch</code>, <code>/etc/kamailio</code>, <code>/opt/*</code> and the environment files are all one disk failure from gone.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+<pre>systemctl stop cdr-ingest.timer        <span class="c"># deliberately break something</span>
+<span class="c"># an alert must arrive. If it does not, the monitoring is decoration.</span>
+systemctl start cdr-ingest.timer</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 23 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">23</span>
+        <div>
+          <h3>Get the routing code into version control</h3>
+          <p class="sym">The call router (2,007 lines of Python) and the queue engine (49 KB of Lua) exist only on this one server, surrounded by about thirty <code>.bak</code> files with dates in their names. If that disk goes, the routing logic goes with it.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li>Commit both, plus the small services beside them — <code>cdr-ingest.py</code>, <code>recording-upload.sh</code>, <code>queue_agent_service.py</code>, <code>callcenter_config_shim.py</code>, <code>recording_control.py</code>, and the Kamailio and FreeSWITCH configuration.</li>
+          <li>Write a deploy script that replaces editing files on the server by hand.</li>
+          <li>Delete the <code>.bak</code> files once the history is in git — they are a worse version of what git does.</li>
+        </ol>
+        <div class="warn"><p>The repository contains a Go service named <code>fs-xml-api</code>. <strong>That is not what runs.</strong> The systemd unit starts <code>dialplan_service.py</code>. Anyone reading the Go source to understand call routing is reading the wrong file — say so in the README.</p></div>
+      </div>
+    </div>
+
+    <!-- 24 -->
+    <div class="fix stop">
+      <div class="head">
+        <span class="idx">24</span>
+        <div>
+          <h3>Enforce permissions on the server</h3>
+          <p class="sym">Roles and permissions are configured in detail and enforced entirely in the browser. Not one controller checks a permission before acting. Anyone who can log in can call any endpoint directly, whatever their role says.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change</p>
+        <ol>
+          <li>Write one middleware that reads the caller's permission tree and refuses when the required capability is absent.</li>
+          <li>Apply it route by route, starting where the damage is worst: <strong>billing, payment methods, user management, number management, roles</strong>.</li>
+          <li>Fix the eighteen active users whose role is a raw id or free text ("New role", "Custom Sub-Admin"). No server-side check can match those, so they fall through every gate.</li>
+        </ol>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+          <p>Log in as an Agent, take the token, and call <code>POST /api/billing/list</code> directly. Today it returns the company's invoices. It must return 403. Control: the same call as an Admin must still succeed.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 25 -->
+    <div class="fix hold">
+      <div class="head">
+        <span class="idx">25</span>
+        <div>
+          <h3>Give audio a fallback on strict networks</h3>
+          <p class="sym">The media relay has TCP relaying switched off, and secure relay is offered on port 5349 only. A customer on a corporate network that blocks the usual audio traffic has no second route — the call connects and stays silent. That is how the stuck calls in #02 start.</p>
+        </div>
+      </div>
+      <div class="body">
+        <p class="label">The change — in <code>/etc/turnserver.conf</code></p>
+<pre><span class="c"># remove this line</span>
+no-tcp-relay
+
+<span class="c"># and offer secure relay on 443 as well as 5349,</span>
+<span class="c"># since 5349 is commonly blocked and 443 almost never is</span>
+alt-tls-listening-port=443</pre>
+        <p>Then add the TCP and 443 forms to <code>TURN_URLS</code> in the API environment so the browser is actually offered them.</p>
+        <div class="warn"><p>Port 443 is already used by nginx on this box. Either bind coturn's 443 to a second IP, or leave 5349 and accept that some corporate customers will have silent calls. Do not break the portal to fix the phones.</p></div>
+        <div class="verify">
+          <p class="label">Check it worked</p>
+          <p>From a network with UDP blocked, place a call and confirm audio both ways. In the browser's WebRTC internals, the selected candidate pair should show a <code>relay</code> candidate — today the browser never allocates one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TIDY ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Session 5</span><h2 class="sec">Tidy-up — small, cheap, worth doing</h2></div>
+    <p class="secnote">Nine items, most under an hour each. Several are pure revenue.</p>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">26</span><div>
+        <h3>Stop the nightly renewal writing duplicate ledger rows</h3>
+        <p class="sym">On 2 September the renewal job wrote four identical charge attempts for one company inside five seconds, and four for another. The card charge itself carries an idempotency key so Stripe refuses the duplicates — but the ledger and any "we charged your card" email are wrong four times over.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Add a uniqueness guard on <code>billings</code> — one row per company, type and paid date — so a repeat cannot be written whatever caused it. Then find the cause: the cron registers once daily at 00:10 UTC, so four executions in five seconds means something ran it four times.</p>
+        <p>Separately: 53 failed renewals against 21 completed, every failure reading "Renewal skipped - no card". A company with no card is retried every night forever. Stop after a few attempts and tell somebody instead.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>SELECT company_uuid,type,paid_date,COUNT(*) n FROM billings
+GROUP BY 1,2,3 HAVING n>1;    <span class="c"># must return nothing after tomorrow's run</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">27</span><div>
+        <h3>Put a price on the phone numbers</h3>
+        <p class="sym">Twenty-four of thirty live numbers have <code>monthly_cost = 0.000</code>. The renewal job charges what the record says, so it charges nothing. Several renewal dates have already gone past without moving.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Back-fill <code>did_numbers.monthly_cost</code> from the carrier's price for each number, and make the purchase flow always write it — a zero there should be impossible, not the default. Then work out why renewal dates in the past are not advancing.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>SELECT COUNT(*) FROM did_numbers WHERE status='A' AND monthly_cost=0;   <span class="c"># expect 0</span>
+SELECT COUNT(*) FROM did_numbers WHERE status='A' AND renewal_date &lt; CURDATE();  <span class="c"># expect 0</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">28</span><div>
+        <h3>Take the API documentation off the public internet</h3>
+        <p class="sym"><code>https://api2.mycountrymobile.com/api-docs/</code> answers 200 to anyone. It is a complete map of every endpoint and parameter.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+<pre><span class="c"># in src/app.ts — only mount it outside production</span>
+if (process.env.ENVIRONMENT !== "production") {
+    app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+}
+<span class="c"># or block it at nginx, which needs no deploy:</span>
+location /api-docs { return 404; }</pre>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>curl -s -o /dev/null -w "%{http_code}\n" https://api2.mycountrymobile.com/api-docs/   <span class="c"># expect 404</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">29</span><div>
+        <h3>Put a login on the number-buying routes</h3>
+        <p class="sym">Sixteen of the twenty routes in <code>didWRoute.ts</code> have no authentication, including <code>/order</code>, which places a real order on your carrier account. They fail upstream today, which is the only reason this is not urgent.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Add <code>auth</code> to every route in that router except any genuine carrier webhook, and add rate limiting to the ones that cost money. While you are there: <code>/api/user/me</code> also answers 200 with no token.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api2.mycountrymobile.com/api/didw/order
+<span class="c"># expect 401</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">30</span><div>
+        <h3>Record when people last logged in</h3>
+        <p class="sym">All 4,079 accounts have an empty last-login field. It is never written. You cannot see who is active, who has gone dormant, or whether a stolen account is being used.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Set <code>users.last_login_at</code> on every successful login. The column already exists.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>SELECT COUNT(*), SUM(last_login_at IS NOT NULL) FROM users;   <span class="c"># second number must start rising</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">31</span><div>
+        <h3>Show customers the number they dialled</h3>
+        <p class="sym">Some call-log rows show the carrier prefix the switch added (<code>77701…</code>) rather than the number dialled. Others show a random browser identifier — including two answered calls of 47 and 281 seconds. And 31 of 55 recent rows have no record of how the call arrived.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change — in <code>/opt/cdr-ingest.py</code></p>
+        <ol>
+          <li>Strip the provider's <code>add_prefix</code> before writing <code>destination_number</code>. The prefix is on the <code>providers</code> row, so read it rather than hard-coding <code>77701</code>.</li>
+          <li>When the destination is a browser identifier, use the other leg's number instead — the merge logic already pairs the legs.</li>
+          <li>Carry <code>forward_type</code> through from the channel variable the dialplan already sets (<code>sip_h_X-ForwardType</code>).</li>
+        </ol>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>SELECT COUNT(*) FROM call_history WHERE destination_number LIKE '77701%';       <span class="c"># expect 0 for new rows</span>
+SELECT SUM(forward_type IS NULL), COUNT(*) FROM call_history
+  WHERE start_stamp > NOW() - INTERVAL 1 DAY;                                   <span class="c"># first number should fall</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">32</span><div>
+        <h3>Prove text messaging works, or stop selling it</h3>
+        <p class="sym">The SMS log is empty across the platform's entire history, and the Telnyx credentials are blank — URL, key and profile id are all empty strings.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Decide which provider is real. DIDWW SMS has credentials; Telnyx has none. Fill in whichever you are actually using, send one message end to end, and confirm a row lands in <code>sms_logs</code>. If neither is contracted, take SMS off the pricing page until it is.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre><span class="c"># send one message, then</span>
+mongo → db.sms_logs.count()      <span class="c"># was 0 for all time; expect 1</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">33</span><div>
+        <h3>Fix the three switch modules that fail to load</h3>
+        <p class="sym"><code>mod_format_cdr</code>, <code>mod_audio_stream</code> and the libevent libraries they need are missing, so they fail on every start. Audio streaming is what live transcription uses.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+        <p>Install <code>libevent</code> in the FreeSWITCH image and rebuild it, or remove the modules from <code>modules.conf.xml</code> so they stop failing noisily. Either is fine — leaving a module that fails on every start is what makes real errors invisible in the log.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <pre>docker exec mcm-freeswitch grep -c "cannot open shared object" /var/log/freeswitch/freeswitch.log
+<span class="c"># must stop growing after a restart</span></pre></div>
+      </div>
+    </div>
+
+    <div class="fix hold">
+      <div class="head"><span class="idx">34</span><div>
+        <h3>Turn certificate checking back on for carrier calls</h3>
+        <p class="sym"><code>didHelper.ts</code> creates its HTTPS agent with <code>rejectUnauthorized: false</code>. Every call to the carrier accepts any certificate, including a forged one.</p>
+      </div></div>
+      <div class="body">
+        <p class="label">The change</p>
+<pre><span class="c">- new https.Agent({ rejectUnauthorized: false })</span>
+<span class="c">+ new https.Agent({ rejectUnauthorized: true })</span></pre>
+        <p>If it then fails, the certificate chain is the real problem and needs fixing — do not turn the check back off.</p>
+        <div class="verify"><p class="label">Check it worked</p>
+        <p>Buy one test number end to end. It must still succeed with verification on.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CLOSING ==================== -->
+  <section>
+    <div class="sechead"><span class="tag">Last thing</span><h2 class="sec">The rule that would have prevented half of this</h2></div>
+
+    <div class="note">
+      <p><strong>Check the machine that takes the calls, not the repository.</strong> The most expensive pattern on this project is work that is genuinely finished, genuinely correct, and genuinely absent from production. The two-factor fix is the clearest case: written, committed, correct, never deployed, and being used to bypass login today. Before closing anything on this list, run the verification against 142.93.121.121 — and always with a control, so a blank result cannot be mistaken for a pass.</p>
+    </div>
+
+    <p>Two more habits worth keeping, both of which caught mistakes of mine during this review:</p>
+    <ul style="max-width:70ch">
+      <li><strong>A zero is not proof until the same search finds something you know is there.</strong> Searching the switch for supervisor features returned zero for all seven — that only became a finding once <code>voicemail</code> returned nine on the same search.</li>
+      <li><strong>Test the thing, not the configuration.</strong> I expected callers on hold to hear silence, because the stock sound library is missing. Four tracks are actually installed and hold music works. Seven other suspicions died the same way and are listed in the deep audit rather than hidden.</li>
+    </ul>
+
+    <p>Nothing in this document has been applied. Items 01, 02, 04, 07, 13 and 28 are small and self-contained enough to do immediately.</p>
+  </section>
+
+  <footer>
+    Combined from the launch readiness review and the deep audit, both dated 2 September 2026, against the live production system at 142.93.121.121 and api2.mycountrymobile.com.<br>
+    34 faults. Every one was found by a live probe, a live log, or a live database query — each with a control that proves a blank result would have looked different.
+  </footer>
+
+</div>

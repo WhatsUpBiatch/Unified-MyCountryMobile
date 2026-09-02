@@ -1,0 +1,589 @@
+<title>What Manual Testing Would Hit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --paper:      #EDEFF0;
+    --surface:    #F7F8F8;
+    --card:       #F7F8F8;
+    --sunken:     #E2E6E8;
+    --ink:        #141C22;
+    --ink-soft:   #3A4750;
+    --ink-faint:  #6B7A84;
+    --rule:       #CDD4D8;
+    --rule-soft:  #DEE3E6;
+    --signal:     #14646B;
+    --signal-dim: #d7e6e7;
+    --stop:       #9E3328;
+    --stop-dim:   #f2dedb;
+    --hold:       #96660F;
+    --hold-dim:   #f4e8d2;
+    --clear:      #34633F;
+    --clear-dim:  #dfe9e0;
+    --shadow:     0 1px 2px rgba(20,28,34,.06), 0 8px 24px -16px rgba(20,28,34,.35);
+    --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --f-body: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0F161B; --surface: #172128; --card: #172128; --sunken: #101A20;
+      --ink: #E4EAED; --ink-soft: #B0BEC6; --ink-faint: #7C8C96;
+      --rule: #2A3841; --rule-soft: #212D35;
+      --signal: #57B3B9; --signal-dim: #123336;
+      --stop: #E0796B; --stop-dim: #2E1B18;
+      --hold: #D6A445; --hold-dim: #2C2314;
+      --clear: #7DB98A; --clear-dim: #182818;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0F161B; --surface: #172128; --card: #172128; --sunken: #101A20;
+    --ink: #E4EAED; --ink-soft: #B0BEC6; --ink-faint: #7C8C96;
+    --rule: #2A3841; --rule-soft: #212D35;
+    --signal: #57B3B9; --signal-dim: #123336;
+    --stop: #E0796B; --stop-dim: #2E1B18;
+    --hold: #D6A445; --hold-dim: #2C2314;
+    --clear: #7DB98A; --clear-dim: #182818;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--f-body);
+         font-size: 17px; line-height: 1.62; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px 96px; }
+
+  .mast { border-bottom: 2px solid var(--ink); padding: 56px 0 26px; margin-bottom: 34px; }
+  .kicker { font-family: var(--f-mono); font-size: 11.5px; font-weight: 600; letter-spacing: .16em;
+            text-transform: uppercase; color: var(--signal); margin: 0 0 18px; }
+  h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(36px, 6vw, 62px);
+       line-height: .98; letter-spacing: -.028em; margin: 0 0 20px; text-wrap: balance; }
+  .standfirst { font-size: 20px; line-height: 1.5; color: var(--ink-soft); max-width: 660px; margin: 0 0 28px; }
+  .stampline { display: flex; flex-wrap: wrap; gap: 8px 28px; font-family: var(--f-mono);
+               font-size: 12px; color: var(--ink-faint); }
+  .stampline b { color: var(--ink-soft); font-weight: 500; }
+
+  .verdict { background: var(--card); border: 1px solid var(--rule); border-left: 5px solid var(--stop);
+             border-radius: 3px; padding: 26px 28px; margin: 0 0 20px; box-shadow: var(--shadow); }
+  .verdict h2 { font-family: var(--f-display); font-size: 24px; font-weight: 700;
+                letter-spacing: -.015em; margin: 0 0 10px; color: var(--stop); }
+  .verdict p { margin: 0 0 12px; max-width: 66ch; }
+  .verdict p:last-child { margin-bottom: 0; }
+
+  .tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 1px;
+           background: var(--rule); border: 1px solid var(--rule); border-radius: 3px;
+           margin: 0 0 52px; overflow: hidden; }
+  .tally div { background: var(--card); padding: 18px 20px; }
+  .tally .n { font-family: var(--f-display); font-size: 34px; font-weight: 800; line-height: 1;
+              letter-spacing: -.03em; font-variant-numeric: tabular-nums; display: block; margin-bottom: 6px; }
+  .tally .l { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em;
+              text-transform: uppercase; color: var(--ink-faint); line-height: 1.4; }
+  .n.stop { color: var(--stop); } .n.hold { color: var(--hold); }
+  .n.clear { color: var(--clear); } .n.sig { color: var(--signal); }
+
+  section { margin: 0 0 60px; }
+  .sechead { display: flex; align-items: baseline; gap: 14px; border-top: 2px solid var(--ink);
+             padding-top: 14px; margin-bottom: 22px; }
+  .sechead .tag { font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: .14em;
+                  text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; padding-top: 8px; }
+  h2.sec { font-family: var(--f-display); font-size: clamp(25px, 3.3vw, 34px); font-weight: 700;
+           letter-spacing: -.024em; line-height: 1.08; margin: 0; text-wrap: balance; }
+  h3 { font-family: var(--f-display); font-size: 19px; font-weight: 600; letter-spacing: -.012em;
+       margin: 30px 0 10px; }
+  p { margin: 0 0 16px; max-width: 68ch; }
+
+  .find { background: var(--card); border: 1px solid var(--rule); border-left: 4px solid var(--rule);
+          border-radius: 3px; padding: 20px 22px; margin: 0 0 14px; }
+  .find.stop { border-left-color: var(--stop); }
+  .find.hold { border-left-color: var(--hold); }
+  .find.clear { border-left-color: var(--clear); }
+  .find h4 { font-family: var(--f-display); font-size: 18px; font-weight: 600; letter-spacing: -.01em;
+             margin: 0 0 8px; line-height: 1.28; }
+  .find p { margin: 0 0 10px; font-size: 16.5px; }
+  .find p:last-child { margin-bottom: 0; }
+  .ev { font-family: var(--f-mono); font-size: 12.5px; line-height: 1.65; background: var(--sunken);
+        border-radius: 2px; padding: 10px 12px; color: var(--ink-soft); overflow-x: auto;
+        white-space: pre-wrap; word-break: break-word; margin: 10px 0 0; max-width: 100%; }
+  .ev b { color: var(--ink); font-weight: 600; }
+
+  .chip { display: inline-block; font-family: var(--f-mono); font-size: 10.5px; font-weight: 600;
+          letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 2px;
+          vertical-align: 2px; margin-right: 10px; }
+  .chip.stop { background: var(--stop-dim); color: var(--stop); }
+  .chip.hold { background: var(--hold-dim); color: var(--hold); }
+  .chip.clear { background: var(--clear-dim); color: var(--clear); }
+  .chip.sig { background: var(--signal-dim); color: var(--signal); }
+
+  code { font-family: var(--f-mono); font-size: .86em; background: var(--sunken);
+         padding: 1px 5px; border-radius: 2px; word-break: break-word; }
+
+  .chain { background: var(--card); border: 1px solid var(--rule); border-radius: 3px;
+           padding: 22px; margin: 0 0 20px; overflow-x: auto; }
+  .chain-title { font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: .14em;
+                 text-transform: uppercase; color: var(--ink-faint); margin: 0 0 16px; }
+  .links { display: flex; align-items: stretch; min-width: 700px; }
+  .link { flex: 1 1 0; border: 1px solid var(--stop); background: var(--stop-dim); border-radius: 3px;
+          padding: 12px 13px; display: flex; flex-direction: column; gap: 5px; }
+  .link .h { font-family: var(--f-display); font-weight: 600; font-size: 14px; line-height: 1.22; }
+  .link .s { font-family: var(--f-mono); font-size: 10.5px; line-height: 1.45; color: var(--ink-faint); }
+  .arrow { flex: 0 0 26px; display: flex; align-items: center; justify-content: center;
+           color: var(--ink-faint); font-family: var(--f-mono); font-size: 15px; }
+
+  .tablewrap { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--rule); border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--card); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); font-size: 14px; }
+  th { font-family: var(--f-mono); font-size: 10.5px; font-weight: 600; letter-spacing: .1em;
+       text-transform: uppercase; color: var(--ink-faint); background: var(--sunken);
+       border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  td { font-family: var(--f-body); color: var(--ink-soft); vertical-align: top; }
+  td.m { font-family: var(--f-mono); font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  tr:last-child td { border-bottom: none; }
+  td strong { color: var(--ink); font-weight: 600; }
+
+  ul.plain { padding-left: 20px; margin: 0 0 16px; max-width: 68ch; }
+  ul.plain li { margin-bottom: 7px; }
+
+  ol.ranked { list-style: none; padding: 0; margin: 0; counter-reset: r; }
+  ol.ranked > li { counter-increment: r; display: grid; grid-template-columns: 52px 1fr; gap: 18px;
+                   padding: 18px 0; border-bottom: 1px solid var(--rule-soft); }
+  ol.ranked > li:first-child { border-top: 1px solid var(--rule); }
+  ol.ranked > li::before { content: counter(r, decimal-leading-zero); font-family: var(--f-display);
+                           font-weight: 800; font-size: 26px; letter-spacing: -.03em; color: var(--rule);
+                           font-variant-numeric: tabular-nums; line-height: 1.1; }
+  ol.ranked li h4 { font-family: var(--f-display); font-size: 18px; font-weight: 600; margin: 0 0 6px;
+                    letter-spacing: -.01em; }
+  ol.ranked li p { margin: 0; font-size: 16px; color: var(--ink-soft); }
+  ol.ranked li .meta { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em;
+                       text-transform: uppercase; color: var(--ink-faint); margin-top: 8px; }
+
+  .note { border-left: 3px solid var(--signal); background: var(--signal-dim); padding: 14px 18px;
+          border-radius: 0 3px 3px 0; margin: 0 0 22px; max-width: 72ch; }
+  .note p { margin: 0; font-size: 16px; }
+
+  footer { border-top: 2px solid var(--ink); padding-top: 18px; margin-top: 20px;
+           font-family: var(--f-mono); font-size: 12px; color: var(--ink-faint); line-height: 1.7; }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px 64px; }
+    ol.ranked > li { grid-template-columns: 40px 1fr; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">Second pass · deeper than the first</p>
+    <h1>What Manual Testing Would Hit</h1>
+    <p class="standfirst">You said your own testing found far more than six things. You were right. This is the second sweep — the call switch interrogated live, every screen's API calls checked against what the backend actually serves, and every service's error log read.</p>
+    <div class="stampline">
+      <span><b>Checked</b> 2 September 2026, 13:00–14:00 UTC</span>
+      <span><b>Method</b> live probes with controls</span>
+      <span><b>Follow-on to</b> the launch readiness report</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <h2>Twenty-one more faults, and two of them are happening right now</h2>
+    <p><strong>Two people signed up today and got accounts that cannot work.</strong> One of them paid. Their tenant database was never created, because signing up does not create it — only buying a phone number does, and buying numbers is broken.</p>
+    <p><strong>Twelve phone calls have been stuck open for up to 26 hours.</strong> They are still there. They never produced a call record, so they are invisible in reporting and cannot be billed — and they are why the recording uploader has failed 4,303 times.</p>
+    <p>Beyond those: supervisor monitoring dials your paid carrier instead of listening in, IVR menus have never once run, every queue rings randomly regardless of what the admin chose, and everybody in the product shows as online permanently because there is no "offline" to show.</p>
+  </div>
+
+  <div class="tally">
+    <div><span class="n stop">2</span><span class="l">Broken accounts<br>created today</span></div>
+    <div><span class="n stop">12</span><span class="l">Calls stuck<br>up to 26 hours</span></div>
+    <div><span class="n stop">0</span><span class="l">IVR menus ever<br>run, in any tenant</span></div>
+    <div><span class="n hold">7</span><span class="l">Screens calling<br>a dead endpoint</span></div>
+    <div><span class="n hold">2063</span><span class="l">Users shown online<br>(11 phones registered)</span></div>
+    <div><span class="n sig">21</span><span class="l">New faults<br>in this pass</span></div>
+  </div>
+
+  <!-- ================= SIGNUP ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Happening now</span>
+      <h2 class="sec">A new customer cannot get a working account</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Live</span>Signing up does not create the customer's database</h4>
+      <p>Each customer gets their own database — that is where their people, call history, contacts, menus and departments live. Signing up creates the company record and the admin user, and stops. The database is only created later, as a side effect of the <em>buy a phone number</em> flow.</p>
+      <p>So if number-buying fails, the customer is left with an account that errors on every screen. That is exactly what happened twice today.</p>
+      <p class="ev">Company 21 "Unified UCaaS"  13:14  paid=<b>no</b>   db_status=<b>0</b>  admin amar@mcmbpo.com ACTIVE
+Company 22 "Unified UCaaS 1" 13:29  paid=<b>YES</b>  db_status=<b>0</b>  admin hamza@mcmbpo.com ACTIVE
+Numbers on either account: <b>none</b>
+tenant-api error log: <b>Unknown database 'mcm_1788354851404'</b> (×7)
+AuthController.Registeration → <b>never calls databaseHandle()</b>; only DidController does.</p>
+    </div>
+
+    <div class="chain">
+      <p class="chain-title">How one broken key locks out every new customer</p>
+      <div class="links">
+        <div class="link"><span class="h">Carrier key rejected</span><span class="s">DIDWW returns 401<br>on every endpoint</span></div>
+        <div class="arrow">→</div>
+        <div class="link"><span class="h">Number purchase fails</span><span class="s">no number is<br>ever assigned</span></div>
+        <div class="arrow">→</div>
+        <div class="link"><span class="h">Database never created</span><span class="s">only the buy-number<br>flow creates it</span></div>
+        <div class="arrow">→</div>
+        <div class="link"><span class="h">Every screen errors</span><span class="s">"Unknown database"<br>on every request</span></div>
+      </div>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Live</span>Nothing retries, so a broken account stays broken</h4>
+      <p>There is a repair routine that finds every company without a database and creates it. Nothing runs it on a schedule. It is only called when <em>somebody else</em> buys a number. Those two accounts will stay broken until a human notices.</p>
+      <p class="ev">databaseHandle() call sites: CompanyController ×3 (admin-created), DidController ×2 (number purchase).
+No cron entry, no timer, no startup call.</p>
+    </div>
+  </section>
+
+  <!-- ================= STUCK CALLS ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Happening now</span>
+      <h2 class="sec">Twelve calls that never hung up</h2>
+    </div>
+
+    <p>The switch reports six calls in progress. They are not in progress. They are corpses — the oldest has been sitting there since 11:30 yesterday morning.</p>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Live</span>When the browser's audio fails, the call hangs open forever</h4>
+      <p>Each of these calls answered normally, then the browser's audio path failed to establish. FreeSWITCH kept trying to reach the browser, got nothing back, and — because <strong>no audio timeout is configured at all</strong> — simply held the call open. It will hold it forever.</p>
+      <p>Every one of these also holds a leg open to your paid outbound carrier, in ringing state, for the same 26 hours.</p>
+      <p class="ev">12 channels live: <b>2 at 24h, 4 at 25h, 4 at 26h, 2 at 3h</b>
+Affected customers: <b>TestersCompany2</b> (8 channels), <b>Sushil Company</b> (4)
+Switch log: <b>Error sending STUN Binding Request on ICE candidate still unresponsive to 49.200.217.10</b>
+global_getvar rtp_timeout_sec → <b>no reply</b> (unset).  media_timeout → <b>no reply</b> (unset).
+Carrier legs: sofia/internal/7770112568081009@38.147.130.91 in <b>CS_EXCHANGE_MEDIA / EARLY</b></p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Live</span>These calls produce no record, so they can never be billed or seen</h4>
+      <p>A call record is only written when a call ends. These have not ended. So they do not appear in the customer's call history, do not appear in any report, and — even once pricing is fixed — can never be charged for.</p>
+      <p class="ev">grep for the 26-hour call's id across /opt/call-recordings/cdr/ → <b>no CDR file exists</b></p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip clear">Root cause found</span>This is why the recording uploader has failed 4,303 times</h4>
+      <p>In the first report I flagged four recordings stranded on disk and an upload job failing every minute. Here is why: <strong>those four files belong to four of these stuck calls.</strong> The uploader looks up which customer a recording belongs to by reading the call record. There is no call record, because the call never ended. So it skips, retries a minute later, and skips again.</p>
+      <p>Fix the hanging calls and this fixes itself.</p>
+      <p class="ev">Stranded files: 28ffc6c1…, 9419381b…, be27dabc…, ee80c03f…
+Stuck channel ids: <b>28ffc6c1…, 9419381b…, be27dabc…, ee80c03f…</b> — the same four.</p>
+    </div>
+  </section>
+
+  <!-- ================= SUPERVISOR ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Sold but absent</span>
+      <h2 class="sec">Listen, Whisper and Barge dial your carrier</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Proven live</span>Four supervisor buttons place a billable outbound call instead</h4>
+      <p>On Monitoring → All Calls, Monitoring → All Users, Monitoring → Departments and the Live Dashboard there are four buttons: <strong>Listen, Whisper, Barge, Intercept</strong>. They are also sold on your pricing page — "advanced call monitoring including whisper, barge, and monitor".</p>
+      <p>Each one dials a star code with the call's id glued onto it, like <code>*87c6897a28-42a6</code>. The switch has no idea what a star code is. It treats it as an outside phone number, stamps it billable, sticks your carrier prefix on the front, and sends it to 46 Labs.</p>
+      <p>I asked the live switch what it would do. Here is its answer, next to a control that works:</p>
+      <p class="ev"><b>Control</b> — dial extension 7242
+  → extension name="<b>user-7242</b>", bridge to the person. Correct.
+
+<b>Listen</b> — dial *87c6897a28
+  → extension name="<b>outbound-*87c6897a28</b>"
+  → export sip_h_X-<b>Billable=Y</b>
+  → bridge <b>sofia/internal/77701*87c6897a28@38.147.130.91</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Related</span>Seven call features exist nowhere in the switch</h4>
+      <p>Searching the live call router and queue engine for the standard telephony features, with a control to prove the search works:</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Feature</th><th>References in the live switch code</th></tr></thead>
+          <tbody>
+            <tr><td>Attended transfer</td><td class="m">0</td></tr>
+            <tr><td>Call park</td><td class="m">0</td></tr>
+            <tr><td>Conference / three-way</td><td class="m">0</td></tr>
+            <tr><td>Listen / whisper / barge</td><td class="m">0</td></tr>
+            <tr><td>Call pickup / intercept</td><td class="m">0</td></tr>
+            <tr><td>Do not disturb</td><td class="m">0</td></tr>
+            <tr><td>Call waiting</td><td class="m">0</td></tr>
+            <tr><td><strong>Control: voicemail</strong></td><td class="m"><strong>9</strong> — the search works</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= IVR ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Never once worked</span>
+      <h2 class="sec">No IVR menu has ever played</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>The switch has executed zero IVR menus, ever</h4>
+      <p>"Press 1 for sales" is a headline feature. Customers have built menus — one tenant has two. The switch's log contains not a single IVR execution across its whole history.</p>
+      <p>When I asked the configuration service to build a real customer's menu, it produced a valid menu that points at audio which <strong>does not exist anywhere on the machine</strong>:</p>
+      <p class="ev">greet-long  = <b>/var/lib/freeswitch/sounds/</b>3de491e2-….m4a
+  → that directory <b>does not exist</b> in the container
+  → <b>find / -name "3de491e2*"</b> returns nothing
+invalid-sound = ivr/ivr-that_was_an_invalid_entry.wav  → <b>missing</b>
+exit-sound    = voicemail/vm-goodbye.wav               → <b>missing</b>
+/usr/share/freeswitch/sounds/ → <b>empty</b> (no stock prompts installed at all)
+grep "EXECUTE.*ivr(" across the whole switch log → <b>0</b></p>
+      <p>A caller reaching this menu hears silence, presses nothing useful, and the call times out.</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>And the menu's own options point at a route type that does not exist</h4>
+      <p>In the live menu I pulled, pressing <strong>1</strong> transfers the caller to a <code>message</code> destination. That is one of the five forwarding types the call router has no code for — flagged in the first report. So even with audio fixed, option 1 goes nowhere.</p>
+    </div>
+  </section>
+
+  <!-- ================= QUEUES ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Queues</span>
+      <h2 class="sec">Every queue rings randomly, whatever the admin chose</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Proven live</span>The queue script overwrites the admin's ring strategy with "random"</h4>
+      <p>The lookup service does the right thing: ask it about a real queue and it returns that queue's actual strategy. But the queue script always sends its own value first, and its own value defaults to <code>random</code> because nothing sets it. The admin's choice is overwritten on every call.</p>
+      <p>Same service, same queue, one query with the override and one without:</p>
+      <p class="ev">Without override → "strategy": <b>"ring-all"</b>,  "rings_together": <b>true</b>   ← what the admin chose
+With override   → "strategy": <b>"random"</b>,   "rings_together": <b>false</b>  ← what actually happens
+
+callcenter-queue.lua line 48:
+  local ring_strategy = session:getVariable("cc_ring_strategy") or <b>"random"</b>
+The dialplan deliberately does not set cc_ring_strategy — so it is always "random".</p>
+      <p>The fix is one line: do not send the strategy when it was never set.</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>No queue has ever been pushed to the switch, and most agents are signed out</h4>
+      <p>All sixteen queues are flagged as never configured. Of thirty-seven agents, twenty-eight are logged out — so a caller reaching most queues gets "nobody can take it right now".</p>
+      <p class="ev">queues with config_applied = false: <b>16 of 16</b>
+agent status: <b>Logged Out 28</b>, On Break 7, Available 2
+live queue lookup reply: <b>"Nobody can take it right now - 1 signed out."</b></p>
+    </div>
+  </section>
+
+  <!-- ================= VOICEMAIL + PRESENCE ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Two more</span>
+      <h2 class="sec">Voicemail and presence</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>No voicemail has ever been left on any current customer</h4>
+      <p>Voicemail is a selectable destination and the call router builds a proper voicemail branch for it. The folder those messages go into has never been created, and no message file exists anywhere on the machine. One old tenant has twenty records from an earlier era; every current tenant has zero.</p>
+      <p>The switch's own settings file still points voicemail greetings at a folder that is not mounted — its own comment says files there vanish when the container restarts.</p>
+      <p class="ev">/opt/call-recordings/storage/voicemail/default/ → <b>does not exist</b>
+find for msg_*.wav → <b>0 files</b>
+is_voicemail=1 rows: mcm_1785312032037 <b>20</b>; every other tenant <b>0</b>
+config.lua: voicemail_greeting_path = <b>/usr/share/freeswitch/sounds/custom/…</b> (not mounted)</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Everyone is always shown as online, because there is no "offline"</h4>
+      <p>The presence field on a person can be one of five things: online, holiday, away, busy or do-not-disturb. <strong>Offline is not one of them.</strong> It cannot be stored, so it is never shown. Every green dot in the directory, the dialpad and the monitoring screens is meaningless.</p>
+      <p class="ev">users.socket_status = <b>enum('online','holiday','away','busy','dnd')</b> default 'online'
+Current state: <b>online 2063</b>, busy 3, dnd 1
+Phones actually registered to the switch: <b>11</b></p>
+    </div>
+  </section>
+
+  <!-- ================= DEAD ENDPOINTS ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Screens</span>
+      <h2 class="sec">Seven screens call an endpoint that is not there</h2>
+    </div>
+
+    <p>I pulled every one of the 321 API calls the portal makes and checked each against the live API. A missing route answers 404; a route that exists but needs a login answers 401 — so the two are easy to tell apart. 314 came back fine. Seven did not.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Live reply</th><th>What it powers</th></tr></thead>
+        <tbody>
+          <tr><td class="m">/api/tenant/report/history</td><td class="m">404</td><td>Opening a single call's detail from the call log</td></tr>
+          <tr><td class="m">/api/payment/info</td><td class="m">404</td><td>Viewing an invoice</td></tr>
+          <tr><td class="m">/api/meeting/join</td><td class="m">404</td><td>Joining a video meeting</td></tr>
+          <tr><td class="m">/api/v1/meeting/detail</td><td class="m">404</td><td>Meeting details panel</td></tr>
+          <tr><td class="m">/api/download</td><td class="m">404</td><td>Downloading a PDF</td></tr>
+          <tr><td class="m">/api/upload/temp</td><td class="m">404</td><td>Uploading a summary PDF</td></tr>
+          <tr><td class="m">/api/agent/list</td><td class="m">404</td><td>The agent list</td></tr>
+          <tr><td class="m"><strong>Control: /api/tenant/report/call-list</strong></td><td class="m"><strong>401</strong></td><td><strong>Exists — the test can tell the difference</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= REST ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Also found</span>
+      <h2 class="sec">Eight more worth knowing</h2>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Security alerts are generated and never delivered</h4>
+      <p>The security service raises alerts — too many payment attempts, suspicious activity — and posts them to a notification endpoint that does not exist. Twenty-eight have failed. Nobody has been told about any of them.</p>
+      <p class="ev">security-api error log: <b>Cannot POST /internal/notifications/security-alert</b> ×28
+"1 of 1 operator notifications failed"</p>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Blocker</span>Permissions are decoration — the server never checks them</h4>
+      <p>Roles and permissions are configured in detail and enforced entirely in the browser. Not one controller in the API checks a permission before doing what it was asked. Anyone who can log in can call any endpoint directly, whatever their role says.</p>
+      <p>Eighteen active users additionally carry a role that is a raw id or free text ("New role", "Custom Subadmin"), which no server-side check can match at all.</p>
+      <p class="ev">grep for permission checks in any controller → <b>0 matches</b>
+Active users with a non-standard role string: <b>18</b>
+Role gates found: only literal comparisons like <b>role !== "ADMIN"</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>The live dashboard has no data source</h4>
+      <p>Six calls were up while I looked. The collection the live dashboard and queue supervisor screens read from held zero documents. Call analytics per member is also empty.</p>
+      <p class="ev">FreeSWITCH: <b>6 calls up</b>   ·   mongo live_calls: <b>0 documents</b>
+member_call_analytics: <b>0</b>   ·   activity_queues: <b>0</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>No text message has ever been sent or logged</h4>
+      <p>The SMS log is empty across the platform's entire history, and the Telnyx credentials are blank — URL, key and profile id are all empty strings. SMS is sold as part of the product.</p>
+      <p class="ev">mongo sms_logs: <b>0</b>
+sms-api .env: TELNYX_SEND_SMS_URL=<b>(empty)</b>  TELNYX_SEND_SMS_API_KEY=<b>(empty)</b>  TELNYX_SMS_PROFILE_ID=<b>(empty)</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Call logs show the wrong destination on a fifth of calls</h4>
+      <p>Some rows show the carrier prefix the switch added rather than the number the customer dialled. Others show a random browser identifier where the destination should be — including two answered calls of 47 and 281 seconds. And most rows have no record of how the call arrived.</p>
+      <p class="ev">Sample tenant, last 7 days (55 calls):
+  rows with no "how it arrived": <b>31 of 55</b>
+  rows leaking the 77701 carrier prefix: <b>9</b>
+  destinations recorded as a browser id: <b>v9edioj6, 2joq4kcl, 83l6gohg</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Not one but four single-threaded services sit on the call path</h4>
+      <p>The first report flagged the call router. There are three more beside it — the phone directory, the switch configuration, and the queue agent lookup. All four are one-request-at-a-time Python servers with a five-deep waiting queue. Every call touches at least three of them.</p>
+      <p class="ev">LISTEN 0 <b>5</b> 127.0.0.1:<b>9000</b> dialplan   ·  :<b>9001</b> directory
+LISTEN 0 <b>5</b> 127.0.0.1:<b>9002</b> configuration  ·  :<b>9006</b> queue agents</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Three switch modules fail to load on every start</h4>
+      <p>Including the standard call-record module and the audio-streaming module used for live transcription. They fail on a missing system library.</p>
+      <p class="ev">mod_format_cdr.so, mod_audio_stream.so → <b>cannot open shared object file</b>
+libevent-2.1.so.7, libevent_core-2.1.so.7 → <b>cannot open shared object file</b></p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Fix soon</span>Audio has no fallback when a customer's network blocks it</h4>
+      <p>The media relay is configured with TCP relaying switched off. A customer on a corporate network that blocks the usual audio traffic has no second route — the call connects and stays silent, which is how these stuck calls start.</p>
+      <p class="ev">/etc/turnserver.conf: <b>no-tcp-relay</b>
+Secure relay offered on port <b>5349</b> only — commonly blocked; port 443 is not offered.</p>
+    </div>
+  </section>
+
+  <!-- ================= HONEST ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">Being fair</span>
+      <h2 class="sec">Things I suspected and had to drop</h2>
+    </div>
+
+    <p>Each of these looked like a fault until I tested it with a control. Recording them so nobody chases them again.</p>
+
+    <ul class="plain">
+      <li><strong>Hold music.</strong> I expected silence, since the stock sound library is missing. Four classical tracks are actually installed and the hold-music setting resolves correctly. Callers on hold hear music.</li>
+      <li><strong>Two API addresses.</strong> The switch talks to <code>api.mycountrymobile.com</code> while the portal talks to <code>api2</code>. They return byte-identical responses — same system, two names. Not a bug.</li>
+      <li><strong>Agent status capitalisation.</strong> "On Break" and "On break" both exist in the data. The code lowercases before comparing, so it does not matter.</li>
+      <li><strong>Queue agent service missing.</strong> The queue script calls a service on a port I did not initially see listening. It is running and answering correctly.</li>
+      <li><strong>The API surface.</strong> 314 of 321 portal endpoints exist and are protected. The API is in better shape than the switch.</li>
+      <li><strong>The deployed portal build.</strong> Clean — it points at the right API and socket addresses, with no QA leftovers.</li>
+      <li><strong>Referential integrity.</strong> No orphaned users, numbers, sites or plans. No duplicate extensions inside a company.</li>
+    </ul>
+
+    <p>The team has also been notably honest in the product itself: <strong>twenty-five "Coming soon" notices across seventeen screens</strong> — mostly under Company settings and Roles — each saying plainly that a setting is saved but not yet acted on. That is the right instinct, and it is why the faults above stand out: they are the ones where the screen makes a promise nothing keeps.</p>
+  </section>
+
+  <!-- ================= ORDER ================= -->
+  <section>
+    <div class="sechead">
+      <span class="tag">If it were mine</span>
+      <h2 class="sec">What I would do first, today</h2>
+    </div>
+
+    <ol class="ranked">
+      <li><div>
+        <h4>Fix the two broken accounts by hand, then make signup create the database</h4>
+        <p>Run the repair routine for those two companies now — one of them has paid. Then move database creation into signup where it belongs, and add a scheduled retry so this can never silently happen again.</p>
+        <p class="meta">Today · one command, then a small change</p>
+      </div></li>
+      <li><div>
+        <h4>Set an audio timeout on the switch and clear the twelve stuck calls</h4>
+        <p>A call whose audio never arrives should die after thirty seconds, not thirty hours. One setting. Then hang up the twelve corpses — and the recording uploader will start working on its own.</p>
+        <p class="meta">Today · one setting plus a cleanup</p>
+      </div></li>
+      <li><div>
+        <h4>Hide Listen, Whisper, Barge and Intercept until they exist</h4>
+        <p>Right now they place billable calls to your carrier. Take them off the four screens and off the pricing page, or build them — the switch has the underlying capability, nothing is wired to it.</p>
+        <p class="meta">Hours to hide · weeks to build</p>
+      </div></li>
+      <li><div>
+        <h4>Install the switch's sound library and fix the greeting path</h4>
+        <p>This one change unblocks IVR menus, voicemail prompts and every announcement in the system. Nothing that plays audio to a caller works properly until it is done.</p>
+        <p class="meta">Hours</p>
+      </div></li>
+      <li><div>
+        <h4>Stop the queue script overwriting the ring strategy</h4>
+        <p>One line. Queues immediately start ringing the way each admin configured them instead of at random.</p>
+        <p class="meta">Minutes</p>
+      </div></li>
+      <li><div>
+        <h4>Add an offline presence state</h4>
+        <p>Until the field can hold it, every person in the product is permanently online and every green dot is a lie.</p>
+        <p class="meta">Days</p>
+      </div></li>
+      <li><div>
+        <h4>Enforce permissions on the server</h4>
+        <p>The permission tree exists and is configured. Nothing checks it. Until the API enforces it, roles are a suggestion.</p>
+        <p class="meta">Weeks · but start with billing and user management</p>
+      </div></li>
+      <li><div>
+        <h4>Point the security alerts at an endpoint that exists</h4>
+        <p>Twenty-eight alerts have already been thrown away. This is the only thing on the platform trying to tell you something is wrong.</p>
+        <p class="meta">Hours</p>
+      </div></li>
+      <li><div>
+        <h4>Fix the seven dead screens</h4>
+        <p>Invoice detail and call detail are the two customers will hit first.</p>
+        <p class="meta">Days</p>
+      </div></li>
+      <li><div>
+        <h4>Make the four call-path services handle more than one call at a time</h4>
+        <p>Same change four times. Until it is done, the whole platform is a queue of one.</p>
+        <p class="meta">Days</p>
+      </div></li>
+    </ol>
+
+    <div class="note" style="margin-top:34px">
+      <p><strong>Why the first pass missed these.</strong> The first sweep read configuration and code. These came from asking the running switch to do things and watching what it did, and from reading every service's error log rather than its status. Both are needed — but the switch only tells the truth when you make it answer a real question with a control beside it.</p>
+    </div>
+  </section>
+
+  <footer>
+    Second-pass review, 2 September 2026, against the live production system at 142.93.121.121 and api2.mycountrymobile.com.<br>
+    Every claim above was produced by a live probe, a live log, or a live database query — each with a control that proves a blank result would have looked different. Seven suspected faults were dropped when their control passed; they are listed rather than hidden.
+  </footer>
+
+</div>
