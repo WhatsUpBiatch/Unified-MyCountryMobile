@@ -1,3 +1,15 @@
+> **CORRECTION, 2 Sep 2026 — the source is NOT gone.**
+>
+> It is at `git@bitbucket.org:mycountry/video-recorder-portal.git`, HEAD `3ec76b2`
+> ("Initial commit", Furqan, 31 Aug 2026). A Vite + React app, 38 files,
+> `package.json` name `jitsi-direct-join-vite` version 1.3.3.
+>
+> Confirmed it is the source for this build: the Tailwind class
+> `absolute inset-0 animate-ping`, present in `src/`, appears in the deployed
+> bundle. The conclusion below was drawn from the local `mcm-repos` folder only,
+> which does not contain every repository. **Do not reverse-engineer the bundle —
+> clone the repo.**
+
 # recorder-portal — source recovery record
 
 Recovered 2 Sep 2026. **The original source is gone and cannot be recovered.**
