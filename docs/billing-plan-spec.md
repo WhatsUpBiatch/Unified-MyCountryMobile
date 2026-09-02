@@ -112,8 +112,9 @@ carries a sensible margin. **Confirm before seeding.**
 
 | Item | Charged | Roughly costs us | Margin |
 |---|---|---|---|
-| SMS | **$0.02** each | ~$0.008 | ~2.5x |
-| MMS | **$0.03** each | ~$0.02 | ~1.5x |
+| SMS (US) | **$0.02** each | ~$0.008 | ~2.5x |
+| MMS (US) | **$0.03** each | ~$0.02 | ~1.5x |
+| SMS / MMS (international) | **$0.10** each | varies widely | see below |
 | AI voice | **$0.08** per minute | ~$0.02 | ~4x |
 | AI reply | **$0.08** each | ~$0.01 | ~8x |
 | Storage | **$0.30** per GB / month | ~$0.007 | ~43x |
@@ -121,6 +122,35 @@ carries a sensible margin. **Confirm before seeding.**
 Storage looks like a large multiple because the customer is buying retention,
 retrieval and the player, not the disk. MMS is the thin one — 1.5x leaves little
 room if carrier pricing moves, and it is the rate to revisit first.
+
+### International messaging: flat $0.10, for now
+
+| Destination | SMS | MMS |
+|---|---|---|
+| US (past the allowance) | $0.02 | $0.03 |
+| **Everywhere else** | **$0.10** | **$0.10** |
+
+International never draws on the allowance, so this applies from the first
+message.
+
+**A flat rate is a decision with a known risk, and "for now" is doing real work
+in that sentence.** International SMS wholesale is not flat: cheap destinations
+run a couple of cents, and expensive ones — parts of Africa, the Middle East,
+and some island and satellite ranges — run well above $0.10 a message. On those
+we would pay more to send than we charge, and the loss grows with volume rather
+than showing up as a bad month.
+
+This is fine while messaging abroad is rare and worth watching once it is not.
+Two ways to stay safe without pricing every country:
+
+* **Watch the top destinations by volume.** A handful will be most of the
+  traffic; check those against what we pay and adjust.
+* **Cap or block the expensive ranges** until they are priced properly, the same
+  way premium-rate numbers are handled on the calling side.
+
+The rate card can hold per-destination prices whenever that becomes worth doing —
+that is exactly what it is for, so nothing has to be rebuilt to move off the flat
+rate later.
 
 ### Minutes are the exception: they STOP
 
