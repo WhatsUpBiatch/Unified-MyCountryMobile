@@ -179,12 +179,52 @@ international price can differ, which they will.
 
 ---
 
+## Price and billing cycle
+
+| | Starter | Growth | Scale |
+|---|---|---|---|
+| Price | **$30** | **$40** | **$50** USD / month |
+
+**No rollover.** Unused allowance vanishes at the end of the period; nothing
+carries forward.
+
+### "Everyone expires on the 29th" — three things to settle
+
+**1. The backend does not bill this way today.** `company.plan_duration` is an
+integer added to `plan_start_date`, so renewal is an *anniversary* of when the
+customer joined — every customer on their own date. A single fixed date for
+everybody is a different model and needs the renewal cron changed, not just a
+configuration value.
+
+**2. February has no 29th in three years out of four.** A rule keyed to the 29th
+has to say what it does on 28 February 2027, 2029 and 2030. The usual answer is
+"the last day of the month if the 29th does not exist", but it has to be written
+down, or three years from now somebody's allowances silently do not reset.
+
+**3. Somebody joining on the 28th gets one day for $30.** With a fixed cycle,
+their first period is a single day and they still pay a full month unless the
+first invoice is pro-rated. Two honest options:
+
+* **Pro-rate the first month** — charge for the days remaining, then full price
+  from the next 29th. Fairer, and standard.
+* **Start their cycle on the day they join** — which is anniversary billing, i.e.
+  what the code already does.
+
+The second is free, because it is the existing behaviour. The first is a real
+change to the renewal cron.
+
+**Recommendation:** unless there is a finance reason for one company-wide billing
+date, keep anniversary billing. It is already built, it has no February problem,
+and it needs no pro-rating. A fixed 29th buys a tidier finance calendar and costs
+a cron rewrite plus two edge cases.
+
+---
+
 ## Still open
 
-- **Plan prices.** No `cost` values agreed yet.
-- **Per-GB overage price.** `per_gb_price` has no figure.
-- **When allowances reset** — the renewal date, or the calendar month? These
-  differ for a customer who joined on the 20th.
-- **Rollover** — does unused allowance carry over, or vanish?
+- **Fixed 29th, or anniversary billing?** See above. Anniversary is what the code
+  already does; a fixed date needs the renewal cron changed and two edge cases
+  answered.
+- **If fixed: what happens in February**, and **is the first month pro-rated?**
 
-The first two block seeding the plans. The second two block building the meter.
+Everything else needed to seed the three plans is now decided.
