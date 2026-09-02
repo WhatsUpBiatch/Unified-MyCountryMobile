@@ -213,18 +213,51 @@ first invoice is pro-rated. Two honest options:
 The second is free, because it is the existing behaviour. The first is a real
 change to the renewal cron.
 
-**Recommendation:** unless there is a finance reason for one company-wide billing
-date, keep anniversary billing. It is already built, it has no February problem,
-and it needs no pro-rating. A fixed 29th buys a tidier finance calendar and costs
-a cron rewrite plus two edge cases.
+**DECIDED: anniversary billing.** Each customer renews on the date they joined,
+which is what `plan_start_date + plan_duration` already does. No cron change, no
+February problem, no pro-rating. A fixed 29th was considered and dropped.
 
 ---
 
 ## Still open
 
-- **Fixed 29th, or anniversary billing?** See above. Anniversary is what the code
-  already does; a fixed date needs the renewal cron changed and two edge cases
-  answered.
-- **If fixed: what happens in February**, and **is the first month pro-rated?**
+Nothing. Every number and rule needed to seed the three plans is decided.
 
-Everything else needed to seed the three plans is now decided.
+---
+
+## What the API already offers, and which screens use it
+
+Checked against the live routers. Far more exists than the screens draw on, which
+is why several billing pages can be finished without waiting for the meter.
+
+| Endpoint | Exists | Used by a screen? |
+|---|---|---|
+| `card/list`, `add`, `set-default`, `delete` | yes | **no** — Credit & payment has no data at all |
+| `payment/charge` | yes | **no** |
+| `billing/list` | yes | partly — Invoices is a scaffold |
+| `plan/get-rate`, `get-sms-rate` | yes | **no** — rate lookup exists and nothing shows it |
+| `plan/calculate-tax` | yes | **no** |
+| `plan/get-prorated-cost` | yes | **no** |
+| `plan/buy-extra-storage`, `get-bucket-size` | yes | **no** |
+| `plan/change/request`, `cancel/request` | yes | yes — Plan |
+| `plan/customize-plan` | yes | **no** |
+
+Two things worth noticing. **Tax is calculated server-side** — `calculate-tax` is
+a real endpoint, so the tax fields on the billing row are filled by us calling it,
+not only by Stripe metadata. And **rate lookup already exists**: `get-rate` and
+`get-sms-rate` can tell a customer what a destination costs, which is most of what
+a Usage screen needs.
+
+### Order to build the screens
+
+1. **Credit & payment.** The largest gap and the most complete API — cards can be
+   listed, added, made default and deleted, and `payment/charge` tops up. This is
+   also the screen a customer needs when the balance is low, which is the moment
+   they care most.
+2. **Licences & resources.** Seats, numbers and storage all sit on the company and
+   plan records already.
+3. **Invoices.** `billing/list` gives the charges; the work is presenting them
+   with the tax broken out.
+4. **Modules and Add-ons.** Thin, and probably one screen rather than two.
+
+None of these need the meter. They show what is already recorded.
