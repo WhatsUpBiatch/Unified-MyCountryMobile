@@ -1,0 +1,18 @@
+<document type="freeswitch/xml">
+  <X-PRE-PROCESS cmd="include" data="vars.xml"/>
+  <section name="configuration" description="Various Configuration">
+    <X-PRE-PROCESS cmd="include" data="autoload_configs/*.xml"/>
+  </section>
+  <section name="dialplan" description="Regex/XML Dialplan">
+    <X-PRE-PROCESS cmd="include" data="dialplan/public.xml"/>
+    <X-PRE-PROCESS cmd="include" data="dialplan/att_xfer.xml"/>
+    <X-PRE-PROCESS cmd="include" data="dialplan/conference.xml"/>
+  </section>
+  <section name="chatplan" description="Regex/XML Chatplan">
+  </section>
+  <section name="directory" description="User Directory">
+  </section>
+  <section name="languages" description="Language Management">
+    <X-PRE-PROCESS cmd="include" data="/etc/freeswitch/lang/en/en.xml"/>
+  </section>
+</document>

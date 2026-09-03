@@ -1,0 +1,23 @@
+<document type="freeswitch/xml">
+    <section name="directory" description="FreeSWITCH Directory">
+        <domain name="{{ .Domain }}">
+            <groups>
+                <group name="{{ .GroupExten }}">
+                    <users>
+                            {{- range .Member }}
+                            <user id="{{ .Exten }}">
+                                    <params>
+                                            <param name="dial-string" value="{{ .DialString }}"/>
+                                    </params>
+                                    <variables>
+                                            <variable name="caller_id_name" value="{{ .CallerName }}"/>
+                                            <variable name="caller_id_number" value="{{ .Exten }}"/>
+                                    </variables>
+                            </user>
+                            {{- end }}
+                    </users>
+                </group>
+            </groups>
+        </domain>
+    </section>
+</document>

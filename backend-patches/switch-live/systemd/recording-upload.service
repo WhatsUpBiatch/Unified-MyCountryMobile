@@ -1,0 +1,10 @@
+[Unit]
+Description=Upload stranded FreeSWITCH call recordings to storage and link them
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# default-api on :3000 serves both /api/media and /api/internal (see script header)
+ExecStart=/usr/bin/env bash /opt/recording-upload.sh --apply
+Nice=10

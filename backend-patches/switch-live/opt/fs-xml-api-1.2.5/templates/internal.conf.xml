@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="freeswitch/xml">
+	<section name="dialplan">		
+		<context name="{{ .Context }}">
+			<extension name="{{ .Extension }}">
+				<condition field="destination_number" expression="^(.*)$">
+					{{- range .Actions }}
+					<action application="{{ .Application }}" data="{{ .Data }}" />
+					{{- end }}					
+				</condition>
+			</extension>
+		</context>
+	</section>
+</document>

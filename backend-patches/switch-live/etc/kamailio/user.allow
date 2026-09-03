@@ -1,0 +1,3 @@
+# only allow specific domain
+"^sip:[^@]+@(.*)?[^.]+\.mycountrymobile.com(:[0-9]+)?$" : ALL
+"^sip:[^@]+@(.*)?[^.]+\.acepeak.com(:[0-9]+)?$" : ALL

@@ -1,0 +1,14 @@
+[Unit]
+Description=call-manager-api
+After=network.target nats-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/call-manager-api
+EnvironmentFile=/opt/call-manager-api/.env
+ExecStart=/opt/call-manager-api/call-manager-api
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

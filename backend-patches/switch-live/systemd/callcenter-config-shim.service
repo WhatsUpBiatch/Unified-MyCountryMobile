@@ -1,0 +1,23 @@
+[Unit]
+# Answers FreeSWITCH's callcenter.conf request so the queue module can load,
+# and forwards every other configuration lookup to the original service.
+# It must be up before FreeSWITCH asks, and it depends on the original for
+# everything it does not answer itself.
+Description=CallCenter configuration shim for FreeSWITCH
+After=network.target fs-configuration-manager.service
+Wants=fs-configuration-manager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/callcenter-config-shim/callcenter_config_shim.py
+# Takes the address the original used to answer on. The original now listens on
+# 9012 and is reached only through this.
+Environment=SHIM_LISTEN_ADDR=localhost:9002
+Environment=SHIM_UPSTREAM=http://localhost:9012
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

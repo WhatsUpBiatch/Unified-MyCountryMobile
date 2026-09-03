@@ -1,0 +1,11 @@
+[Unit]
+Description=Load FreeSWITCH CDRs every 10 seconds
+
+[Timer]
+OnBootSec=15
+OnUnitActiveSec=10
+AccuracySec=2
+Unit=cdr-ingest.service
+
+[Install]
+WantedBy=timers.target

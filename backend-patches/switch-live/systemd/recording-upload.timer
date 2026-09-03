@@ -1,0 +1,11 @@
+[Unit]
+Description=Run recording-upload every minute
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+AccuracySec=10s
+Unit=recording-upload.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=FreeSWITCH ESL Manager
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/esl-manager
+ExecStart=/usr/bin/node /opt/esl-manager/lib/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

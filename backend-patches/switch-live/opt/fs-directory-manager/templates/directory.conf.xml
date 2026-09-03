@@ -1,0 +1,18 @@
+<document type="freeswitch/xml">
+        <section name="directory">
+                <domain name="{{ .Domain }}">
+                        <users>
+                                <user id="{{ .Exten }}">
+                                        <params>
+                                                <param name="vm-enabled" value="false"/>
+                                                <param name="vm-password" value="1234"/>
+                                                <param name="dial-string" value="{{ .DialString }}"/>
+                                        </params>
+                                        <variables>
+                                                <variable name="caller_id_number" value="{{ .Exten }}"/>
+                                        </variables>
+                                </user>
+                        </users>
+                </domain>
+        </section>
+</document>

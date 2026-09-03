@@ -1,0 +1,8 @@
+mysql_dsn: "<REDACTED: MYSQL_DSN, read from the server env>"
+base_domain: "mycountrymobile.com"
+http_listen_addr: "localhost:9001"
+templates_directory: "/opt/fs-directory-manager/templates"
+log_level: "debug"
+mongodb_database: "mycountrymobile_db"
+mongodb_uri: "mongodb+srv://doadmin:90X253xWY6p47TCv@db-mdb-sfo3-13875-ee598b11.mongo.ondigitalocean.com/?tls=true&authSource=admin&replicaSet=db-mdb-sfo3-13875"
+nats_url: "127.0.0.1:4222"

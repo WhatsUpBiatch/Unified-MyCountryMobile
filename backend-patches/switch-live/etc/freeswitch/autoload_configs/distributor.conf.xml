@@ -1,0 +1,7 @@
+<configuration name="distributor.conf" description="Distributor Configuration">
+  <lists>
+    <list name="sipcore">
+      <node name="127.0.0.1" weight="1"/>
+    </list>
+  </lists>
+</configuration>

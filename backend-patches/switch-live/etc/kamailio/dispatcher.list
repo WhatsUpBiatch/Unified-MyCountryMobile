@@ -1,0 +1,2 @@
+#setid sipdest flags priority attrs
+1 sip:127.0.0.1:5066 2 0

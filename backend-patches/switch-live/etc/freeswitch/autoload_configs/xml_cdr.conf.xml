@@ -1,0 +1,16 @@
+<configuration name="xml_cdr.conf" description="XML CDR CURL logger">
+  <settings>
+    <!-- No <param name="url"> is set on purpose: nothing is POSTed anywhere
+         yet, because the service that used to ingest CDRs has not been
+         identified. Every record is written to disk instead, on a host-mounted
+         volume so it survives a container restart and can be back-filled once
+         the consumer is known. This stops the data loss; delivery is separate. -->
+    <param name="log-dir" value="/opt/call-recordings/cdr"/>
+    <param name="err-log-dir" value="/opt/call-recordings/cdr"/>
+    <param name="log-b-leg" value="true"/>
+    <param name="prefix-a-leg" value="true"/>
+    <param name="encode" value="none"/>
+    <param name="retries" value="2"/>
+    <param name="delay" value="5000"/>
+  </settings>
+</configuration>

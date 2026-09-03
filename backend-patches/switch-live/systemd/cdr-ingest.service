@@ -1,0 +1,8 @@
+[Unit]
+Description=Load FreeSWITCH CDR files into each tenant's call_history
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/cdr-ingest.py --apply
+# The ingester is idempotent, so a failed run is retried by the next tick.

@@ -1,0 +1,10 @@
+<include>
+ <context name="features">
+<extension name="att_xfer">
+    <condition field="destination_number" expression="^att_xfer$">
+      <action application="set" data="continue_on_fail=true"/>
+      <action application="lua" data="/etc/freeswitch/scripts/att_xfer.lua" />
+    </condition>
+</extension>
+</context>
+</include>

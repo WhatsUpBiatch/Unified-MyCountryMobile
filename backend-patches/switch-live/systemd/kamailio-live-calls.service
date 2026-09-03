@@ -1,0 +1,13 @@
+[Unit]
+Description=Kamailio Live Calls Monitor
+After=kamailio.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kamailio-live-calls
+ExecStart=/usr/bin/python3 /opt/kamailio-live-calls/kamailio-live-calls.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

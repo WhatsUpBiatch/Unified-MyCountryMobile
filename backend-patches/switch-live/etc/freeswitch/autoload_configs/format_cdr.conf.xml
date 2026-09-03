@@ -1,0 +1,20 @@
+<configuration name="format_cdr.conf" description="Multi Format CDR CURL logger">
+
+ <!-- You can have multiple profiles, to allow logging to both json and cdr simultaneously, or to 
+        different paths or servers with different settings, just be sure to use different name for
+        each profile. -->
+ <profiles>
+
+ <profile name="default">
+  <settings>
+    <param name="format" value="json"/>
+    <param name="log-http-and-disk" value="true"/>
+    <param name="log-dir" value="/opt/call-json-cdr/tmp"/>
+    <param name="prefix-a-leg" value="true"/>
+    <param name="log-b-leg" value="true"/>
+    <param name="encode" value="appljson"/>
+    <param name="encode-values" value="false"/>
+  </settings>
+ </profile>
+ </profiles>
+</configuration>

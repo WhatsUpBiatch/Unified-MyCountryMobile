@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<include>
+  <context name="conference">
+    <extension name="conference">
+    <condition field="destination_number" expression="^(.*)$" break="never">
+      <action application="answer"/>
+      <action application="sleep" data="500"/>
+      <action application="conference" data="$1@default"/>
+    </condition>
+  </extension>
+
+  </context>
+</include>

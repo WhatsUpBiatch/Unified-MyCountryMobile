@@ -1,0 +1,7 @@
+[0]
+^.*friendly-scanner.*$
+^.*sundayddr.*$
+^.*sipcli.*$
+[1]
+^sip.mycountrymobile.com:8080$
+^sip2.mycountrymobile.com:8080$

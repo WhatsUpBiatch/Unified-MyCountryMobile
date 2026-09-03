@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<include>
+  <context name="public">
+    <extension name="public">
+      <condition field="destination_number" expression="^(.*)$">
+        <action application="set" data="domain=${sip_h_X-Domain}"/>
+        <action application="set" data="session_in_hangup_hook=true"/>
+        <action application="bind_meta_app" data="1 b s execute_extension::att_xfer XML features"/>
+        <action application="set" data="x_path=;fs_path=sip:${distributor sipcore ${sofia profile internal gwlist down}}"/>
+        <action application="lua" data="/etc/freeswitch/scripts/inbound.lua"/>
+      </condition>
+    </extension>
+  </context>
+</include>
