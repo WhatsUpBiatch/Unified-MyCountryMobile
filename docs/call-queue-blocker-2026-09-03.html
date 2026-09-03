@@ -1,0 +1,399 @@
+<title>Why The Queue Cannot Be Tested</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root{
+    --paper:#EDEFF0; --surface:#F7F8F8; --card:#F7F8F8; --sunken:#E2E6E8;
+    --ink:#141C22; --ink-soft:#3A4750; --ink-faint:#6B7A84;
+    --rule:#CDD4D8; --rule-soft:#DEE3E6;
+    --signal:#14646B; --signal-dim:#d7e6e7;
+    --stop:#9E3328; --stop-dim:#f2dedb;
+    --hold:#96660F; --hold-dim:#f4e8d2;
+    --clear:#34633F; --clear-dim:#dfe9e0;
+    --code-bg:#1B252C; --code-fg:#DCE5E9;
+    --shadow:0 1px 2px rgba(20,28,34,.06),0 8px 24px -16px rgba(20,28,34,.35);
+    --f-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+    --f-body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --f-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+      --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+      --rule:#2A3841; --rule-soft:#212D35;
+      --signal:#57B3B9; --signal-dim:#123336;
+      --stop:#E0796B; --stop-dim:#2E1B18;
+      --hold:#D6A445; --hold-dim:#2C2314;
+      --clear:#7DB98A; --clear-dim:#182818;
+      --code-bg:#0A1015; --code-fg:#CFDBE1;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+    --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+    --rule:#2A3841; --rule-soft:#212D35;
+    --signal:#57B3B9; --signal-dim:#123336;
+    --stop:#E0796B; --stop-dim:#2E1B18;
+    --hold:#D6A445; --hold-dim:#2C2314;
+    --clear:#7DB98A; --clear-dim:#182818;
+    --code-bg:#0A1015; --code-fg:#CFDBE1;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;
+       line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+
+  .mast{border-bottom:2px solid var(--ink);padding:56px 0 26px;margin-bottom:34px}
+  .kicker{font-family:var(--f-mono);font-size:11.5px;font-weight:600;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--signal);margin:0 0 18px}
+  h1{font-family:var(--f-display);font-weight:800;font-size:clamp(36px,6vw,62px);line-height:.98;
+     letter-spacing:-.028em;margin:0 0 20px;text-wrap:balance}
+  .standfirst{font-size:20px;line-height:1.5;color:var(--ink-soft);max-width:650px;margin:0 0 28px}
+  .stampline{display:flex;flex-wrap:wrap;gap:8px 28px;font-family:var(--f-mono);font-size:12px;color:var(--ink-faint)}
+  .stampline b{color:var(--ink-soft);font-weight:500}
+
+  .answer{background:var(--card);border:1px solid var(--rule);border-left:5px solid var(--stop);
+          border-radius:3px;padding:26px 28px;margin:0 0 40px;box-shadow:var(--shadow)}
+  .answer h2{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:-.015em;
+             margin:0 0 12px;color:var(--stop)}
+  .answer p{margin:0 0 12px;max-width:68ch}
+  .answer p:last-child{margin-bottom:0}
+
+  /* chain */
+  .chain{margin:0 0 40px}
+  .chain-title{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;
+               text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px}
+  .link{display:grid;grid-template-columns:34px 1fr;gap:16px;align-items:start;
+        border-left:2px solid var(--rule);margin-left:16px;padding:0 0 20px 22px;position:relative}
+  .link:last-child{border-left-color:transparent;padding-bottom:0}
+  .link .pip{position:absolute;left:-9px;top:2px;width:16px;height:16px;border-radius:50%;
+             border:3px solid var(--paper);background:var(--clear)}
+  .link.bad .pip{background:var(--stop)}
+  .link.warn .pip{background:var(--hold)}
+  .link .n{display:none}
+  .link .box{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:15px 18px;
+             grid-column:1 / -1}
+  .link h3{font-family:var(--f-display);font-size:17px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+  .link h3 .state{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;
+                  text-transform:uppercase;padding:3px 8px;border-radius:2px;margin-right:10px;vertical-align:2px}
+  .link h3 .state.ok{background:var(--clear-dim);color:var(--clear)}
+  .link h3 .state.no{background:var(--stop-dim);color:var(--stop)}
+  .link h3 .state.hm{background:var(--hold-dim);color:var(--hold)}
+  .link p{margin:0 0 8px;font-size:16px;color:var(--ink-soft);max-width:70ch}
+  .link p:last-child{margin-bottom:0}
+
+  pre{font-family:var(--f-mono);font-size:12.5px;line-height:1.62;background:var(--code-bg);
+      color:var(--code-fg);border-radius:3px;padding:12px 14px;overflow-x:auto;margin:8px 0 0;white-space:pre}
+  pre .c{color:#7FA6A8}
+  pre b{color:#F0C674;font-weight:600}
+  code{font-family:var(--f-mono);font-size:.86em;background:var(--sunken);padding:1px 5px;border-radius:2px;word-break:break-word}
+
+  section{margin:0 0 56px}
+  .sechead{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:14px;margin-bottom:20px}
+  .sechead .tag{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;
+                text-transform:uppercase;color:var(--ink-faint);white-space:nowrap;padding-top:8px}
+  h2.sec{font-family:var(--f-display);font-size:clamp(25px,3.3vw,34px);font-weight:700;
+         letter-spacing:-.024em;line-height:1.08;margin:0;text-wrap:balance}
+  p{margin:0 0 16px;max-width:70ch}
+  h3.sub{font-family:var(--f-display);font-size:19px;font-weight:600;margin:28px 0 10px;letter-spacing:-.012em}
+
+  .tablewrap{overflow-x:auto;margin:0 0 20px;border:1px solid var(--rule);border-radius:3px}
+  table{border-collapse:collapse;width:100%;min-width:560px;background:var(--card)}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--rule-soft);font-size:14px;vertical-align:top}
+  th{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+     color:var(--ink-faint);background:var(--sunken);border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{font-family:var(--f-body);color:var(--ink-soft)}
+  td.m{font-family:var(--f-mono);font-size:12.5px;color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  td strong{color:var(--ink);font-weight:600}
+  tr.hi td{background:var(--stop-dim)}
+  tr.ok td{background:var(--clear-dim)}
+
+  ol.steps{list-style:none;padding:0;margin:0;counter-reset:s}
+  ol.steps>li{counter-increment:s;display:grid;grid-template-columns:44px 1fr;gap:16px;
+              padding:16px 0;border-bottom:1px solid var(--rule-soft)}
+  ol.steps>li:first-child{border-top:1px solid var(--rule)}
+  ol.steps>li::before{content:counter(s,decimal-leading-zero);font-family:var(--f-display);font-weight:800;
+                      font-size:22px;letter-spacing:-.03em;color:var(--rule);font-variant-numeric:tabular-nums;line-height:1.2}
+  ol.steps h4{font-family:var(--f-display);font-size:17px;font-weight:600;margin:0 0 5px;letter-spacing:-.01em}
+  ol.steps p{margin:0 0 6px;font-size:16px;color:var(--ink-soft)}
+  ol.steps p:last-child{margin-bottom:0}
+
+  .note{border-left:3px solid var(--signal);background:var(--signal-dim);padding:14px 18px;
+        border-radius:0 3px 3px 0;margin:0 0 20px;max-width:74ch}
+  .note p{margin:0;font-size:16px}
+  .warn{border-left:3px solid var(--hold);background:var(--hold-dim);padding:13px 17px;
+        border-radius:0 3px 3px 0;margin:12px 0 0;max-width:74ch}
+  .warn p{margin:0;font-size:15.5px;color:var(--ink-soft)}
+
+  footer{border-top:2px solid var(--ink);padding-top:18px;margin-top:20px;font-family:var(--f-mono);
+         font-size:12px;color:var(--ink-faint);line-height:1.7}
+
+  @media (max-width:620px){
+    body{font-size:16px} .wrap{padding:0 18px 64px}
+    .link{margin-left:10px;padding-left:18px}
+    ol.steps>li{grid-template-columns:34px 1fr;gap:12px}
+    pre{font-size:11.5px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">Call queue · end-to-end trace</p>
+    <h1>Why The Queue Cannot Be Tested</h1>
+    <p class="standfirst">I followed a real call through every link of the queue path on the live system. The machinery works. The blocker is that the one queue reachable by phone has nobody able to answer it — and the one queue with somebody available has no phone number.</p>
+    <div class="stampline">
+      <span><b>Traced</b> 3 September 2026</span>
+      <span><b>Queue</b> Ucaas Test · ext 9331 · 5 numbers</span>
+      <span><b>Method</b> live probes, each with a control</span>
+    </div>
+  </header>
+
+  <div class="answer">
+    <h2>The blocker in one sentence</h2>
+    <p><strong>No agent can be available at the moment a call arrives</strong>, and the two ways of becoming available both leak back to unavailable — one on every page refresh, the other on every socket drop, with nothing that ever puts an agent back.</p>
+    <p>Everything upstream of that is fine. A call to <code>+1 256 808 1010</code> is routed correctly, with the right ring strategy, the right wrap-up time, the admin's own hold audio and recording all present. The queue script is in place. The agent-lookup service answers correctly. It gets all the way to the last step and finds an empty room.</p>
+    <p>The service says so itself, in plain words: <code>"Nobody can take it right now - 1 on a break, 2 signed out."</code></p>
+  </div>
+
+  <!-- ============ CHAIN ============ -->
+  <section>
+    <div class="sechead"><span class="tag">The trace</span><h2 class="sec">Seven links, five of them good</h2></div>
+
+    <div class="chain">
+      <p class="chain-title">A call to +1 256 808 1010, followed step by step on the live system</p>
+
+      <div class="link"><span class="pip"></span><div class="box">
+        <h3><span class="state ok">Works</span>The number knows it belongs to a queue</h3>
+        <p>Five numbers point at the queue <strong>Ucaas Test</strong> (extension 9331, TestersCompany2). The routing record is correct on all five.</p>
+      </div></div>
+
+      <div class="link"><span class="pip"></span><div class="box">
+        <h3><span class="state ok">Works</span>The switch builds a correct queue instruction</h3>
+        <p>I asked the live call router what it would do. It returns a complete, correct queue extension — including the admin's real ring strategy, wrap-up time, caller cap and their own hold audio.</p>
+<pre>extension name="<b>queue-12568081010</b>"
+  limit hash company_channels a5bd159a… <b>6</b> !USER_BUSY
+  sip_h_X-Queue      = 6a897c00da433e7e71a94c18
+  cc_queue_name      = Ucaas Test
+  cc_queue_exten     = 9331
+  <b>cc_ring_strategy   = ring-all</b>
+  <b>cc_wrapup_time     = 30</b>
+  <b>cc_max_callers     = 5</b>
+  cc_waiting_media   = …/greetings/a5bd159a…/9b33f53b….mp3
+  lua /etc/freeswitch/scripts/callcenter-queue.lua</pre>
+        <div class="warn"><p><strong>Correction to my earlier report.</strong> I previously said the ring strategy was always overwritten with "random". That is no longer true — the dialplan now sets <code>cc_ring_strategy=ring-all</code>, which is what the admin chose. It was fixed between my two passes. Item 13 on the fix list can be closed.</p></div>
+      </div></div>
+
+      <div class="link"><span class="pip"></span><div class="box">
+        <h3><span class="state ok">Works</span>The queue script is in place</h3>
+        <p>49 KB of Lua at <code>/etc/freeswitch/scripts/callcenter-queue.lua</code>, and the announcement it plays first exists on disk.</p>
+      </div></div>
+
+      <div class="link"><span class="pip"></span><div class="box">
+        <h3><span class="state ok">Works</span>The agent-lookup service answers correctly</h3>
+        <p>The script asks a service on port 9006 who can take the call. It answers with the queue's real settings — and it accepts the identifier the switch actually sends, so there is no mismatch there.</p>
+<pre>GET :9006/api/callcenter/queues/6a897c00da433e7e71a94c18/agents
+
+{"queue_timeout":60, "max_callers":5, "strategy":"<b>ring-all</b>",
+ "rings_together":true, "exit":{"type":"VOICEMAIL","value":"1794"},
+ "agents": <b>[]</b>,
+ "reason": "<b>Nobody can take it right now - 1 on a break, 2 signed out.</b>"}</pre>
+      </div></div>
+
+      <div class="link bad"><span class="pip"></span><div class="box">
+        <h3><span class="state no">Blocker 1</span>Nobody on the queue is available</h3>
+        <p>The queue has three members. None can take a call.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Ext</th><th>Who</th><th>Status</th><th>Last changed</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td class="m">3689</td><td>useragent2@yopmail.com</td><td class="m">On Break</td><td class="m">22 Aug</td></tr>
+            <tr class="hi"><td class="m">1794</td><td>august.jss009@yopmail.com</td><td class="m">Logged Out</td><td class="m">2 Sep 11:07</td></tr>
+            <tr class="hi"><td class="m">1000</td><td>umar@mcmbpo.com</td><td class="m">Logged Out</td><td class="m">26 Aug</td></tr>
+          </tbody>
+        </table></div>
+      </div></div>
+
+      <div class="link bad"><span class="pip"></span><div class="box">
+        <h3><span class="state no">Blocker 2</span>Two of the three have no phone registered</h3>
+        <p>Even if all three went available this minute, only one could be rung. The queue rings <code>user/&lt;ext&gt;_web@…</code>, and only extension 1000 has a softphone registered to the switch on that tenant. The other two would fail instantly.</p>
+<pre>show registrations | grep 1785312032037
+<b>1000_web  1785312032037.mycountrymobile.com</b>     ← the only one
+<span class="c"># 1794 and 3689: nothing</span></pre>
+      </div></div>
+
+      <div class="link warn"><span class="pip"></span><div class="box">
+        <h3><span class="state hm">Blocker 3</span>The fallback is silence, then a voicemail that stores nothing</h3>
+        <p>With no agent, the script plays <code>vm-no_agents.wav</code> — a stock FreeSWITCH sound that is not installed, because the sound library was never installed. Then it takes the queue exit, which is voicemail on extension 1794 — and voicemail has never stored a message on any current customer.</p>
+        <p>So a tester calling right now would hear hold music, then nothing, then nothing. It would look like the queue is broken even after the first two blockers are fixed.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ WHY NEVER TESTED ============ -->
+  <section>
+    <div class="sechead"><span class="tag">The evidence</span><h2 class="sec">No call has ever reached the queue</h2></div>
+
+    <p>The switch log covers six days without rotation, 28 August to now. In that window the queue script was entered <strong>zero</strong> times — against 583 ordinary call bridges in the same log, which proves the search works and a blank result means something.</p>
+
+<pre>grep -c "CALLCENTER QUEUE HANDLER"  /var/log/freeswitch/freeswitch.log  →  <b>0</b>
+grep -c "EXECUTE.*bridge"           /var/log/freeswitch/freeswitch.log  →  <b>583</b>   <span class="c">← control</span>
+log covers 2026-08-28 06:14 → now, unrotated</pre>
+
+    <p>And here is why. Every call on that customer's account is <strong>outbound</strong>. The queue numbers are being used as the caller ID for outgoing test calls — nobody has ever dialled <em>in</em> to one.</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>Recent calls, TestersCompany2</th><th>Direction</th><th>From → to</th></tr></thead>
+      <tbody>
+        <tr><td class="m">2 Sep 10:16</td><td class="m">Outbound</td><td class="m">12568081010 → 12568081009</td></tr>
+        <tr><td class="m">2 Sep 10:00</td><td class="m">Outbound</td><td class="m">12568081010 → 12568081009</td></tr>
+        <tr><td class="m">2 Sep 08:37</td><td class="m">Outbound</td><td class="m">12568081010 → 12568081009</td></tr>
+        <tr><td class="m">2 Sep 08:07</td><td class="m">Outbound</td><td class="m">12568081010 → 918149461034</td></tr>
+        <tr><td colspan="3"><strong>Inbound calls to any of the five queue numbers, ever: none.</strong></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="sub">And the two halves never meet</h3>
+    <p>Across all sixteen queues on the platform, exactly one has an available agent — and no phone number points at it. The only queue with numbers has no available agent. They are mutually exclusive, which is why every attempt to test has come up empty.</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>Queue</th><th>Ext</th><th>Members</th><th>Available</th><th>Numbers pointed at it</th></tr></thead>
+      <tbody>
+        <tr class="ok"><td><strong>Sales</strong> (Capanicus)</td><td class="m">1975</td><td class="m">1</td><td class="m">ext 1000 ✓</td><td class="m">none</td></tr>
+        <tr class="hi"><td><strong>Ucaas Test</strong> (TestersCompany2)</td><td class="m">9331</td><td class="m">3</td><td class="m">none</td><td class="m">5 numbers</td></tr>
+        <tr><td>The other 14 queues</td><td class="m">—</td><td class="m">1–3 each</td><td class="m">none</td><td class="m">none</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ WHY AVAILABILITY LEAKS ============ -->
+  <section>
+    <div class="sechead"><span class="tag">Root cause</span><h2 class="sec">Why nobody can stay available</h2></div>
+
+    <p>There are two things that write an agent's status, and both of them only ever push in one direction — towards unavailable.</p>
+
+    <h3 class="sub">The button, which un-presses itself</h3>
+    <p>The only place in the whole product to make yourself available is one card on <strong>Call Dashboard → Call Queue</strong>. It toggles between Available and On Break, and it works. But the same component registers this:</p>
+<pre><span class="c">// call-queue-card/index.tsx</span>
+window.addEventListener('beforeunload', makeQueueUnavailableOnReload);
+window.addEventListener('pagehide',     makeQueueUnavailableOnReload);
+<span class="c">// …which sends status: '<b>On Break</b>'</span></pre>
+    <p>So an agent is available only while that exact browser tab stays open on that exact page. Refresh it, navigate to the phone, close the tab, or let the laptop sleep, and they are on a break again. That alone makes a two-person test very hard to co-ordinate.</p>
+
+    <h3 class="sub">The socket, which logs people out and never logs them back in</h3>
+    <p>Separately, a background event sets an agent's status from whether their browser session is online:</p>
+<pre><span class="c">// campaign-api QueueRepository.ts:739</span>
+const agentStatus = request.webOnline
+  ? { status: "Available",  state: "Waiting" }
+  : { status: "<b>Logged Out</b>", state: "Logged Out" };</pre>
+    <p>The logging-out half demonstrably fires. Extension 1794's browser session went offline at <strong>11:06</strong> on 2 September, and their agent record was set to Logged Out at <strong>11:07</strong> — one minute later.</p>
+    <p>The logging-back-in half does not. Umar (extension 1000) has <code>webOnline: true</code> on his session <strong>right now</strong>, last seen 07:22 this morning — and his agent record has read "Logged Out" since <strong>26 August</strong>. Nine days online, still logged out.</p>
+    <p>That is the whole root cause. Availability decays and never recovers on its own, so the queue drifts to empty and stays there.</p>
+
+    <h3 class="sub">Two smaller things found on the way</h3>
+    <ul style="max-width:70ch">
+      <li><strong>Ring tiers have no data at all.</strong> There are 37 tier records on the platform and every one of them points at a queue that no longer exists. Not one of the sixteen queues has a single tier. The service copes — it treats everyone as one flat level — but "ring these people first, then these" cannot work for anybody.</li>
+      <li><strong>All sixteen queues are still flagged <code>config_applied: false</code></strong>, so whatever step is meant to confirm a queue has been pushed to the switch has never succeeded for any queue.</li>
+    </ul>
+  </section>
+
+  <!-- ============ HOW TO TEST ============ -->
+  <section>
+    <div class="sechead"><span class="tag">Do this</span><h2 class="sec">How to get a successful queue test today</h2></div>
+
+    <p>You can prove the queue end to end in about twenty minutes with two people and one phone, without fixing anything first — as long as you work around the two leaks rather than through them.</p>
+
+    <ol class="steps">
+      <li><div>
+        <h4>Register the agent's phone first</h4>
+        <p>Sign the agent into the portal and open the phone, so their softphone registers. Confirm it before going further — an unregistered agent cannot be rung however available they look.</p>
+<pre>docker exec mcm-freeswitch fs_cli -x "show registrations" | grep 1785312032037
+<span class="c"># the agent's extension_web must appear</span></pre>
+      </div></li>
+
+      <li><div>
+        <h4>Use extension 1000, not 1794 or 3689</h4>
+        <p>1000 is the only member of Ucaas Test with a phone that has ever registered. Adding a second member is a separate task — get one working first.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Go Available on the Call Dashboard, and then do not touch that tab</h4>
+        <p>Call Dashboard → Call Queue → the Ucaas Test card → the availability button. Then leave the tab alone. Do not refresh it, do not navigate away, do not close it. Refreshing puts you back on a break.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Confirm the switch agrees, before you dial</h4>
+        <p>This is the step that saves the afternoon. Ask the lookup service directly — if it still says nobody is available, the call will fail and you will learn nothing from making it.</p>
+<pre>curl -s "http://localhost:9006/api/callcenter/queues/6a897c00da433e7e71a94c18/agents"
+
+<span class="c"># you want: "agents":[ { … } ]   — a non-empty list</span>
+<span class="c"># if it still says "Nobody can take it right now", stop and fix that first</span></pre>
+      </div></li>
+
+      <li><div>
+        <h4>Call one of the five numbers from a real outside phone</h4>
+        <p><code>+1 256 808 1010</code>, <code>+1 256 808 1021</code>, <code>+1 442 212 8589</code>, <code>+1 442 212 8593</code> or <code>+1 854 429 0173</code>. Use a mobile, not another extension in the system — you want the real inbound path.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Watch the switch while it happens</h4>
+        <p>The first line tells you the call reached the queue at all; the second tells you what it decided.</p>
+<pre>docker exec mcm-freeswitch tail -f /var/log/freeswitch/freeswitch.log \
+  | grep -E "CALLCENTER QUEUE HANDLER|QUEUE SETTINGS|Querying fs-callcenter"</pre>
+      </div></li>
+    </ol>
+
+    <div class="note" style="margin-top:28px">
+      <p><strong>Expect one thing to still be wrong.</strong> If nobody answers, the caller will get silence rather than a "no agents" message, and the voicemail fallback will record nothing. Both are the missing sound library and the voicemail folder — items 11 and 12 on the fix list. That is a separate fault and should not be read as the queue failing.</p>
+    </div>
+  </section>
+
+  <!-- ============ HOW TO FIX ============ -->
+  <section>
+    <div class="sechead"><span class="tag">Then fix</span><h2 class="sec">What to change so it works without a ritual</h2></div>
+
+    <ol class="steps">
+      <li><div>
+        <h4>Make the socket path put agents back</h4>
+        <p>The single highest-value change. Whatever publishes the agent-status event on disconnect must also publish it on connect. The handler already does the right thing with <code>webOnline: true</code> — it is simply never sent. Until this works, every agent on the platform drifts to logged out and stays there.</p>
+        <p><em>Check:</em> log an agent in, then confirm their agent record flips to Available within seconds — without touching the dashboard button.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Stop the page-unload handler signing agents out</h4>
+        <p>A refresh should not end a shift. Either drop the <code>beforeunload</code> handler and let the socket path own availability, or make it set availability only when the agent has no other session open. As written, the two mechanisms fight each other.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Put the availability control where an agent actually sits</h4>
+        <p>Today it exists on one dashboard card. An agent taking queue calls lives on the phone screen. The control belongs in the persistent header or the dialpad, visible and settable from anywhere, the way presence already is.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Point a number at a queue that has a working agent</h4>
+        <p>For the sake of ongoing testing, not as a fix: put one spare number on a queue whose member is you, on a tenant you control. At the moment the only working agent and the only reachable queue are on different customers.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Fix the tier records, or drop the feature from the screen</h4>
+        <p>All 37 tier records are orphaned and no queue has any. Ring order cannot work for anybody. Either populate them when a queue is saved, or take the tier controls off the queue screen until they do something.</p>
+      </div></li>
+
+      <li><div>
+        <h4>Work out what <code>config_applied</code> is waiting for</h4>
+        <p>Sixteen out of sixteen queues say false. That is a step that has never succeeded once, not sixteen unlucky queues.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <footer>
+    Traced 3 September 2026 against the live production system at 142.93.121.121 — the call router on port 9000, the agent lookup on 9006, the FreeSWITCH log, and the shared MySQL and MongoDB databases.<br>
+    Every step above was run against the live system, each with a control. Two of my earlier claims were corrected in the process: the ring strategy is now set correctly by the dialplan, and the queue lookup accepts the identifier the switch sends.
+  </footer>
+
+</div>

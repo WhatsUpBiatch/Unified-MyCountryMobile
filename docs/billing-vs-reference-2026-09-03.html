@@ -1,0 +1,528 @@
+<title>Billing, Measured Against the Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root{
+    --paper:#EDEFF0; --surface:#F7F8F8; --card:#F7F8F8; --sunken:#E2E6E8;
+    --ink:#141C22; --ink-soft:#3A4750; --ink-faint:#6B7A84;
+    --rule:#CDD4D8; --rule-soft:#DEE3E6;
+    --signal:#14646B; --signal-dim:#d7e6e7;
+    --stop:#9E3328; --stop-dim:#f2dedb;
+    --hold:#96660F; --hold-dim:#f4e8d2;
+    --clear:#34633F; --clear-dim:#dfe9e0;
+    --code-bg:#1B252C; --code-fg:#DCE5E9;
+    --shadow:0 1px 2px rgba(20,28,34,.06),0 8px 24px -16px rgba(20,28,34,.35);
+    --f-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+    --f-body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --f-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+      --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+      --rule:#2A3841; --rule-soft:#212D35;
+      --signal:#57B3B9; --signal-dim:#123336;
+      --stop:#E0796B; --stop-dim:#2E1B18;
+      --hold:#D6A445; --hold-dim:#2C2314;
+      --clear:#7DB98A; --clear-dim:#182818;
+      --code-bg:#0A1015; --code-fg:#CFDBE1;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+    --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+    --rule:#2A3841; --rule-soft:#212D35;
+    --signal:#57B3B9; --signal-dim:#123336;
+    --stop:#E0796B; --stop-dim:#2E1B18;
+    --hold:#D6A445; --hold-dim:#2C2314;
+    --clear:#7DB98A; --clear-dim:#182818;
+    --code-bg:#0A1015; --code-fg:#CFDBE1;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px 96px}
+
+  .mast{border-bottom:2px solid var(--ink);padding:56px 0 26px;margin-bottom:34px}
+  .kicker{font-family:var(--f-mono);font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin:0 0 18px}
+  h1{font-family:var(--f-display);font-weight:800;font-size:clamp(36px,5.8vw,60px);line-height:.98;letter-spacing:-.028em;margin:0 0 20px;text-wrap:balance}
+  .standfirst{font-size:20px;line-height:1.5;color:var(--ink-soft);max-width:680px;margin:0 0 28px}
+  .stampline{display:flex;flex-wrap:wrap;gap:8px 28px;font-family:var(--f-mono);font-size:12px;color:var(--ink-faint)}
+  .stampline b{color:var(--ink-soft);font-weight:500}
+
+  .verdict{background:var(--card);border:1px solid var(--rule);border-left:5px solid var(--hold);border-radius:3px;padding:26px 28px;margin:0 0 20px;box-shadow:var(--shadow)}
+  .verdict h2{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:-.015em;margin:0 0 12px;color:var(--hold)}
+  .verdict p{margin:0 0 12px;max-width:70ch}
+  .verdict p:last-child{margin-bottom:0}
+
+  .tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;margin:0 0 52px;overflow:hidden}
+  .tally div{background:var(--card);padding:18px 20px}
+  .tally .n{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;display:block;margin-bottom:6px}
+  .tally .l{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);line-height:1.4}
+  .n.stop{color:var(--stop)} .n.hold{color:var(--hold)} .n.clear{color:var(--clear)} .n.sig{color:var(--signal)}
+
+  section{margin:0 0 60px}
+  .sechead{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:14px;margin-bottom:8px}
+  .sechead .tag{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);white-space:nowrap;padding-top:8px}
+  h2.sec{font-family:var(--f-display);font-size:clamp(25px,3.3vw,34px);font-weight:700;letter-spacing:-.024em;line-height:1.08;margin:0;text-wrap:balance}
+  .secnote{font-family:var(--f-mono);font-size:12.5px;letter-spacing:.02em;color:var(--ink-faint);margin:0 0 24px;max-width:70ch}
+  p{margin:0 0 16px;max-width:70ch}
+  h3{font-family:var(--f-display);font-size:19px;font-weight:600;letter-spacing:-.012em;margin:28px 0 10px}
+
+  /* rules */
+  .rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:0 0 20px}
+  .rule{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--signal);border-radius:3px;padding:16px 18px}
+  .rule h4{font-family:var(--f-display);font-size:16px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+  .rule p{margin:0 0 6px;font-size:15px;color:var(--ink-soft)}
+  .rule .src{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.04em}
+
+  /* tables */
+  .tablewrap{overflow-x:auto;margin:0 0 22px;border:1px solid var(--rule);border-radius:3px}
+  table{border-collapse:collapse;width:100%;min-width:720px;background:var(--card)}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule-soft);font-size:13.5px;vertical-align:top}
+  th{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);background:var(--sunken);border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{font-family:var(--f-body);color:var(--ink-soft)}
+  td.m{font-family:var(--f-mono);font-size:12px;color:var(--ink)}
+  td strong{color:var(--ink);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .st{display:inline-block;font-family:var(--f-mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .st.ok{background:var(--clear-dim);color:var(--clear)}
+  .st.no{background:var(--stop-dim);color:var(--stop)}
+  .st.part{background:var(--hold-dim);color:var(--hold)}
+  .st.na{background:var(--sunken);color:var(--ink-faint)}
+
+  /* screen cards */
+  .screen{background:var(--card);border:1px solid var(--rule);border-radius:3px;margin:0 0 18px;overflow:hidden}
+  .screen .head{padding:16px 22px 12px;border-left:4px solid var(--rule);display:flex;flex-wrap:wrap;gap:10px 18px;align-items:baseline}
+  .screen.ok .head{border-left-color:var(--clear)}
+  .screen.part .head{border-left-color:var(--hold)}
+  .screen.no .head{border-left-color:var(--stop)}
+  .screen h3{margin:0;font-size:19px}
+  .screen .url{font-family:var(--f-mono);font-size:11px;color:var(--ink-faint)}
+  .screen .body{padding:0 22px 18px}
+  .screen .body p{font-size:15.5px;margin:0 0 10px;max-width:74ch}
+  .screen .tablewrap{margin:10px 0 12px}
+  .screen table{min-width:640px}
+  .screen .pend{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:8px 0 0}
+  .screen .pend b{color:var(--ink);font-weight:600}
+
+  .find{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule);border-radius:3px;padding:18px 22px;margin:0 0 14px}
+  .find.stop{border-left-color:var(--stop)} .find.hold{border-left-color:var(--hold)}
+  .find h4{font-family:var(--f-display);font-size:17.5px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em;line-height:1.28}
+  .find p{margin:0 0 10px;font-size:16px;max-width:72ch}
+  .find p:last-child{margin-bottom:0}
+  .chip{display:inline-block;font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:2px;vertical-align:2px;margin-right:10px}
+  .chip.stop{background:var(--stop-dim);color:var(--stop)} .chip.hold{background:var(--hold-dim);color:var(--hold)}
+  .chip.clear{background:var(--clear-dim);color:var(--clear)}
+  pre{font-family:var(--f-mono);font-size:12.5px;line-height:1.62;background:var(--code-bg);color:var(--code-fg);border-radius:3px;padding:12px 14px;overflow-x:auto;margin:8px 0 0;white-space:pre}
+  pre b{color:#F0C674;font-weight:600} pre .c{color:#7FA6A8}
+  code{font-family:var(--f-mono);font-size:.86em;background:var(--sunken);padding:1px 5px;border-radius:2px;word-break:break-word}
+
+  ol.ranked{list-style:none;padding:0;margin:0;counter-reset:r}
+  ol.ranked>li{counter-increment:r;display:grid;grid-template-columns:48px 1fr auto;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule-soft);align-items:start}
+  ol.ranked>li:first-child{border-top:1px solid var(--rule)}
+  ol.ranked>li::before{content:counter(r,decimal-leading-zero);font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.03em;color:var(--rule);font-variant-numeric:tabular-nums;line-height:1.2}
+  ol.ranked h4{font-family:var(--f-display);font-size:16.5px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+  ol.ranked p{margin:0;font-size:15px;color:var(--ink-soft)}
+  ol.ranked .eff{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap;padding-top:4px}
+  .grouplabel{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:26px 0 6px}
+
+  .note{border-left:3px solid var(--signal);background:var(--signal-dim);padding:14px 18px;border-radius:0 3px 3px 0;margin:0 0 22px;max-width:76ch}
+  .note p{margin:0;font-size:16px}
+  .decision{border-left:3px solid var(--hold);background:var(--hold-dim);padding:12px 16px;border-radius:0 3px 3px 0;margin:10px 0 0;max-width:76ch}
+  .decision p{margin:0;font-size:15px;color:var(--ink-soft)}
+
+  footer{border-top:2px solid var(--ink);padding-top:18px;margin-top:20px;font-family:var(--f-mono);font-size:12px;color:var(--ink-faint);line-height:1.7}
+  @media (max-width:620px){body{font-size:16px}.wrap{padding:0 18px 64px}ol.ranked>li{grid-template-columns:36px 1fr;gap:10px}ol.ranked .eff{grid-column:2}pre{font-size:11.5px}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">Billing · ten screens · one reference product</p>
+    <h1>Billing, Measured Against the Reference</h1>
+    <p class="standfirst">Every billing screen read side by side with the reference product's own documentation, then checked against what the backend actually records. What works, what only looks like it works, and how much is left to build.</p>
+    <div class="stampline">
+      <span><b>Checked</b> 3 September 2026</span>
+      <span><b>Reference</b> 36 help-centre articles, mirrored locally</span>
+      <span><b>Our side</b> 7,844 lines of screen code, the API, the live database</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <h2>The screens are ahead of the system underneath them</h2>
+    <p>This is the best-built part of the product. The ten screens are thoughtful, the money logic lives in tested modules, and where a figure has no source the screen says "Not available yet" rather than printing a zero. Against the reference, the <em>shape</em> is right: summary, usage, plan, licences, credit, invoices, cost centres — all present, all in the right order.</p>
+    <p>What is missing is nearly all beneath the screens. <strong>Nothing meters voice or text usage back to the plan. Usage never reaches the ledger. Tax has never been charged on any invoice. No PDF exists. No change log exists.</strong> And two things found on the way should be fixed today: the Ultimate plan is live at <strong>$2 a seat</strong> with fourteen companies on it, and the plan comparison table tells customers it costs $42.</p>
+    <p>Roughly <strong>six to eight engineering weeks</strong> of backend work closes the gap to the reference. The screens need perhaps one week of that, mostly wiring.</p>
+  </div>
+
+  <div class="tally">
+    <div><span class="n clear">10</span><span class="l">Screens built<br>and honest</span></div>
+    <div><span class="n hold">4</span><span class="l">Screens with nothing<br>real behind them</span></div>
+    <div><span class="n stop">$2</span><span class="l">Live price of the<br>Ultimate plan</span></div>
+    <div><span class="n stop">0</span><span class="l">Invoices ever<br>charged tax</span></div>
+    <div><span class="n sig">17</span><span class="l">Pieces of pending<br>backend work</span></div>
+    <div><span class="n sig">6–8</span><span class="l">Engineering weeks<br>to the reference</span></div>
+  </div>
+
+  <!-- ================= RULES ================= -->
+  <section>
+    <div class="sechead"><span class="tag">What the reference actually does</span><h2 class="sec">Seven rules their billing follows</h2></div>
+    <p class="secnote">Mined from the articles, not from screenshots. Each one decides a question their documentation never states outright.</p>
+
+    <div class="rules">
+      <div class="rule">
+        <h4>1. A licence is a thing you buy, not a thing a user owns</h4>
+        <p>"Dialpad charges for all purchased licenses, even if they're inactive and unassigned." Deleting a user frees the seat and keeps the charge. Removal is a separate, scheduled act at cycle end, reversible until then.</p>
+        <span class="src">manage-dialpad-license-billing · dialpad-billing-faqs</span>
+      </div>
+      <div class="rule">
+        <h4>2. Money is drawn in a fixed order, and the customer can see the order</h4>
+        <p>Plan allowance first, then the matching commitment, then universal credits. Every usage record shows which wallet it came from.</p>
+        <span class="src">dialpad-credits-and-usage · unified-credit-pool</span>
+      </div>
+      <div class="rule">
+        <h4>3. Every charge is a record the customer can find</h4>
+        <p>Usage history shows who, when, which number, type, duration, wallet source, cost and rate — per call, per text segment, per fax page. Filterable, exportable.</p>
+        <span class="src">dialpad-credits-and-usage · credits-analytics</span>
+      </div>
+      <div class="rule">
+        <h4>4. Tax is itemised, and it is regulatory, not just sales tax</h4>
+        <p>USF, cost-recovery, E911 per line, state and local levies, GST/HST for Canada — each named on the bill, each based on the billing address.</p>
+        <span class="src">view-your-dialpad-billing-summary</span>
+      </div>
+      <div class="rule">
+        <h4>5. Failure is a state machine with a grace period</h4>
+        <p>On hold: lines stay active, admin is emailed, banner shown, IVR reminder. Suspended: lines off, callers hear a message. Recovery is self-serve for the first, support for the second.</p>
+        <span class="src">on-hold-suspended-accounts</span>
+      </div>
+      <div class="rule">
+        <h4>6. Cost centres are metadata and never touch the invoice</h4>
+        <p>A directory of codes; allocations at office, user or licence level that must total 100%; precedence user → licence → office; archive, never delete; CSV export for the ledger.</p>
+        <span class="src">cost-centers</span>
+      </div>
+      <div class="rule">
+        <h4>7. Every change to what you pay leaves a trace</h4>
+        <p>A billing change log of licence adds and removals, filterable by user and month, exportable. Refunds have a rule: three days, no exceptions.</p>
+        <span class="src">view-your-dialpad-billing-summary · cancellation-and-refund-faqs</span>
+      </div>
+    </div>
+
+    <h3>Their words, our words</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>They say</th><th>We say</th><th>Same thing?</th></tr></thead>
+        <tbody>
+          <tr><td>Office</td><td>Location / site</td><td>Yes — but they bill per office and pool credits across them; we have one balance per company</td></tr>
+          <tr><td>License</td><td>Seat / licence</td><td>Yes, and our seat model (purchased ≠ assigned, scheduled removal) already matches theirs</td></tr>
+          <tr><td>Credits &amp; Usage</td><td>Credit &amp; payment + Usage</td><td>Split across two screens here; theirs is one</td></tr>
+          <tr><td>Billing Summary</td><td>Summary</td><td>Yes</td></tr>
+          <tr><td>Universal credits / Telephony commitment / AI commitment</td><td><code>companies.amount</code> (wallet) / <code>companies.credits</code> (plan credit)</td><td>Close — but our two balances are shown under two different labels on two different screens</td></tr>
+          <tr><td>Flex licence vs contracted</td><td>—</td><td>No equivalent; every seat here is month-to-month</td></tr>
+          <tr><td>Add-on licence</td><td>Add-on</td><td>Same idea; theirs are purchasable, ours are a catalogue with no buy button</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= SCREENS ================= -->
+  <section>
+    <div class="sechead"><span class="tag">Screen by screen</span><h2 class="sec">The ten screens, and what stands behind each</h2></div>
+    <p class="secnote">The column that matters is "does anything act on it". A screen that saves something nothing reads is not a feature, however well it is written.</p>
+
+    <!-- SUMMARY -->
+    <div class="screen part">
+      <div class="head"><h3>Summary</h3><span class="url">/admin-settings/billing/summary</span></div>
+      <div class="body">
+        <p>Matches the reference's three-part shape exactly — current plan, payment method, recent history — plus a single alert banner driven by a tested rules module. The tiles are honest: an unlimited allowance prints as a word, a missing figure says so.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Current plan, next bill estimate, due date</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Payment method on file, editable</td><td>Yes, links to cards</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Billing history with PDF per bill</td><td>Last five charges</td><td><span class="st part">No PDF</span></td><td>A stamped document. The screen says so.</td></tr>
+            <tr><td>Add a note to an invoice</td><td>No</td><td><span class="st no">Absent</span></td><td>Small: one column, one field</td></tr>
+            <tr><td>Upgrade from trial, self-serve</td><td>Yes, via Plan</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Billing change log</td><td>No</td><td><span class="st no">Absent</span></td><td>Nothing records licence or plan changes anywhere</td></tr>
+            <tr><td>"This month's calling" tile</td><td>Yes</td><td><span class="st no">Reads $0</span></td><td>Sums <code>charge</code> on calls, which has been zero since 29 August</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>invoice notes · change-log link · one tile waits on call rating</b></p>
+      </div>
+    </div>
+
+    <!-- USAGE -->
+    <div class="screen no">
+      <div class="head"><h3>Usage</h3><span class="url">/admin-settings/billing/usage</span></div>
+      <div class="body">
+        <p>The most ambitious screen and the one furthest from having data. It is built for exactly the reference's model — allowance table, spend by person / destination / direction, CSV export — and its own header admits that most columns have no source. That admission is accurate.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Plan usage balance: committed / spent / available / used %</td><td>Table of seven services</td><td><span class="st no">Two rows fed, both stale</span></td><td><code>call_duration_used</code> is never written. <code>sms_used</code> is not a column at all. The other five rows say "not metered yet"</td></tr>
+            <tr><td>Usage history per record: who, when, number, type, duration, wallet, cost, rate</td><td>Derived from the call list</td><td><span class="st no">Voice only, cost $0</span></td><td>No usage endpoint exists. SMS and fax spend is invisible — they deduct from the balance and write no record</td></tr>
+            <tr><td>Filter by user / month / service / credits / amount</td><td>Date range only</td><td><span class="st part">Partial</span></td><td>Service and person filters need the endpoint</td></tr>
+            <tr><td>Rate column</td><td>Yes</td><td><span class="st no">Invented</span></td><td>Reads a flat $0.02/min from a hardcoded catalogue, not from the 92,622 per-destination rates the platform holds</td></tr>
+            <tr><td>Wallet source per record</td><td>No</td><td><span class="st no">Absent</span></td><td>The deduction helper knows (credits vs wallet) but records nothing</td></tr>
+            <tr><td>Export CSV</td><td>Yes</td><td><span class="st ok">Real</span></td><td>Exports what it has</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>usage-history endpoint · both counters · ledger rows for SMS and fax · rate from the rate table</b></p>
+      </div>
+    </div>
+
+    <!-- PLAN -->
+    <div class="screen part">
+      <div class="head"><h3>Plan</h3><span class="url">/admin-settings/billing/plan</span></div>
+      <div class="body">
+        <p>The oldest and largest screen — 966 lines plus a 929-line licence manager, a change-plan flow with immediate and end-of-cycle upgrades, downgrade requests, cancellation requests, trial upgrade, storage purchase and AI usage. The purchase paths recompute the price on the server and take tax from a Stripe calculation id, so the browser cannot name its own price. That is correct.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Upgrade mid-cycle, prorated</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Downgrade at cycle end</td><td>Request queue, applied by the renewal cron</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Cancel self-serve (≤10 seats, monthly)</td><td>Request, applied at cycle end</td><td><span class="st ok">Real</span></td><td>Three pending. No "cancel now" for trials</td></tr>
+            <tr><td>Monthly vs annual switch</td><td>Yes</td><td><span class="st part">Half</span></td><td>Catalogue has no yearly price for any plan ("Contact us"); the plan record does carry other durations</td></tr>
+            <tr><td>Plan comparison with what each includes</td><td>Yes</td><td><span class="st no">Wrong price</span></td><td><strong>Reads a hardcoded catalogue that says Ultimate is $42. The plan record, which checkout uses, says $2.</strong></td></tr>
+            <tr><td>Numbers included with the plan</td><td>Catalogue says 1 per plan</td><td><span class="st no">Never granted</span></td><td>Nothing reads <code>did_count</code>. One free number comes from the first purchase, not from the plan</td></tr>
+            <tr><td>Refund within 3 days</td><td>No</td><td><span class="st no">Absent</span></td><td><code>refund_amount</code> is written as 0 at creation and never updated; no refund call exists</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>one price source · included numbers · refunds · annual pricing decision</b></p>
+      </div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div class="screen ok">
+      <div class="head"><h3>Licences &amp; resources</h3><span class="url">/admin-settings/billing/resources</span></div>
+      <div class="body">
+        <p>Four tabs: seats, numbers, storage, AI. The seat model is the closest match to the reference anywhere in the product: purchased versus assigned versus scheduled-for-removal, a warning for paid-but-idle seats with their monthly cost, bulk removal, restore before cycle end, and the honest line "a seat is something you buy, not something a user owns".</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Purchased vs assigned vs unused seats</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Remove at cycle end, restore free until then</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Buy seats, prorated, taxed</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Storage: used vs allowed, buy more</td><td>Yes</td><td><span class="st ok">Real</span></td><td>Sync cron works — seven companies show real usage. Nobody has bought extra yet</td></tr>
+            <tr><td>AI usage per agent</td><td>Yes</td><td><span class="st part">Depends on the AI stack</span></td><td>Reads from a separate service; not verified here</td></tr>
+            <tr><td>Licence pool across offices</td><td>No</td><td><span class="st na">N/A</span></td><td>One balance per company; no multi-office model to pool across</td></tr>
+            <tr><td>Flex vs contracted licences</td><td>No</td><td><span class="st na">Decision</span></td><td>Every seat is month-to-month. Fine for launch</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>nothing blocking</b></p>
+      </div>
+    </div>
+
+    <!-- PURCHASE -->
+    <div class="screen part">
+      <div class="head"><h3>Credit &amp; payment</h3><span class="url">/admin-settings/billing/purchase</span></div>
+      <div class="body">
+        <p>Top-up in fixed amounts, saved cards with a primary, auto-recharge with a threshold and refill, a low-balance email alert. The card handling is right — replacements are added and made primary, never edited in place. The top-up explains what credit pays for, which the reference also does.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Add credits, choose amount</td><td>Yes, five presets</td><td><span class="st ok">Real</span></td><td>15 completed top-ups on record</td></tr>
+            <tr><td>Auto-recharge below a threshold</td><td>Yes</td><td><span class="st part">Works, with two faults</span></td><td>Setting is stored <strong>per user</strong>, not per company — two admins can both trigger it. And the charge carries <strong>no idempotency key</strong>, unlike every other recurring charge</td></tr>
+            <tr><td>Low-balance alert</td><td>Yes</td><td><span class="st ok">Real</span></td><td>Cron has a running guard; sends via the notification service</td></tr>
+            <tr><td>Credit wallet with balance, usage and cycle</td><td>Balance only</td><td><span class="st part">Two balances, two labels</span></td><td>Summary shows <code>credits</code> as "Credit balance"; Statement shows <code>amount</code> as "Wallet balance". A customer who topped up $19 sees "$20.00" on one screen and "$19.42" on the other</td></tr>
+            <tr><td>Application order shown to the customer</td><td>No</td><td><span class="st no">Absent</span></td><td>The order exists in code (plan credit, then wallet) and is stated nowhere</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>company-level auto-recharge with idempotency · one wallet card with both figures and the order</b></p>
+      </div>
+    </div>
+
+    <!-- INVOICES -->
+    <div class="screen part">
+      <div class="head"><h3>Invoices</h3><span class="url">/admin-settings/billing/invoices</span></div>
+      <div class="body">
+        <p>Every charge with tax broken out on the line, opened in place; failed payments show their reason; year and date filters; CSV. It reads the tax record saved at the time rather than recalculating, which is the right call for a document an accountant has filed.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Chronological list with status and description</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Download a PDF of each bill</td><td>A screenshot of the modal</td><td><span class="st no">Not an invoice</span></td><td>No document service. The screen says "a formal PDF invoice is not available yet"</td></tr>
+            <tr><td>Taxes and fees itemised</td><td>Fields exist</td><td><span class="st no">Always zero</span></td><td><strong>0 of 143 invoices have ever carried tax.</strong> Stripe Tax runs and returns 0 every time — every billing address on record is in Mumbai and the Stripe account is registered nowhere that applies</td></tr>
+            <tr><td>Usage charges on the invoice</td><td>No</td><td><span class="st no">Absent</span></td><td>The ledger holds plan, seat, number and top-up rows only. SMS and fax deductions write no row</td></tr>
+            <tr><td>Disputes</td><td>Table and webhook handler exist</td><td><span class="st ok">Real, unused</span></td><td>Zero disputes so far</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>PDF · tax registration · usage rows in the ledger</b></p>
+      </div>
+    </div>
+
+    <!-- STATEMENT -->
+    <div class="screen part">
+      <div class="head"><h3>Statement</h3><span class="url">/admin-settings/billing/statement</span></div>
+      <div class="body">
+        <p>Charged to date, pending, failed, wallet balance, three allowance meters and the last twelve transactions. Walks every page of the ledger rather than truncating. Honest about what it cannot read.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Running account ledger</td><td>Yes</td><td><span class="st part">Half the ledger</span></td><td>Usage never posts, so "charged to date" is plan and top-ups only</td></tr>
+            <tr><td>Allowance meters</td><td>Three</td><td><span class="st no">Used = 0 always</span></td><td>Same two unwritten counters as Usage</td></tr>
+            <tr><td>Reference has no separate statement</td><td>—</td><td><span class="st na">Extra</span></td><td>This is more than the reference offers. Keep it</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>waits on the counters and the ledger</b></p>
+      </div>
+    </div>
+
+    <!-- MODULES -->
+    <div class="screen ok">
+      <div class="head"><h3>Modules &amp; access</h3><span class="url">/admin-settings/billing/modules</span></div>
+      <div class="body">
+        <p>Not a reference feature at all — it answers a question the reference does not need to: "why is a part of the product not in my menu". It evaluates the plan flags the same way the menu does, so it cannot disagree with the hiding it explains. A good page, correctly labelled as read-only.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Which modules the plan carries</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Why a module is hidden (plan vs role)</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Enable a module from here</td><td>No, by design</td><td><span class="st na">Admin side</span></td><td>Provisioning lives with the super-admin; nothing to build on this screen</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>nothing</b></p>
+      </div>
+    </div>
+
+    <!-- ADD-ONS -->
+    <div class="screen no">
+      <div class="head"><h3>Add-ons</h3><span class="url">/admin-settings/billing/add-ons</span></div>
+      <div class="body">
+        <p>A catalogue of eleven add-ons with a badge saying whether the plan already includes each. The badge is real — it reads the plan's feature flags. Everything else is a description. There is deliberately no buy button, and the code comment explains why: the only licence endpoint used to charge whatever amount the browser sent.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Purchase an add-on licence self-serve</td><td>No</td><td><span class="st no">Absent</span></td><td>No catalogue endpoint, no priced purchase path</td></tr>
+            <tr><td>Per-seat pricing</td><td>Two of eleven priced, in a frontend file</td><td><span class="st no">Not from the API</span></td><td>Prices live in <code>addons.ts</code>; a number typed in a browser file is not a price list</td></tr>
+            <tr><td>Included / not included badge</td><td>Yes</td><td><span class="st ok">Real</span></td><td>—</td></tr>
+            <tr><td>Remove via support</td><td>Same</td><td><span class="st ok">Matches</span></td><td>—</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>add-on catalogue endpoint · server-priced purchase · which add-ons are actually for sale</b></p>
+      </div>
+    </div>
+
+    <!-- COST CENTRES -->
+    <div class="screen no">
+      <div class="head"><h3>Cost centres</h3><span class="url">/admin-settings/billing/cost-centres</span></div>
+      <div class="body">
+        <p>A directory — code, name, external reference, archive — with the reference's exact rules encoded and tested: codes upper-cased, splits must total 100, precedence user then licence then location. Saved to the company record. The screen is marked "coming soon" and says outright that nothing reports by it yet. That is true.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Their feature</th><th>Here</th><th>Acts on it?</th><th>Missing</th></tr></thead>
+          <tbody>
+            <tr><td>Directory: code, name, external ref, status, archive</td><td>Yes</td><td><span class="st ok">Saves</span></td><td>—</td></tr>
+            <tr><td>Allocations at office / user / licence, totalling 100%</td><td>Rules only</td><td><span class="st no">No allocation UI</span></td><td>Nowhere to attach a centre to a person, seat or location</td></tr>
+            <tr><td>Precedence user → licence → office</td><td>Documented on screen</td><td><span class="st no">Nothing applies it</span></td><td>Grep across every service: nothing reads <code>cost_centres</code></td></tr>
+            <tr><td>CSV export of spend by centre</td><td>No</td><td><span class="st no">Absent</span></td><td>Needs usage records first</td></tr>
+          </tbody>
+        </table></div>
+        <p class="pend">Pending here: <b>allocation screens · a report that splits spend · export</b></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOUND ON THE WAY ================= -->
+  <section>
+    <div class="sechead"><span class="tag">Found on the way</span><h2 class="sec">Five things to fix before anyone is charged</h2></div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Today</span>The Ultimate plan is live at $2 a seat</h4>
+      <p>The plan record says $2 a month. Fourteen companies are on it. It was charged at $2 on 27 and 29 August, at <strong>$42</strong> once on 1 September, and at $2 again on 2 and 3 September. The plan comparison table — which reads a hardcoded file, not the plan record — tells every customer it costs $42.</p>
+      <p>So a customer sees $42, clicks through, and pays $2. Or the reverse, on the day somebody sets it back. A price edit leaves no trace: there is no audit of plan changes.</p>
+<pre>plans.Ultimate  original_price = <b>2</b>   updated 2026-09-01 07:57   14 companies
+src/lib/plan-catalogue.ts   monthlyPerSeat: <b>42</b>
+Completed plan payments, per seat:  27 Aug <b>$2</b> · 29 Aug <b>$2</b> · 1 Sep <b>$42</b> · 2 Sep <b>$2</b> · 3 Sep <b>$2</b></pre>
+      <div class="decision"><p><strong>Decision needed:</strong> is $2 a test price that was never put back, or is $42 the aspiration? Whichever it is, one of the two sources has to go. The plan record is what checkout charges, so it must be the truth and the catalogue must read from it — or seed it and never be read again.</p></div>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Compliance</span>Tax has never been charged on any invoice</h4>
+      <p>Stripe Tax is wired correctly and runs on every plan purchase. It has returned zero every single time — 143 invoices, none with tax. Every billing address on file is in Mumbai, and the Stripe account is evidently registered for tax in no jurisdiction that matches.</p>
+      <p>The reference itemises USF, cost recovery, E911 per line, and state and local levies for US customers, and GST/HST for Canada. Whether your customers are in India or the US, the answer is the same: zero is wrong, and it is the kind of wrong that arrives as a letter.</p>
+<pre>SELECT COUNT(*), SUM(tax_amount > 0) FROM billings   →   <b>143, 0</b>
+tax_location on every completed invoice:  Mumbai, MH, IN</pre>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">Money</span>Usage never reaches the ledger</h4>
+      <p>When a text or fax is sent, the balance goes down and nothing is written. No invoice line, no statement row, no usage record. The Invoices and Statement screens are therefore true about plans and top-ups and blind to consumption. Voice does not even reduce the balance — that was the first report.</p>
+<pre>CompanyUsageBillingHelper.reserve()  →  company.update({credits, amount})   <span class="c">and nothing else</span>
+billings.type values ever written:  Plan Payment · DID Charges · Account Refill · Trial Plan ·
+                                    License Purchase · DID Purchase · Add Member · DID Renew
+<span class="c"># "Balance Deduct" exists in the enum. It has never been used.</span></pre>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">This week</span>Auto-recharge is per person, and unprotected</h4>
+      <p>The setting lives on the user, not the company. Two admins who both switch it on will both trigger a refill against the same shared balance. And the charge it places carries no idempotency key — every other recurring charge in the system has one. The two-minute cron has an overlap guard, so this is a duplicate-by-design risk rather than a race, but it is still two charges for one shortfall.</p>
+<pre>User.findAll({ attributes: ["auto_recharge_setting", …] })   <span class="c">← per user</span>
+stripe.paymentIntents.create({ amount: refill_amount * 100 … })  <span class="c">← no idempotencyKey</span></pre>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">This week</span>Two balances, two names, two screens</h4>
+      <p>A company has <code>credits</code> (the plan's free credit, $20 on signup) and <code>amount</code> (money they topped up). Summary shows the first as "Credit balance". Statement shows the second as "Wallet balance". The code draws from credits first, then the wallet — exactly the reference's order — but tells the customer none of this. One card, both figures, and the sentence "we use your plan credit first, then your wallet" would fix it.</p>
+<pre>Sushil Company:   credits <b>19.905</b>   amount (wallet) <b>19.415</b>
+Summary tile   → "Credit balance  $19.91"
+Statement tile → "Wallet balance  $19.42"</pre>
+    </div>
+  </section>
+
+  <!-- ================= PENDING ================= -->
+  <section>
+    <div class="sechead"><span class="tag">How much is left</span><h2 class="sec">The pending work, sized</h2></div>
+    <p class="secnote">Seventeen pieces. Grouped by why, ordered within each group by what unblocks the most. Estimates are engineering days for one person who knows the codebase.</p>
+
+    <p class="grouplabel">Before charging anyone real money</p>
+    <ol class="ranked">
+      <li><div><h4>One price source</h4><p>Make the plan record the only truth. The comparison table, the usage rates and the add-on prices all read from the API. Delete the numbers from <code>plan-catalogue.ts</code> and <code>addons.ts</code> once it is done. Fix Ultimate first.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>Rate voice calls and post them to the ledger</h4><p>From the first report. The rate table is complete; the lookup is missing. Write a <code>Balance Deduct</code> row per call.</p></div><span class="eff">2–3 days</span></li>
+      <li><div><h4>Post SMS and fax to the ledger too</h4><p>The deduction helper already knows the amount and which balance it came from. Add one <code>Billing.create</code> inside its transaction.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>Register for tax where the customers are</h4><p>Stripe Tax registration for the jurisdictions you sell into, and a decision on regulatory fees (E911, USF, cost recovery) if any customers are in the US. Mostly configuration and a conversation with an accountant.</p></div><span class="eff">1–2 days + advice</span></li>
+      <li><div><h4>Auto-recharge at company level, with an idempotency key</h4><p>Move the setting to the company record, key the charge on company + day, and make the screen say whose card will be used.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>Write the usage counters</h4><p><code>call_duration_used</code> from the call ingester, a real <code>sms_used</code> column incremented by the SMS service, and <code>toll_free_duration_used</code>. Reset them on renewal. Three screens light up.</p></div><span class="eff">1 day</span></li>
+    </ol>
+
+    <p class="grouplabel">To match the reference</p>
+    <ol class="ranked" start="7">
+      <li><div><h4>A usage-history endpoint</h4><p>Per record: who, when, number, type, duration, wallet source, cost, rate. Filter by person, month, service. Voice from the call table, SMS and fax from the new ledger rows. Then wire the Usage screen to it.</p></div><span class="eff">3 days</span></li>
+      <li><div><h4>A billing change log</h4><p>Every seat add, seat removal, plan change, price edit and card change, with who did it. Twenty-two write sites today, none logged. Show it on Summary, export it.</p></div><span class="eff">2 days</span></li>
+      <li><div><h4>A PDF invoice</h4><p>A document service that renders the same figures the screen shows, with the company's details and yours, numbered and dated. The screen already says this is missing.</p></div><span class="eff">2–3 days</span></li>
+      <li><div><h4>On hold before suspended</h4><p>Today an expired plan deactivates every user on the next hourly cron. The reference gives a grace period with lines active, an email, a banner and an IVR reminder — then suspends. Add the state, the emails, and stop the nightly retry after a few attempts.</p></div><span class="eff">2–3 days</span></li>
+      <li><div><h4>Refunds</h4><p>A three-day self-serve rule and an admin path. <code>refund_amount</code> exists on the ledger and is never written.</p></div><span class="eff">1–2 days</span></li>
+      <li><div><h4>Grant the numbers a plan includes</h4><p><code>did_count</code> is on every plan and read by nothing. Either grant them at signup or remove the promise from the comparison table.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>Add-on catalogue and purchase</h4><p>An endpoint that lists add-ons with server-held prices, and a purchase path that prices on the server. Then a buy button. Decide first which of the eleven are genuinely for sale.</p></div><span class="eff">2–3 days</span></li>
+      <li><div><h4>Cost-centre allocations and a report</h4><p>Attach centres to people, seats and locations at a percentage; apply the precedence rule the screen already documents; a spend-by-centre report with CSV. Needs the usage records first.</p></div><span class="eff">3–5 days</span></li>
+      <li><div><h4>Invoice notes</h4><p>One text field on the ledger row, shown at the foot of the invoice.</p></div><span class="eff">½ day</span></li>
+    </ol>
+
+    <p class="grouplabel">Screen wiring, once the above exists</p>
+    <ol class="ranked" start="16">
+      <li><div><h4>One wallet card</h4><p>Both balances, the application order in a sentence, and the same label on every screen.</p></div><span class="eff">½ day</span></li>
+      <li><div><h4>Usage and Statement read real data</h4><p>Replace the "not metered yet" notes as each counter and the usage endpoint land; add person and service filters; use the rate table for the rate column.</p></div><span class="eff">2 days</span></li>
+    </ol>
+
+    <div class="note" style="margin-top:30px">
+      <p><strong>Total: roughly 28 to 36 engineering days</strong> — six to eight weeks for one person, half that for two. The first six items are the ones that stop you charging a customer wrongly; they are about a week and a half together. Nothing in this list is a rewrite. The screens stay; the system underneath them is finished.</p>
+    </div>
+
+    <h3>Things I did not copy, on purpose</h3>
+    <ul style="max-width:72ch">
+      <li><strong>Licence pools across offices.</strong> The reference bills per office and pools credit between them. This product has one balance per company and no office-level billing. Adopting their model now would add cost for no customer who needs it. Decide only when a multi-location customer asks.</li>
+      <li><strong>Flex versus contracted licences.</strong> Every seat here is month-to-month and self-serve. That is simpler than the reference and fine for launch.</li>
+      <li><strong>Their prices.</strong> Their per-seat and per-minute figures are evidence of what the market accepts, not numbers to copy. Where this document names a price it is yours, from your own plan record.</li>
+      <li><strong>Multi-currency.</strong> Everything here is USD. Their currency-partitioned pools are a problem you do not have yet.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Reference: 36 billing articles from the mirrored help centre at /root/dialpad-kb, read for rules rather than features. Ours: every file under src/pages/admin-settings/billing, the six rules modules in src/lib with their tests, the default-api controllers and cron, and the live database on 3 September 2026.<br>
+    Every "acts on it?" verdict was checked against the running system — a counter that is never written, a column that does not exist, a ledger type never used — not inferred from the screen.
+  </footer>
+
+</div>

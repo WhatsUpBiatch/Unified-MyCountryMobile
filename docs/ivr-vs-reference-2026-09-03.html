@@ -1,0 +1,447 @@
+<title>IVR Against Both References</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root{
+    --paper:#EDEFF0; --surface:#F7F8F8; --card:#F7F8F8; --sunken:#E2E6E8;
+    --ink:#141C22; --ink-soft:#3A4750; --ink-faint:#6B7A84;
+    --rule:#CDD4D8; --rule-soft:#DEE3E6;
+    --signal:#14646B; --signal-dim:#d7e6e7;
+    --stop:#9E3328; --stop-dim:#f2dedb;
+    --hold:#96660F; --hold-dim:#f4e8d2;
+    --clear:#34633F; --clear-dim:#dfe9e0;
+    --code-bg:#1B252C; --code-fg:#DCE5E9;
+    --shadow:0 1px 2px rgba(20,28,34,.06),0 8px 24px -16px rgba(20,28,34,.35);
+    --f-display:'Archivo','Helvetica Neue',Arial,sans-serif;
+    --f-body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --f-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+      --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+      --rule:#2A3841; --rule-soft:#212D35;
+      --signal:#57B3B9; --signal-dim:#123336;
+      --stop:#E0796B; --stop-dim:#2E1B18;
+      --hold:#D6A445; --hold-dim:#2C2314;
+      --clear:#7DB98A; --clear-dim:#182818;
+      --code-bg:#0A1015; --code-fg:#CFDBE1;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0F161B; --surface:#172128; --card:#172128; --sunken:#101A20;
+    --ink:#E4EAED; --ink-soft:#B0BEC6; --ink-faint:#7C8C96;
+    --rule:#2A3841; --rule-soft:#212D35;
+    --signal:#57B3B9; --signal-dim:#123336;
+    --stop:#E0796B; --stop-dim:#2E1B18;
+    --hold:#D6A445; --hold-dim:#2C2314;
+    --clear:#7DB98A; --clear-dim:#182818;
+    --code-bg:#0A1015; --code-fg:#CFDBE1;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.62;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 24px 96px}
+
+  .mast{border-bottom:2px solid var(--ink);padding:56px 0 26px;margin-bottom:34px}
+  .kicker{font-family:var(--f-mono);font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin:0 0 18px}
+  h1{font-family:var(--f-display);font-weight:800;font-size:clamp(36px,5.8vw,60px);line-height:.98;letter-spacing:-.028em;margin:0 0 20px;text-wrap:balance}
+  .standfirst{font-size:20px;line-height:1.5;color:var(--ink-soft);max-width:700px;margin:0 0 28px}
+  .stampline{display:flex;flex-wrap:wrap;gap:8px 28px;font-family:var(--f-mono);font-size:12px;color:var(--ink-faint)}
+  .stampline b{color:var(--ink-soft);font-weight:500}
+
+  .verdict{background:var(--card);border:1px solid var(--rule);border-left:5px solid var(--stop);border-radius:3px;padding:26px 28px;margin:0 0 20px;box-shadow:var(--shadow)}
+  .verdict h2{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:-.015em;margin:0 0 12px;color:var(--stop)}
+  .verdict p{margin:0 0 12px;max-width:72ch}
+  .verdict p:last-child{margin-bottom:0}
+
+  .tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;margin:0 0 52px;overflow:hidden}
+  .tally div{background:var(--card);padding:18px 20px}
+  .tally .n{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;display:block;margin-bottom:6px}
+  .tally .l{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);line-height:1.4}
+  .n.stop{color:var(--stop)} .n.hold{color:var(--hold)} .n.clear{color:var(--clear)} .n.sig{color:var(--signal)}
+
+  section{margin:0 0 60px}
+  .sechead{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:14px;margin-bottom:8px}
+  .sechead .tag{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);white-space:nowrap;padding-top:8px}
+  h2.sec{font-family:var(--f-display);font-size:clamp(25px,3.3vw,34px);font-weight:700;letter-spacing:-.024em;line-height:1.08;margin:0;text-wrap:balance}
+  .secnote{font-family:var(--f-mono);font-size:12.5px;letter-spacing:.02em;color:var(--ink-faint);margin:0 0 24px;max-width:76ch}
+  p{margin:0 0 16px;max-width:72ch}
+  h3{font-family:var(--f-display);font-size:19px;font-weight:600;letter-spacing:-.012em;margin:28px 0 10px}
+
+  .tablewrap{overflow-x:auto;margin:0 0 22px;border:1px solid var(--rule);border-radius:3px}
+  table{border-collapse:collapse;width:100%;min-width:900px;background:var(--card)}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--rule-soft);font-size:13px;vertical-align:top;line-height:1.45}
+  th{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);background:var(--sunken);border-bottom:1px solid var(--rule);white-space:nowrap;position:sticky;top:0}
+  td{font-family:var(--f-body);color:var(--ink-soft)}
+  td.m{font-family:var(--f-mono);font-size:11.5px;color:var(--ink)}
+  td.f{color:var(--ink);font-weight:600;font-family:var(--f-display);font-size:13.5px}
+  td strong{color:var(--ink);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  tr.grp td{background:var(--sunken);font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;padding:7px 11px}
+  .st{display:inline-block;font-family:var(--f-mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .st.ok{background:var(--clear-dim);color:var(--clear)}
+  .st.no{background:var(--stop-dim);color:var(--stop)}
+  .st.part{background:var(--hold-dim);color:var(--hold)}
+  .st.na{background:var(--sunken);color:var(--ink-faint)}
+  .st.lead{background:var(--signal-dim);color:var(--signal)}
+  .inf{font-family:var(--f-mono);font-size:10px;color:var(--ink-faint);letter-spacing:.04em}
+
+  .find{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule);border-radius:3px;padding:18px 22px;margin:0 0 14px}
+  .find.stop{border-left-color:var(--stop)} .find.hold{border-left-color:var(--hold)} .find.clear{border-left-color:var(--clear)}
+  .find h4{font-family:var(--f-display);font-size:17.5px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em;line-height:1.28}
+  .find p{margin:0 0 10px;font-size:16px;max-width:74ch}
+  .find p:last-child{margin-bottom:0}
+  .chip{display:inline-block;font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:2px;vertical-align:2px;margin-right:10px}
+  .chip.stop{background:var(--stop-dim);color:var(--stop)} .chip.hold{background:var(--hold-dim);color:var(--hold)} .chip.clear{background:var(--clear-dim);color:var(--clear)}
+  pre{font-family:var(--f-mono);font-size:12.5px;line-height:1.62;background:var(--code-bg);color:var(--code-fg);border-radius:3px;padding:12px 14px;overflow-x:auto;margin:8px 0 0;white-space:pre}
+  pre b{color:#F0C674;font-weight:600} pre .c{color:#7FA6A8}
+  code{font-family:var(--f-mono);font-size:.86em;background:var(--sunken);padding:1px 5px;border-radius:2px;word-break:break-word}
+
+  /* call path diagram */
+  .chain{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:22px;margin:0 0 22px;overflow-x:auto}
+  .chain-title{font-family:var(--f-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 16px}
+  .hops{display:flex;align-items:stretch;min-width:1000px}
+  .hop{flex:1 1 0;border:1px solid var(--rule);border-radius:3px;padding:11px 12px;background:var(--paper);display:flex;flex-direction:column;gap:4px}
+  .hop.ok{border-color:var(--clear)} .hop.bad{border-color:var(--stop);background:var(--stop-dim)}
+  .hop .h{font-family:var(--f-display);font-weight:600;font-size:13px;line-height:1.2}
+  .hop .s{font-family:var(--f-mono);font-size:10px;line-height:1.45;color:var(--ink-faint)}
+  .arrow{flex:0 0 22px;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-family:var(--f-mono);font-size:14px}
+
+  ol.ranked{list-style:none;padding:0;margin:0;counter-reset:r}
+  ol.ranked>li{counter-increment:r;display:grid;grid-template-columns:48px 1fr auto;gap:16px;padding:14px 0;border-bottom:1px solid var(--rule-soft);align-items:start}
+  ol.ranked>li:first-child{border-top:1px solid var(--rule)}
+  ol.ranked>li::before{content:counter(r,decimal-leading-zero);font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.03em;color:var(--rule);font-variant-numeric:tabular-nums;line-height:1.2}
+  ol.ranked h4{font-family:var(--f-display);font-size:16.5px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+  ol.ranked p{margin:0;font-size:15px;color:var(--ink-soft)}
+  ol.ranked .eff{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-faint);white-space:nowrap;padding-top:4px}
+  .grouplabel{font-family:var(--f-mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:26px 0 6px}
+
+  .note{border-left:3px solid var(--signal);background:var(--signal-dim);padding:14px 18px;border-radius:0 3px 3px 0;margin:0 0 22px;max-width:78ch}
+  .note p{margin:0;font-size:16px}
+  .own{border-left:3px solid var(--stop);background:var(--stop-dim);padding:14px 18px;border-radius:0 3px 3px 0;margin:0 0 22px;max-width:78ch}
+  .own p{margin:0 0 8px;font-size:16px} .own p:last-child{margin-bottom:0}
+  footer{border-top:2px solid var(--ink);padding-top:18px;margin-top:20px;font-family:var(--f-mono);font-size:12px;color:var(--ink-faint);line-height:1.7}
+  @media (max-width:620px){body{font-size:16px}.wrap{padding:0 18px 64px}ol.ranked>li{grid-template-columns:36px 1fr;gap:10px}ol.ranked .eff{grid-column:2}pre{font-size:11.5px}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">IVR · two references · one architecture</p>
+    <h1>IVR Against Both References</h1>
+    <p class="standfirst">How the two reference products build a phone menu, how ours is built, and — link by link on the live switch — why a caller who reaches one of our menus today hears nothing and can press nothing. Then the honest answer to "do we have the source to fix it".</p>
+    <div class="stampline">
+      <span><b>Traced</b> 3 September 2026</span>
+      <span><b>Refs</b> 14 Dialpad articles read · Genesys from their public API model</span>
+      <span><b>Ours</b> 5 screens, 3 services, the live switch and its log</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <h2>Three independent blockers, and no call has ever reached a menu</h2>
+    <p>Our IVR is a <strong>flat, single-level key-to-destination menu</strong> — the same object the reference products call an "automated response menu" — with a good editor and good guard rails. Against that older shape of the feature we are roughly at parity. Against what both references now sell — a <strong>versioned, publishable flow with logic, variables and speech</strong> — we have none of it, and that is the honest size of the gap.</p>
+    <p>But before any of that matters: <strong>the menu we do have cannot run.</strong> The greeting cannot be fetched (the media API returns 401 to the switch — a regression from the hardening I reported as fixed), the stock prompts do not exist, and every key press transfers into a dialplan context the call router does not serve. Each was proven on the live system with a control. Zero IVR executions appear in six days of switch log.</p>
+    <p><strong>And we can fix it.</strong> The IVR builder's source is complete and matches the running binary. The one file that has to change for key presses to work is the call router — which exists only on the server, edited again this morning, in no repository.</p>
+  </div>
+
+  <div class="tally">
+    <div><span class="n stop">3</span><span class="l">Independent blockers<br>proven live</span></div>
+    <div><span class="n stop">0</span><span class="l">IVR executions in<br>6 days of log</span></div>
+    <div><span class="n stop">0/7</span><span class="l">Key-press targets<br>the router serves</span></div>
+    <div><span class="n hold">13</span><span class="l">Menus built by<br>customers, waiting</span></div>
+    <div><span class="n hold">6</span><span class="l">Files on the call path<br>in no repository</span></div>
+    <div><span class="n clear">Yes</span><span class="l">IVR builder source<br>complete &amp; current</span></div>
+  </div>
+
+  <!-- ============ THE THREE MODELS ============ -->
+  <section>
+    <div class="sechead"><span class="tag">The shape</span><h2 class="sec">How each of the three thinks about a phone menu</h2></div>
+    <p class="secnote">The reference products are not just "more features". They organise the thing differently, and the organisation is what decides where every later feature goes.</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th style="width:15%">Question</th><th style="width:28%">Genesys Cloud</th><th style="width:28%">Dialpad</th><th style="width:29%">Ours</th></tr></thead>
+      <tbody>
+        <tr><td class="f">What is the object?</td><td>A <strong>flow</strong> in Architect — a program with typed inputs and outputs, 21 flow types (inbound call, in-queue, voicemail, bot…). Treated like source code.</td><td>Two things. An <strong>automated response menu</strong> on any shared line — a flat key menu. And a <strong>Workflow</strong> — a step graph (Prompt / Logic / Terminal) for voice, digital or both.</td><td>An <strong>IVR menu</strong> — one row in the tenant's <code>ivrs</code> table: keys, three audio slots, retry limits, fallbacks. Flat, one level.</td></tr>
+        <tr><td class="f">How does a number reach it?</td><td>The number never points at a flow. It points at an <strong>IVR object</strong> that binds <code>dnis[]</code> to three flows — open, closed, holiday — plus a <strong>schedule group</strong>. Time is never an <code>if</code> inside the flow.</td><td>The line's <strong>open-hours routing</strong> and <strong>closed-hours routing</strong> each pick a destination; "to an automated response menu" or "to a workflow" are two of the choices. Holidays override per line.</td><td>The number's routing record names <code>IVR</code> + the menu's uuid for business hours; closed-hours action is a separate slot on the same record. Holidays live on the number. The menu also stores its <em>own</em> hours, which nothing reads.</td></tr>
+        <tr><td class="f">Edit → live</td><td><strong>Save / check-in / publish</strong>, with <code>publishedVersion</code>, <code>savedVersion</code> and <code>debugVersion</code> held separately. An <strong>edit lock</strong> stops two admins clashing.</td><td><strong>Save</strong> keeps a draft; <strong>Publish</strong> pushes to every connected number. A workflow with an unconnected default leg <strong>cannot be published</strong>. Copy to up to 10 offices.</td><td><strong>Live the moment it is saved.</strong> No draft, no publish. One step of <code>previous_version</code> kept on the record with who and when, restorable from the editor. No lock.</td></tr>
+        <tr><td class="f">Where does the logic run?</td><td>Genesys's own media platform executes the flow. The customer's admin sees a step-by-step trace per conversation.</td><td>Dialpad's platform executes it; Session History shows each step, the media played and the choice made.</td><td>FreeSWITCH's built-in <code>ivr</code> application, fed an XML menu generated on demand by a Go service from the database row. Key presses become <code>transfer</code>s back into the dialplan.</td></tr>
+        <tr><td class="f">Audio</td><td>Uploaded prompts <em>or</em> text-to-speech with SSML, per language on the flow (<code>supportedLanguages</code>).</td><td>Upload, record, or TTS (enabled by support). ASR keywords on menu legs, up to 20 per leg.</td><td>Upload only, from the greeting library. A Deepgram TTS endpoint exists in the API and is <strong>commented out</strong> of the router. No speech recognition module on the switch.</td></tr>
+        <tr><td class="f">Reuse</td><td><code>COMMONMODULE</code> — a flow called like a function, with a JSON schema in and out.</td><td>Shared Workflows and the Go-To step.</td><td>A key can point at another IVR. That is the whole reuse model.</td></tr>
+        <tr><td class="f">Emergency</td><td><strong>Emergency groups</strong> — one switch that overrides every schedule ("snow day").</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Their words, our words</h3>
+    <div class="tablewrap"><table style="min-width:700px">
+      <thead><tr><th>Genesys says</th><th>Dialpad says</th><th>We say</th><th>Same thing?</th></tr></thead>
+      <tbody>
+        <tr><td>Flow (Architect)</td><td>Workflow</td><td>—</td><td>No equivalent here</td></tr>
+        <tr><td>Menu action inside a flow</td><td>Automated response menu · Menu step</td><td>IVR menu</td><td>Yes — this is our whole object</td></tr>
+        <tr><td>IVR (the number-binding object)</td><td>Call routing on a line</td><td>Number forwarding / call handling</td><td>Yes, but theirs carries three flows and a schedule group; ours one target and a closed-hours slot</td></tr>
+        <tr><td>Prompt</td><td>Audio file / greeting</td><td>Greeting</td><td>Yes</td></tr>
+        <tr><td>Schedule group</td><td>Business hours + holiday hours</td><td>Operational hours + holidays</td><td>Yes in shape; ours is per number and per menu, theirs per line</td></tr>
+        <tr><td>Queue (ACD)</td><td>Contact Center · hold queue</td><td>Queue</td><td>Yes</td></tr>
+        <tr><td>—</td><td>Department</td><td>Department (ring group)</td><td>Same word, and ours cannot ring yet</td></tr>
+        <tr><td>Transfer to user</td><td>Team member</td><td>Extension</td><td>Yes</td></tr>
+        <tr><td>Disconnect</td><td>Hang-up</td><td>Hang up</td><td>Yes</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ FEATURE TABLE ============ -->
+  <section>
+    <div class="sechead"><span class="tag">Feature by feature</span><h2 class="sec">What each one can do, and what ours actually does</h2></div>
+    <p class="secnote">Two columns for us: what the screen offers, and what happens on a real call. The second is the one that matters. Genesys rows marked <span class="inf">API model</span> are inferred from their public specification rather than read in prose; everything Dialpad is cited from their help centre.</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr>
+        <th style="width:16%">Feature</th>
+        <th style="width:19%">Genesys (Architect)</th>
+        <th style="width:19%">Dialpad (menu · Workflow)</th>
+        <th style="width:16%">Ours — on screen</th>
+        <th style="width:20%">Ours — on a real call</th>
+        <th style="width:10%">Verdict</th>
+      </tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">Structure and lifecycle</td></tr>
+        <tr><td class="f">Levels</td><td>Any depth, menus inside tasks</td><td>Menu: one level. Workflow: any depth</td><td>One level; a key may point at another menu</td><td>Would work once transfers work (see B3)</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Draft vs live</td><td>Save / check-in / publish; three versions held</td><td>Save vs Publish; cannot publish with an unconnected default</td><td>Save = live. One previous version restorable</td><td>As on screen</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Edit lock</td><td><code>lockedUser</code> / <code>lockedClient</code></td><td>—</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Versions / audit</td><td>Full history</td><td>Copy for version control</td><td>One snapshot, who + when</td><td>As on screen</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Templates</td><td>Yes</td><td>Voice and digital templates</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Test before publish</td><td><code>debugVersion</code></td><td>—</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Loop / dead-end guard</td><td>Publish validation</td><td>Loops detected at runtime and terminated; unconnected default blocks publish</td><td>Editor warns: duplicate key, menu that points at itself, ring between menus, deleted target</td><td>Warning only; can still save</td><td><span class="st lead">We lead on the editor</span></td></tr>
+        <tr><td class="f">Cannot delete while in use</td><td>Yes</td><td>Yes — entry points must be removed first</td><td>Not checked</td><td>A number can point at a deleted menu</td><td><span class="st no">Gap</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Prompts and audio</td></tr>
+        <tr><td class="f">Menu prompt</td><td>Prompt or TTS</td><td>Upload, record, or TTS</td><td>Required; from greeting library</td><td><strong>Cannot be fetched (B1) — silence</strong></td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Welcome before menu</td><td>Play Audio action</td><td>Welcome greeting on the line; Play step</td><td>Optional toggle</td><td>Same fetch path — silence</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Invalid-entry prompt</td><td>Configurable</td><td>"No Match" prompt, custom or default</td><td>Optional; else stock file</td><td><strong>Stock file does not exist (B2)</strong></td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">No-input prompt</td><td>Configurable</td><td>"No Input" prompt</td><td>Not offered — column <code>no_input_sound</code> exists, unused</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Exit / goodbye</td><td>Configurable</td><td>—</td><td>Not offered</td><td>Hard-wired to <code>vm-goodbye.wav</code>, which does not exist</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Text-to-speech</td><td>Yes, SSML, per language</td><td>Yes, enabled by support</td><td><strong>None</strong> — a Deepgram route exists in tenant-api, commented out</td><td>No TTS module on the switch</td><td><span class="st no">Gap (regression?)</span></td></tr>
+        <tr><td class="f">Speech recognition</td><td>Yes <span class="inf">API model</span></td><td>ASR keywords, ≤20 per leg, on Menu and Collect</td><td>None</td><td>No ASR module on the switch</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Uninterruptible message</td><td>Configurable</td><td>Recorded message ignores DTMF, then returns to the menu</td><td>Not offered</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Language per menu</td><td><code>supportedLanguages[]</code></td><td>IVR &amp; voicemail language per line</td><td>Field stored, <strong>no picker</strong>; passes through unchanged</td><td>Nothing reads it</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Audio formats</td><td>—</td><td>—</td><td>Library accepts mp3 / m4a / wav</td><td>Switch can play all three (mod_shout, mod_av, mod_sndfile) — verified</td><td><span class="st ok">Have</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Input</td></tr>
+        <tr><td class="f">Keys</td><td>0–9, *, #</td><td>Keypad inputs per leg</td><td>0–9, one destination each</td><td>Generated correctly into the menu XML</td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">* and #</td><td>Flow-defined</td><td>Flow-defined</td><td>Fixed: repeat menu / previous menu, swappable</td><td>Rendered as <code>menu-top</code> / <code>menu-back</code></td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">Wait for input</td><td>Configurable</td><td>Default 10 s</td><td>1–60 s, default 10</td><td><code>timeout_limit</code> read by the generator — verified</td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">Retries on invalid</td><td>Configurable</td><td>Retry count, default 1</td><td>1–10, default 3</td><td>Read — verified</td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">Retries on silence</td><td>Configurable</td><td>Retry count</td><td>1–10, default 3</td><td>Read — verified</td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">Collect digits into a variable</td><td>Collect Input <span class="inf">API model</span></td><td>Collect step → variable, for API calls or CRM</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Dial by extension</td><td>Yes <span class="inf">API model</span></td><td>3–6 digit, enabled by support</td><td>Not offered as a choice</td><td>Implicit: any 4-digit entry <code>[1-9]\d{3}</code> transfers to that extension — <strong>but lands in an unserved context (B3)</strong></td><td><span class="st part">Hidden, blocked</span></td></tr>
+        <tr><td class="f">Dial by name</td><td>Yes <span class="inf">API model</span></td><td>Office-wide or company-wide, Enterprise</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Logic</td></tr>
+        <tr><td class="f">Variables / assign</td><td>Yes</td><td>Assign step; system variables (caller ID, called number…)</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Branch on data</td><td>Decision / Switch <span class="inf">API model</span></td><td>Branch step with regex; e.g. route by caller's area code</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">External API mid-call</td><td>Data Actions</td><td>External API step: GET/POST/PUT/PATCH; Call Park / Resume while it runs</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Show data to the agent</td><td>Participant data</td><td>Customer Data step, ≤10 variables</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Reusable sub-flow</td><td><code>COMMONMODULE</code></td><td>Go-To → another Workflow</td><td>Key → another menu</td><td>Blocked by B3</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Geographic routing</td><td>Via flow logic</td><td>Geo Router: area/country code → contact centre, with fallback</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Where a key can send the caller</td></tr>
+        <tr><td class="f">Person / extension</td><td>Transfer to User</td><td>Team member</td><td>Yes</td><td><code>transfer … XML extension</code> → <strong>not found</strong></td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Voicemail</td><td>Transfer to Voicemail</td><td>Leave a voicemail</td><td>Yes</td><td><code>XML voicemail</code> → not found; and voicemail stores nothing</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Queue / contact centre</td><td>Transfer to ACD</td><td>Contact Center</td><td>Yes</td><td><code>XML queue</code> → not found</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Department / ring group</td><td>Transfer to Group</td><td>Department</td><td>Yes</td><td><code>XML department</code> → not found, and no department branch exists at all</td><td><span class="st no">Blocked ×2</span></td></tr>
+        <tr><td class="f">Another menu</td><td>Jump to Menu</td><td>Go-To</td><td>Yes</td><td><code>XML ivr</code> → not found</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Outside number</td><td>Transfer to External</td><td>Number (enabled by support)</td><td>Yes; can be hidden company-wide</td><td><code>XML number</code> → not found</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Play a message and hang up</td><td>Play + Disconnect</td><td>Recorded message</td><td>"Greeting" offered; "Message" commented out</td><td><code>XML message</code> → not found</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">AI agent</td><td>Bot flow</td><td>AI agent · Google Conversational Agent</td><td>AI receptionist</td><td><code>XML ai</code> → not found</td><td><span class="st no">Blocked</span></td></tr>
+        <tr><td class="f">Operator</td><td>—</td><td>Operator (line's operators)</td><td>None</td><td>—</td><td><span class="st na">N/A</span></td></tr>
+        <tr><td class="f">Hang up</td><td>Disconnect</td><td>Hang-up</td><td>Yes</td><td>Inline <code>hangup</code> — the one key that works</td><td><span class="st ok">Have</span></td></tr>
+        <tr><td class="f">Count of destinations</td><td>~8</td><td>~9 (menu) / 5 (workflow transfer)</td><td>9</td><td>1 of 9 reachable</td><td><span class="st lead">Screen leads, switch trails</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Hours and fallbacks</td></tr>
+        <tr><td class="f">Open / closed / holiday</td><td>Three flows behind a schedule group; never inside the flow</td><td>Open and closed routing per line; holidays override per line, bulk templates</td><td>Hours on the <em>number</em> (read) and on the <em>menu</em> (not read)</td><td>Number hours enforced by the router — verified earlier</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Split hours per day</td><td>rrule</td><td>Up to 4 periods per day</td><td>One period per day</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Emergency override</td><td>Emergency groups</td><td>—</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Timeout → where</td><td>Flow branch</td><td>Default leg, mandatory</td><td>Hang up, or send somewhere</td><td>Rendered via <code>exec-on-max-timeouts</code>; blocked by B3 if "send somewhere"</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Failure → where</td><td>Flow branch</td><td>Default leg</td><td>Hang up, or send somewhere</td><td>Same</td><td><span class="st part">Partial</span></td></tr>
+        <tr><td class="f">Fallback if the flow itself fails</td><td>—</td><td>Per-line fallback action (voicemail / operators / CC / dept / user / number)</td><td>None</td><td>Caller hears silence then a hang-up</td><td><span class="st no">Gap</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Operations</td></tr>
+        <tr><td class="f">Trace of what a caller chose</td><td>Per-conversation, with rich disconnect reasons</td><td>Session History → View summary → each step, media and choice</td><td>None</td><td><code>ivr_digit_pressed</code> is exported on each key, but no CDR column stores it</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Entry-point count on the menu</td><td>—</td><td>Shown beside each workflow</td><td>None</td><td>—</td><td><span class="st no">Gap</span></td></tr>
+        <tr><td class="f">Enable per company</td><td>—</td><td>Workflows toggled on at company level</td><td>Plan flag <code>phone_system_action.access.IVR</code></td><td>Menu hidden without it — verified on Modules screen</td><td><span class="st ok">Have</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ============ BLOCKERS ============ -->
+  <section>
+    <div class="sechead"><span class="tag">The blocker</span><h2 class="sec">Why a caller hears nothing and can press nothing</h2></div>
+    <p class="secnote">Followed on the live switch. Green links work. Red links were each proven with a control.</p>
+
+    <div class="chain">
+      <p class="chain-title">A call to a number pointed at the menu "akash" (UCaaS 3)</p>
+      <div class="hops">
+        <div class="hop ok"><span class="h">Number → IVR</span><span class="s">router emits<br>ivr c5aacfa4…</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">Switch asks for the menu</span><span class="s">xml_curl → shim :9002<br>→ Go :9012</span></div>
+        <div class="arrow">→</div>
+        <div class="hop ok"><span class="h">Menu XML is built</span><span class="s">keys, retries, timeouts<br>all correct</span></div>
+        <div class="arrow">→</div>
+        <div class="hop bad"><span class="h">B1 · greeting fetch</span><span class="s">GET /media/direct/…/greeting<br>→ <b>401</b></span></div>
+        <div class="arrow">→</div>
+        <div class="hop bad"><span class="h">B2 · stock prompts</span><span class="s">invalid / goodbye .wav<br>→ <b>missing</b></span></div>
+        <div class="arrow">→</div>
+        <div class="hop bad"><span class="h">B3 · key press</span><span class="s">transfer X XML extension<br>→ router: <b>not found</b></span></div>
+      </div>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">B1 · regression</span>The switch can no longer fetch a greeting — and that is on me</h4>
+      <p>The Go service downloads each menu's audio from the media API before writing the menu, using the unauthenticated <em>direct</em> route. In the first audit I reported that route had been closed to everything except faxes and meeting recordings, and called it fixed. It was fixed for strangers. It also closed it to the switch, which had no login and has never sent one.</p>
+      <p>Verified against the running API, with a control that shows the guard is doing exactly what it was told:</p>
+<pre>GET /api/media/direct/&lt;company&gt;/<b>greeting</b>/3de491e2….m4a   →  HTTP <b>401</b>   <span class="c">← what the switch asks for</span>
+GET /api/media/direct/&lt;company&gt;/<b>fax</b>/x.pdf              →  HTTP 404   <span class="c">← allowed type, file absent</span></pre>
+      <p>Two further faults sit behind it, both from the first audit and both still true: the download target is <code>/var/lib/freeswitch/sounds/</code>, which the container cannot see, and the Go binary was built on 27 July with that path compiled in.</p>
+      <div class="own">
+        <p><strong>Owning this.</strong> I recommended the media hardening, confirmed it as done, and did not test the one internal caller that depended on the open route. The queue path avoided the same trap by reading Wasabi directly with the media API's own credentials (<code>queue_media.py fetch_greeting</code>). The IVR path should do the same, or the Go service should send the <code>PRIVATE_CALL_SECRET</code> bearer the other internal callers already use.</p>
+      </div>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">B2</span>The stock prompt library was never installed</h4>
+      <p>The generated menu hard-wires two system sounds — the invalid-entry prompt and the goodbye — and the switch's sound directory is empty. Same root cause as voicemail's missing prompts in the deep audit. One tarball, one variable, fixes both.</p>
+<pre>invalid-sound = ivr/ivr-that_was_an_invalid_entry.wav   → /usr/share/freeswitch/sounds/ is <b>empty</b>
+exit-sound    = voicemail/vm-goodbye.wav                → <b>missing</b></pre>
+    </div>
+
+    <div class="find stop">
+      <h4><span class="chip stop">B3</span>Every key press transfers into a context the router does not serve</h4>
+      <p>This is the one nobody would have found from the screen. When a caller presses a key, the menu does not bridge the call itself — it hands it back to the dialplan with <code>transfer &lt;target&gt; XML &lt;context&gt;</code>, and the context names the <em>kind</em> of target: <code>extension</code>, <code>ivr</code>, <code>queue</code>, <code>voicemail</code>, <code>number</code>, <code>department</code>, <code>message</code>, <code>ai</code>.</p>
+      <p>The call router answers requests only for <code>internal</code>, <code>default</code> and <code>public</code>. Asked the live router what it does with each of the seven, next to a control:</p>
+<pre><b>CONTROL</b>  context=internal   dest=1731     →  extension name="<b>user-1731</b>"      <span class="c">works</span>
+key → EXTENSION   context=extension  dest=1731     →  result status="<b>not found</b>"
+key → IVR         context=ivr        dest=&lt;uuid&gt;   →  result status="<b>not found</b>"
+key → VOICEMAIL   context=voicemail  dest=1731     →  result status="<b>not found</b>"
+key → NUMBER      context=number     dest=9190…    →  result status="<b>not found</b>"
+key → QUEUE       context=queue      dest=9331     →  result status="<b>not found</b>"
+key → MESSAGE     context=message    dest=x.mp3    →  result status="<b>not found</b>"
+key → DEPARTMENT  context=department dest=9324     →  result status="<b>not found</b>"
+<span class="c"># static dialplan on the switch defines only: conference, features, public, xfer</span></pre>
+      <p>So even with audio fixed, the caller hears the menu, presses 1, and the call ends. Only <em>Hang up</em> works, because it is the one key that does not transfer.</p>
+    </div>
+
+    <div class="find hold">
+      <h4><span class="chip hold">Consequence</span>Zero executions, thirteen menus waiting</h4>
+      <p>Six days of unrotated switch log: 583 ordinary call bridges, zero entries of the <code>ivr</code> application, zero transfers into any of those contexts. Customers on eight tenants have built thirteen menus between them. One is pointed at by a number; none has ever answered a call.</p>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section>
+    <div class="sechead"><span class="tag">One picture</span><h2 class="sec">Who does what, where it runs, and whether we hold the source</h2></div>
+    <p class="secnote">Every component an inbound call touches on its way to a menu and out the other side. "Strategy" is how that piece decides; "Source" is whether we can rebuild it.</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr>
+        <th style="width:14%">Piece</th>
+        <th style="width:13%">Runs as</th>
+        <th style="width:22%">Owns, for IVR</th>
+        <th style="width:23%">Strategy — how it decides</th>
+        <th style="width:14%">Source</th>
+        <th style="width:14%">State today</th>
+      </tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">Edge</td></tr>
+        <tr><td class="f">Kamailio</td><td class="m">systemd · :5060/5061/8080<br>/etc/kamailio</td><td>Lets the carrier in; sends carrier calls to the switch's public profile</td><td>Source-IP allowlist (<code>address</code> table); dispatcher to 127.0.0.1:4066</td><td><span class="st no">Server only</span><br><span class="inf">config, no repo</span></td><td><span class="st ok">Works</span></td></tr>
+        <tr><td class="f">FreeSWITCH</td><td class="m">docker safarov/freeswitch<br>/etc/freeswitch mounted</td><td>Runs the <code>ivr</code> application (mod_dptools); plays audio; executes transfers</td><td>Asks three HTTP services for everything: dialplan, directory, configuration (mod_xml_curl)</td><td><span class="st part">Config on server</span><br><span class="inf">partly in backend-patches/freeswitch</span></td><td><span class="st part">ivr app present; no TTS/ASR modules; sounds dir empty</span></td></tr>
+
+        <tr class="grp"><td colspan="6">The three services the switch asks (all single-threaded Python, backlog 5)</td></tr>
+        <tr><td class="f">Call router</td><td class="m">python3 · :9000<br>/opt/fs-xml-api-1.2.5/dialplan_service.py<br>2,668 lines · edited today 11:11</td><td>Turns a dialled number into a menu (<code>ivr &lt;uuid&gt;</code>); hours, holidays, channel cap, recording; <strong>must also answer the key-press transfers — and does not</strong></td><td>Looks up the number's routing record; picks a branch by <code>route_type</code> (EXTENSION · VOICEMAIL · IVR · QUEUE · PHONE · HANGUP); serves contexts <code>internal / default / public</code> only</td><td><span class="st no">Server only</span><br><span class="inf">repo holds a Go service of the same name that is not what runs</span></td><td><span class="st no">B3 lives here</span></td></tr>
+        <tr><td class="f">Directory</td><td class="m">python3 · :9001<br>/opt/fs-directory-manager/directory_service.py</td><td>Which extensions exist and their SIP passwords (so a key → extension can ring a phone)</td><td>Reads users per tenant DB</td><td><span class="st no">Server only</span><br><span class="inf">same pattern: Go in repo, Python running</span></td><td><span class="st ok">Works</span></td></tr>
+        <tr><td class="f">Config shim</td><td class="m">python3 · :9002<br>/opt/callcenter-config-shim</td><td>Answers <code>callcenter.conf</code> itself; passes <code>ivr.conf</code> and everything else to :9012</td><td>Key-name switch; upstream proxy with a 5 s timeout, "not found" on failure</td><td><span class="st no">Server only</span></td><td><span class="st ok">Works</span></td></tr>
+        <tr><td class="f">Configuration manager (the IVR builder)</td><td class="m">Go binary · :9012<br>/opt/fs-configuration-manager<br>built 27 Jul</td><td><strong>The whole IVR menu</strong>: reads the <code>ivrs</code> row, fetches audio, renders <code>ivr.conf.xml</code></td><td><code>IvrsLookup(uuid, domain)</code> from MySQL → <code>updateMediaUrls</code> (download via media API to <code>/var/lib/freeswitch/sounds</code>) → <code>callType()</code> per key → template with 4-digit dial-by-extension and * / # bound</td><td><span class="st ok">Bitbucket</span><br><span class="inf">1 commit, 31 Aug; matches the binary — no drift</span></td><td><span class="st part">Correct XML; B1 fetch fails</span></td></tr>
+
+        <tr class="grp"><td colspan="6">The API and the portal</td></tr>
+        <tr><td class="f">tenant-api</td><td class="m">node · :3001 (PM2)</td><td><code>/ivr/upsert · listing · info · delete</code>; greeting library <code>/greeting/*</code> in Wasabi (<code>ivrfiles</code> per tenant, 22 files on one tenant); a Deepgram TTS endpoint, <strong>commented out</strong></td><td>Save writes the row and returns. No push to the switch, no version, no publish — the switch reads the row on the next call</td><td><span class="st ok">Bitbucket</span></td><td><span class="st ok">Works</span></td></tr>
+        <tr><td class="f">default-api media route</td><td class="m">node · :3000 (PM2)<br>mediaRoute.ts</td><td>Serves greeting bytes to the switch via <code>/api/media/direct/:co/greeting/:file</code></td><td><code>directTypeGuard</code>: only <code>fax</code> and <code>video_recording</code> pass without a login</td><td><span class="st ok">Bitbucket</span><br><span class="inf">plus dist-only patches</span></td><td><span class="st no">B1 lives here</span></td></tr>
+        <tr><td class="f">Portal</td><td class="m">React · unified.mycountrymobile.com<br>phone-systems/ivr-menus (1,576 lines)</td><td>Four-tab editor: General · Settings &amp; permissions · Audio · Keys. Loop / duplicate / dead-target checks; one-step restore; external-number hiding</td><td>Yup schema per tab; wizard gates forward steps on create; <code>ForwardActionAll</code> shared picker (9 destinations)</td><td><span class="st ok">GitHub, this repo</span></td><td><span class="st ok">Works</span></td></tr>
+
+        <tr class="grp"><td colspan="6">Data</td></tr>
+        <tr><td class="f"><code>ivrs</code> (per tenant, MySQL)</td><td class="m">DigitalOcean</td><td>The menu: <code>ivr_option</code> (keys), <code>generic_keys</code> (fallbacks, * #), <code>settings.media</code>, retry limits, extension, site, hours</td><td>Columns for <code>no_input_sound</code>, <code>exit_sound</code>, <code>confirm_*</code> exist and are never written</td><td>—</td><td><span class="st ok">13 rows across 8 tenants</span></td></tr>
+        <tr><td class="f"><code>ivrfiles</code> (per tenant) + Wasabi</td><td class="m">bucket mcm-live<br><code>&lt;company&gt;/greeting/&lt;file&gt;</code></td><td>The audio</td><td>Uploaded through tenant-api; read by the queue path directly with boto3, by the IVR path through the API</td><td>—</td><td><span class="st ok">Files present</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>So — do we have complete source?</h3>
+    <div class="tablewrap"><table style="min-width:760px">
+      <thead><tr><th>What</th><th>Where the source is</th><th>Matches what runs?</th><th>Can we build from it?</th></tr></thead>
+      <tbody>
+        <tr><td class="f">IVR builder (fs-configuration-manager, Go)</td><td>Bitbucket, snapshot 31 Aug</td><td><strong>Yes</strong> — one commit, binary from 27 Jul, IVR code unchanged; the compiled-in sounds path is in both</td><td><span class="st ok">Yes</span></td></tr>
+        <tr><td class="f">Portal (React)</td><td>GitHub, this repo</td><td>Yes, built from the working tree</td><td><span class="st ok">Yes</span></td></tr>
+        <tr><td class="f">tenant-api, default-api, campaign-api (Node)</td><td>Bitbucket</td><td>Mostly; default-api carries dist-only patches a rebuild wipes (known)</td><td><span class="st part">Yes, re-apply patches</span></td></tr>
+        <tr><td class="f"><strong>Call router</strong> (dialplan_service.py + queue_media.py + channel_limit.py)</td><td><strong>Nowhere.</strong> /opt only. ~125 KB. Edited 11:11 today</td><td>It <em>is</em> what runs</td><td><span class="st no">No — cannot be rebuilt if the disk is lost</span></td></tr>
+        <tr><td class="f"><strong>Queue engine</strong> (callcenter-queue.lua, functions.lua)</td><td><strong>Nowhere.</strong> /etc/freeswitch/scripts only. ~84 KB. Edited today</td><td>Is what runs</td><td><span class="st no">No</span></td></tr>
+        <tr><td class="f"><strong>Agent lookup</strong> (queue_agent_service.py)</td><td><strong>Nowhere.</strong> 51 KB. Edited 11:59 today</td><td>Is what runs</td><td><span class="st no">No</span></td></tr>
+        <tr><td class="f">Directory service, config shim, CDR ingester, recording upload/control, live-calls monitor</td><td><strong>Nowhere.</strong> /opt only</td><td>Is what runs</td><td><span class="st no">No</span></td></tr>
+        <tr><td class="f">FreeSWITCH and Kamailio configuration</td><td>Server; fragments under backend-patches/</td><td>—</td><td><span class="st part">Partly</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note">
+      <p><strong>The answer is: the IVR feature itself, yes — the thing it depends on, no.</strong> You can rebuild the menu generator, the API and the portal from source today. You cannot rebuild the call router, which is the file B3 has to be fixed in, because it exists only on one disk and was edited again this morning. Committing those six files is the first thing to do — before the fix, not after — so that the fix has somewhere to live.</p>
+    </div>
+  </section>
+
+  <!-- ============ WHAT TO DO ============ -->
+  <section>
+    <div class="sechead"><span class="tag">In order</span><h2 class="sec">What to build, and how far each step gets you</h2></div>
+
+    <p class="grouplabel">Make the menu we have work — about a week</p>
+    <ol class="ranked">
+      <li><div><h4>Commit the server-only files</h4><p>The router, the queue Lua, the agent service, the shim, the directory service, the ingesters. A deploy script instead of hand edits. Nothing below is safe to change until this exists.</p></div><span class="eff">½ day</span></li>
+      <li><div><h4>B1 — let the switch fetch greetings again</h4><p>Either send the internal bearer from the Go service and accept it on the direct route, or copy the queue path's approach and read Wasabi directly. Point the download at <code>/etc/freeswitch/sounds/ivr/&lt;company&gt;/</code>, which is mounted. Rebuild the binary — the source is there.</p><p><em>Check:</em> the greeting file appears under the mounted path after one menu request.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>B2 — install the sound library</h4><p>Same fix as voicemail and the queue's no-agent prompt. One tarball into <code>/etc/freeswitch/sounds</code>, <code>sounds_dir</code> repointed, <code>reloadxml</code>.</p></div><span class="eff">Hours</span></li>
+      <li><div><h4>B3 — teach the router the seven contexts</h4><p>In <code>do_POST</code>, accept <code>extension · ivr · queue · voicemail · number · message · department · ai</code> and route each to the branch that already exists for the same target type (extension → the user bridge; ivr → the menu; queue → the queue script; voicemail → the voicemail branch; number → the outbound branch). <code>message</code> and <code>department</code> need the new branches from the fix list.</p><p><em>Check:</em> the seven probes above return an extension name; the control still returns <code>user-1731</code>; then one real call, press 1, and <code>grep -c "EXECUTE.*ivr("</code> on the switch log goes above zero for the first time.</p></div><span class="eff">1–2 days</span></li>
+      <li><div><h4>Record what the caller chose</h4><p><code>ivr_digit_pressed</code> is already exported on every key. Carry it into <code>call_history</code> so the activity screen can show "pressed 2 → Sales", which is what both references show.</p></div><span class="eff">½ day</span></li>
+      <li><div><h4>Refuse to delete a menu a number still points at</h4><p>Both references block it. Today the number keeps a dead uuid.</p></div><span class="eff">½ day</span></li>
+    </ol>
+
+    <p class="grouplabel">Reach the older reference shape — the automated response menu</p>
+    <ol class="ranked" start="7">
+      <li><div><h4>No-input prompt, exit prompt, uninterruptible message</h4><p>Columns exist for the first two. The third is a Play-then-return-to-menu; the reference makes it DTMF-proof.</p></div><span class="eff">1–2 days</span></li>
+      <li><div><h4>Dial by extension as an explicit choice, and dial by name</h4><p>Extension already works implicitly once B3 lands. Name needs a directory lookup by keypad letters.</p></div><span class="eff">2–3 days</span></li>
+      <li><div><h4>Text-to-speech</h4><p>The Deepgram endpoint is written and commented out — this is the one gap that may be a regression rather than absence. Uncomment, put a language picker on the menu (the field is already stored), cache the rendered file in the greeting library.</p></div><span class="eff">2 days</span></li>
+      <li><div><h4>Per-line fallback when the menu itself fails</h4><p>The reference's safety net: if the flow errors, send to voicemail / a queue / a person. Ours ends the call in silence.</p></div><span class="eff">1 day</span></li>
+      <li><div><h4>Split hours, and read the menu's own hours</h4><p>Up to four periods per day; and either honour the hours stored on the menu or remove that tab from the menu editor so it stops promising something nothing reads.</p></div><span class="eff">2 days</span></li>
+    </ol>
+
+    <p class="grouplabel">Reach the current reference shape — flows. Backend first, in this order</p>
+    <ol class="ranked" start="12">
+      <li><div><h4>Draft, publish, version, lock</h4><p>Do this <em>before</em> the builder grows. Retrofitting versions onto a live editor is the expensive way round. Genesys holds three versions; Dialpad two. One is enough to start: <code>published</code> and <code>draft</code>.</p></div><span class="eff">1 week</span></li>
+      <li><div><h4>A step model: Menu · Play · Collect · Branch · Transfer · Hang up · Go-to</h4><p>Dialpad's seven core steps, which map cleanly onto FreeSWITCH primitives (ivr, playback, read, regex, transfer, hangup, execute_extension). Stored as a graph, rendered to dialplan by the same Go service.</p></div><span class="eff">3–4 weeks</span></li>
+      <li><div><h4>Variables, system variables, external API step</h4><p>Caller ID, called number, collected digits; a GET/POST mid-call with park/resume. This is what turns a menu into self-service.</p></div><span class="eff">2 weeks</span></li>
+      <li><div><h4>Speech recognition</h4><p>Needs a module the switch does not have (mod_unimrcp or a streaming ASR via mod_audio_stream, which currently fails to load). Last, and only if customers ask.</p></div><span class="eff">3+ weeks</span></li>
+    </ol>
+
+    <div class="note" style="margin-top:30px">
+      <p><strong>Where to draw the line.</strong> Both references still sell the flat menu — Dialpad calls it the automated response menu and it is on every plan. Getting ours to <em>run</em> (items 1–6, about a week) and to the older shape (7–11, about two more) gives you a menu a small business will not notice is simpler than theirs. Flows (12–15) are two to three months and are what contact centres buy. That is a product decision, not a technical one.</p>
+    </div>
+
+    <h3>Things I did not copy, on purpose</h3>
+    <ul style="max-width:74ch">
+      <li><strong>Twenty-one flow types.</strong> Genesys runs chat, email, bots and surveys through the same engine. One type — inbound call — is the right first step.</li>
+      <li><strong>Emergency groups and rrule schedules.</strong> Clean, and worth adopting when the schedule model is rebuilt; not before.</li>
+      <li><strong>Their words.</strong> Nothing in this document proposes putting "Architect" or "Workflow" into the product.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Dialpad: 14 articles from the mirrored help centre at /root/dialpad-kb, read for rules rather than screens — workflows, workflow-steps, department and contact-centre routing, business hours, holidays, dial-by directories, main line. Genesys: docs/genesys-cloud-reference.md, built earlier from their public API specification; rows marked "API model" are inferred from that model, not read in prose.<br>
+    Ours: src/pages/admin-settings/phone-systems/ivr-menus, tenant-api IvrController and IvrFilesController, fs-configuration-api (ivr.go, calltype.go, httpapi.go, templates/ivr.conf.xml), the live router on :9000, the live config service on :9012, the switch's module list and six-day log, and the tenant databases. Every red link in the chain was tested against the running system with a control beside it.
+  </footer>
+
+</div>
