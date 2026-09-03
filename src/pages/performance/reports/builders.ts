@@ -46,17 +46,31 @@ const isIvrCall = (row: any) => String(row?.forward_type || '').toUpperCase() ==
 const queueNameOf = (row: any) => String(row?.forward_name || '').trim() || 'Unassigned';
 const isAnswered = (row: any) => callTalkSeconds(row) > 0;
 
+/**
+ * A hang-up too quick to be a customer decision — a misdial or a wrong number.
+ * Standard practice sets these aside so they neither count against the centre
+ * nor pad out its totals. Without this rule a run of instant failures reads as
+ * customers abandoning, which points the investigation the wrong way.
+ */
+const SHORT_ABANDON_SEC = 5;
+
+const isShortAbandon = (row: any) =>
+  !isAnswered(row) && Math.max(callWaitSeconds(row), callTotalSeconds(row)) < SHORT_ABANDON_SEC;
+
 /** Offered / handled / abandoned / SL / ASA / AHT for an arbitrary set of calls. */
 const summarise = (calls: any[]) => {
-  const handled = calls.filter(isAnswered);
-  const abandoned = calls.filter(isMissedCall);
+  const counted = calls.filter((row) => !isShortAbandon(row));
+  const handled = counted.filter(isAnswered);
+  const abandoned = counted.filter(isMissedCall);
   const withinTarget = handled.filter((row) => callWaitSeconds(row) <= SERVICE_LEVEL_TARGET_SEC);
   return {
     offered: calls.length,
+    shortAbandons: calls.length - counted.length,
+    counted: counted.length,
     handled: handled.length,
     abandoned: abandoned.length,
-    abandonPct: pct(abandoned.length, calls.length),
-    slPct: pct(withinTarget.length, calls.length),
+    abandonPct: pct(abandoned.length, counted.length),
+    slPct: pct(withinTarget.length, counted.length),
     asa: avg(handled.map(callWaitSeconds)),
     aht: avg(handled.map(callTalkSeconds)),
     talkTotal: handled.reduce((sum, row) => sum + callTalkSeconds(row), 0),
@@ -98,7 +112,11 @@ const summaryCells = (calls: any[]) => {
   ];
 };
 
-const slNote = `SL % counts calls answered within ${SERVICE_LEVEL_TARGET_SEC}s of the total offered.`;
+const slNote =
+  `SL % counts calls answered within ${SERVICE_LEVEL_TARGET_SEC}s. Hang-ups inside ` +
+  `${SHORT_ABANDON_SEC}s are counted as misdials, not abandonment, and are left out of ` +
+  `both SL % and Abandoned % — Offered still shows every call. Internal calls between ` +
+  `extensions are not included in any of these reports.`;
 
 /* ------------------------------------------------------------------ queues */
 
@@ -193,7 +211,7 @@ export const abandonInsights = ({ rows }: ReportContext): ReportTable => {
       clock(avg(abandoned.map(callWaitSeconds))),
       clock(abandoned.length ? Math.max(...abandoned.map(callWaitSeconds)) : 0),
     ],
-    note: 'Wait time is the time before the caller gave up, derived the same way Call History derives it (total duration minus talk time).',
+    note: `Wait time is the switch's own measurement of how long the caller held. Every hang-up is shown here, including those inside ${SHORT_ABANDON_SEC}s — a cluster in the fastest bucket usually means calls are failing on arrival rather than callers losing patience, so it is worth seeing. Those same calls are excluded from the Abandoned % on the summary reports.`,
   };
 };
 

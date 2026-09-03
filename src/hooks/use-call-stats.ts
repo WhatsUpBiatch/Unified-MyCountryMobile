@@ -42,9 +42,20 @@ const toSeconds = (primary: unknown, fallback: unknown): number =>
 
 export const callTalkSeconds = (row: any) => toSeconds(row?.billsectotal, row?.billsec);
 export const callTotalSeconds = (row: any) => toSeconds(row?.durationtotal, row?.duration);
-/** The platform has no wait_time field — Call History derives it the same way. */
-export const callWaitSeconds = (row: any) =>
-  Math.max(0, callTotalSeconds(row) - callTalkSeconds(row));
+/**
+ * How long the caller waited before somebody picked up.
+ *
+ * `waitsec` is the switch's own measurement and the figure Call History
+ * already shows. It is preferred here; the subtraction is kept only as a
+ * fallback for rows the switch never accounted for. The difference is not
+ * cosmetic — on a held or transferred call, duration minus talk is not the
+ * wait, and every service-level and speed-of-answer figure is built on this.
+ */
+export const callWaitSeconds = (row: any) => {
+  const stored = parseSeconds(row?.waitsec);
+  if (stored !== null) return stored;
+  return Math.max(0, callTotalSeconds(row) - callTalkSeconds(row));
+};
 
 const isInbound = (row: any) => String(row?.direction || '').toLowerCase() === 'inbound';
 /** Matches Call History's own "Missed" rule. */
@@ -121,11 +132,12 @@ export const useCallStats = (selectedRange: { from: string; to: string }) => {
 
       totalCharge += Number(row?.chargeTotal) || Number(row?.charge) || 0;
 
+      // Speed of answer is the average wait of the calls somebody answered.
+      // Averaging abandoned calls into it drags the figure toward zero, so the
+      // more calls fail instantly the healthier it would read — backwards.
       if (talk > 0) {
         handleTotal += talk;
         handleCount += 1;
-      }
-      if (wait > 0) {
         waitTotal += wait;
         waitCount += 1;
       }
@@ -140,11 +152,13 @@ export const useCallStats = (selectedRange: { from: string; to: string }) => {
       const bucket = working[queueKey];
       bucket.total += 1;
       if (isMissedCall(row)) bucket.missed += 1;
+      // Same rule as the headline figure above: wait is only averaged over the
+      // calls that were actually answered.
       if (talk > 0) {
         bucket.answered += 1;
         bucket.handleTotal += talk;
+        bucket.waitTotal += wait;
       }
-      bucket.waitTotal += wait;
     });
 
     const byQueueUuid: Record<string, QueueCallStats> = {};
@@ -153,7 +167,7 @@ export const useCallStats = (selectedRange: { from: string; to: string }) => {
         total: bucket.total,
         answered: bucket.answered,
         missed: bucket.missed,
-        avgWaitSec: bucket.total ? bucket.waitTotal / bucket.total : null,
+        avgWaitSec: bucket.answered ? bucket.waitTotal / bucket.answered : null,
         avgHandleSec: bucket.answered ? bucket.handleTotal / bucket.answered : null,
       };
     });
