@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US tax and compliance — what to buy, what to build, what to skip</title>
+<style>
+  :root{--ink:#101418;--muted:#5a6672;--line:#dfe4ea;--bg:#fbfcfd;--card:#fff;
+    --red:#b3261e;--redbg:#fdeceb;--amber:#8a5a00;--amberbg:#fff5e0;
+    --green:#146c43;--greenbg:#e8f5ee;--blue:#0b5cab;--bluebg:#eaf2fb;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 22px 90px}
+  h1{font-size:29px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:21px;margin:44px 0 6px;padding-top:22px;border-top:2px solid var(--line)}
+  h3{font-size:16.5px;margin:26px 0 6px}
+  p{margin:9px 0}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .n{font-size:24px;font-weight:700;line-height:1.15}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0;
+          border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13.4px;min-width:760px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f4f6f8;font-weight:600;font-size:12.4px;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.4px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .p-red{background:var(--redbg);color:var(--red)}
+  .p-amber{background:var(--amberbg);color:var(--amber)}
+  .p-green{background:var(--greenbg);color:var(--green)}
+  .p-blue{background:var(--bluebg);color:var(--blue)}
+  .box{border-left:4px solid var(--line);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;background:var(--card)}
+  .box.red{border-color:var(--red);background:var(--redbg)}
+  .box.amber{border-color:var(--amber);background:var(--amberbg)}
+  .box.green{border-color:var(--green);background:var(--greenbg)}
+  .box.blue{border-color:var(--blue);background:var(--bluebg)}
+  .box h4{margin:0 0 6px;font-size:15px}
+  ol,ul{margin:9px 0;padding-left:22px}
+  li{margin:5px 0}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+  .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+  .big{font-size:17px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>US tax and compliance — what to buy, what to build, what to skip</h1>
+<p class="sub">4 September 2026 · vendor research with real published prices where they exist, checked against what our platform actually has today.</p>
+
+<div class="box red">
+  <h4>Read this first — it changes the tax question</h4>
+  <p><strong>The tax service we already use cannot do telephone tax.</strong> Its product tax-code list has no code for telecommunications, VoIP, telephony, or mobile service, and nothing that computes E911, universal service, or state telecom surcharges. It taxes software subscriptions. We sell phone service.</p>
+  <p>So even after the pre-tax bug is fixed and registration is done, what we would collect is <em>general sales tax on a service</em> — not communications tax. That is the gap, and no amount of configuring will close it.</p>
+</div>
+
+<div class="box green">
+  <h4>And the good news — you do not need to buy one yet</h4>
+  <p>22 of our 23 customers are outside the US (India, Colombia, Nigeria, Mexico). One is US. Our US telecom revenue is effectively zero. The federal threshold below which a provider does not pay universal service contributions at all is <strong>$37,175</strong> of combined interstate and international US telecom revenue for 2026. We are nowhere near it.</p>
+  <p>A communications tax engine is a five-figure annual commitment. Buying one now would be the most expensive line item on the platform, protecting revenue that does not exist. <strong>Build the shape now, buy the engine at a defined trigger.</strong></p>
+</div>
+
+<h2>Part A — US taxation</h2>
+
+<h3>A1 · Three different things, often confused</h3>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:20%">Layer</th><th style="width:32%">What it is</th><th>Who solves it</th></tr></thead>
+<tbody>
+<tr><td><strong>1. Sales &amp; use tax</strong></td><td>Ordinary state sales tax on the subscription, by the customer's billing address.</td><td>Our current tax service does this. Every general engine does.</td></tr>
+<tr><td><strong>2. Communications tax and surcharges</strong></td><td>State and local telecom taxes, state universal service, 911/E911 fees per line, franchise fees, gross receipts, right-of-way. Different rates, different jurisdictions, different rules from sales tax — and rooftop-level, not ZIP-level.</td><td><strong>Only a communications tax engine.</strong> This is the gap.</td></tr>
+<tr><td><strong>3. Federal regulatory contributions</strong></td><td>FCC Form 499-A / 499-Q, federal universal service, telecom relay service, number administration, local number portability. Plus state utility registrations and the robocall mitigation database.</td><td><strong>Not an API at all.</strong> These are filings. They need a regulatory filing agent or a communications law firm.</td></tr>
+</tbody>
+</table>
+</div>
+<p>An engine gives you layer 1 and 2. It does <em>not</em> file your 499. People buy the engine, assume they are covered, and are not.</p>
+
+<h3>A2 · The vendors, and what is actually public</h3>
+<p><strong>None of them publish a price.</strong> Every one is a custom quote. What follows is what is genuinely public plus what each is good and bad at.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:15%">Vendor</th><th style="width:11%">Fit</th><th style="width:26%">What is public about cost</th><th>Honest read</th></tr></thead>
+<tbody>
+<tr><td><strong>Avalara for Communications</strong></td><td><span class="pill p-green">Safest</span></td><td>No list price. Its cloud-marketplace listing shows the model: a 12-month contract for committed volume plus <strong>$0.01 per unit</strong> over. Avalara's general products run about <strong>$0.49 per transaction at 15,000/year, falling to $0.25 at 100,000+</strong>, with small accounts quoted roughly $1,100–$7,800 a year.</td><td>The most billing-system integrations of any engine, so it is the path of least resistance — and the one an auditor or an acquirer will recognise. Expect an implementation fee. Ask specifically whether communications is priced like their core product; it usually is not.</td></tr>
+<tr><td><strong>CereTax</strong></td><td><span class="pill p-blue">Best technical fit</span></td><td>No list price. Public claims: 98,000+ active rates, 67M+ taxability decisions, rooftop-level GIS.</td><td>API-first and modern — built by the people who founded SureTax. It suits our stack better than anything else here. <strong>The catch: no filing product.</strong> Their own partner arrangement is CereTax calculates, TaxConnex files. So budget two vendors, not one.</td></tr>
+<tr><td><strong>CCH SureTax</strong> <span style="color:var(--muted)">(Wolters Kluwer)</span></td><td><span class="pill p-amber">Caution</span></td><td>No list price. Historically the most embedded engine in telecom billing platforms.</td><td>The incumbent for over a decade, so it is everywhere. But competitor material — read sceptically, it is from CereTax — claims SureTax has cut staff heavily. Worth asking directly about roadmap and support before signing a multi-year deal.</td></tr>
+<tr><td><strong>taxTheta</strong></td><td><span class="pill p-blue">Worth a quote</span></td><td>No published price. Claims a 13,457-jurisdiction rate engine plus done-for-you filing, USF, E911, TRS, and multi-state registration.</td><td>Newer and explicitly aimed at smaller VoIP providers, resellers and MVNOs. It is the one most likely to quote a number a company our size can pay, and it covers layers 2 <em>and</em> 3 in one contract. Unproven — so ask for two reference customers of similar size.</td></tr>
+<tr><td><strong>TaxConnex</strong></td><td><span class="pill p-blue">Pairs with any</span></td><td>No published price. Outsourced filing and remittance.</td><td>Not an engine. This is the "somebody else does the returns" option, and the standard partner for CereTax. Good if you would rather buy the outcome than run the process.</td></tr>
+<tr><td><strong>Vertex</strong></td><td><span class="pill p-amber">Enterprise</span></td><td>No published price.</td><td>Has a communications module inside a large enterprise tax suite. Overkill and over-priced at our size.</td></tr>
+<tr><td colspan="4" style="background:#f4f6f8"><span class="tag">Do not consider for telecom — sales tax only, no communications taxes or surcharges</span></td></tr>
+<tr><td colspan="2">Our current tax service · TaxJar · Anrok · Numeral · Kintsugi · TaxCloud</td><td colspan="2">All excellent at software and digital-goods sales tax. None of them has a telecommunications tax code, and none computes 911 or universal service surcharges. Keep ours for the subscription layer; it cannot become the telecom engine.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>A3 · Recommendation</h3>
+
+<div class="box blue">
+<h4>Now — free, this month</h4>
+<ol>
+<li><strong>Fix the pre-tax bug</strong> (item M3 in the billing audit). The tax figure is calculated correctly and then discarded in favour of the pre-tax total. One line. Nothing else in this section matters until it is done.</li>
+<li><strong>Decide which entity sells to whom.</strong> If the selling company is Indian and the customers are Indian, GST is the real obligation and our current tax service handles India. That is a question only you can answer, and it changes everything below it.</li>
+<li><strong>Build the invoice shape now.</strong> Add a tax-and-fee lines table to the bill — one row per charge with a code, a description, a jurisdiction, a base and an amount — behind a small calculator interface with exactly two methods. Today it is backed by our current service. Later it is backed by an engine, and that is a config change, not a rewrite. This is a day of work and it is the cheapest insurance on this page.</li>
+<li><strong>Do not add the regulatory fees by hand.</strong> Inventing an "E911 recovery fee" without a registration behind it is worse than charging nothing.</li>
+</ol>
+</div>
+
+<div class="box amber">
+<h4>The trigger to buy — whichever comes first</h4>
+<ul>
+<li>US end-user telecom revenue reaches a <strong>$30,000 a year run rate</strong> (below the $37,175 federal threshold, so you are ready before you cross it), <em>or</em></li>
+<li>you register as a US interconnected VoIP provider, <em>or</em></li>
+<li>you sell a US customer a US number with a US service address — a single one of these creates a real state obligation.</li>
+</ul>
+<p>At the trigger: get quotes from <strong>taxTheta</strong> and <strong>CereTax + TaxConnex</strong> and <strong>Avalara for Communications</strong>, in that order of likely value for money at our size.</p>
+</div>
+
+<h3>A4 · How to run the quotes so the numbers are comparable</h3>
+<p>Send all three the same figures — monthly invoice count, monthly line count, US states with customers, annual US revenue — and ask these five questions in writing. The answers, not the headline price, are where the cost hides:</p>
+<ol>
+<li>Is the meter per <strong>invoice</strong> or per <strong>line item</strong>? A ten-line invoice can cost ten times what you assumed.</li>
+<li>What is the <strong>annual minimum commitment</strong> and the <strong>one-off implementation fee</strong>?</li>
+<li>Is <strong>filing and remittance</strong> included, or is that a separate contract?</li>
+<li>Is the rate lookup <strong>rooftop-level</strong> or ZIP-level? ZIP-level gets telecom tax wrong, and the error is yours to pay.</li>
+<li>Do they handle <strong>FCC Form 499 and state registrations</strong>, or only calculation?</li>
+</ol>
+
+<h2>Part B — Compliance</h2>
+<p>Your fraud-controls document is the right frame, so this section is scored against it directly rather than against a competitor's help pages. Two things stand out.</p>
+
+<div class="box red">
+<h4>The expensive-looking part is free, and the free-looking part is where we are exposed</h4>
+<p>The entire signup-screening stack in Stage 2 costs roughly <strong>$0 to $30 a month</strong> at our volume. It is nearly all free tiers and open data.</p>
+<p>Stage 1 — the four controls that actually cap a loss — costs nothing at all in vendor fees, because it is entirely our own code. <strong>And we have almost none of it.</strong> That is the real finding.</p>
+</div>
+
+<h3>B1 · Where we stand against your own document</h3>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:20%">Control</th><th style="width:8%">Stage</th><th style="width:10%">Us</th><th>Evidence and what it would take</th></tr></thead>
+<tbody>
+<tr><td><strong>Per-account spend cap, enforced in the call path</strong></td><td>1.1</td><td><span class="pill p-red">Missing</span></td><td>The call router never asks about money — no balance check, no cap. And nothing debits a balance for usage anyway (billing audit, M5). <strong>This is the single biggest fraud exposure on the platform.</strong> Our code, no vendor.</td></tr>
+<tr><td><strong>Destination policy, default deny</strong></td><td>1.2</td><td><span class="pill p-red">Missing</span></td><td>Searched the live router source for a blocklist, allowlist, premium-rate or high-risk check — <strong>nothing</strong>. Every account can dial anywhere on earth from minute one. Our code, no vendor.</td></tr>
+<tr><td><strong>Velocity limits on new accounts</strong></td><td>1.3</td><td><span class="pill p-amber">Part</span></td><td>Concurrent channels are capped (licences + 1, live since 3 Sep). No calls-per-minute, no messages-per-day, no unique-destinations-per-hour. Our code.</td></tr>
+<tr><td><strong>No outbound until payment settles + phone verified</strong></td><td>1.4</td><td><span class="pill p-amber">Part</span></td><td>Phone OTP exists. Nothing gates outbound on it, or on a settled payment. Our code.</td></tr>
+<tr><td><strong>Bot check at signup</strong></td><td>2.1</td><td><span class="pill p-green">Live</span></td><td>Turnstile enforced on login, forgot-password and admin since 3 September. <em>Signup and SSO are still unchecked</em> — close that.</td></tr>
+<tr><td><strong>Phone line-type lookup</strong></td><td>2.1</td><td><span class="pill p-red">Missing</span></td><td>See B2 for the vendor. Cents per check.</td></tr>
+<tr><td><strong>Email, IP, device signals</strong></td><td>2.1</td><td><span class="pill p-red">Missing</span></td><td>All three are free. See B2.</td></tr>
+<tr><td><strong>Sanctions screening</strong></td><td>2.3</td><td><span class="pill p-red">Missing</span></td><td>A hard-block override in your own document, and we have nothing. See B2 — free to self-host.</td></tr>
+<tr><td><strong>Validated emergency address</strong></td><td>3 · Gate 3</td><td><span class="pill p-red">Missing</span></td><td>The admin compliance section holds only 10DLC brands, 10DLC campaigns and reseller — <strong>no E911 address capture or validation anywhere</strong>. This is also a federal obligation under RAY BAUM's Act, not only a fraud control.</td></tr>
+<tr><td><strong>10DLC brand and campaign registration</strong></td><td>3 · Gate 4</td><td><span class="pill p-green">Live</span></td><td>Screens exist and we hold <strong>our own campaign-registry account</strong> as a service provider, calling it directly. That is a genuinely strong position — most platforms rent someone else's. <span class="pill p-amber">One fault:</span> the campaign webhook in production still points at a <code>-qa</code> host, so registration status callbacks land on the wrong machine.</td></tr>
+<tr><td><strong>Traffic-health monitoring</strong> (608 rate, attestation mix, ASR, ACD, short-duration ratio)</td><td>4</td><td><span class="pill p-red">Missing</span></td><td>None of these are measured per customer. Our own code — the call records already hold what is needed.</td></tr>
+<tr><td><strong>Traceback response path</strong></td><td>4</td><td><span class="pill p-red">Missing</span></td><td>A 24-hour legal deadline with no owner is a suspension waiting to happen. Free to set up; needs a named person, not software.</td></tr>
+<tr><td><strong>Number inventory export</strong></td><td>5.1</td><td><span class="pill p-red">Missing</span></td><td>Our numbers live only in the supplier's systems and our own database. A nightly signed export costs a morning's work.</td></tr>
+<tr><td><strong>Porting authorisation readiness</strong></td><td>5.2</td><td><span class="pill p-red">Missing</span></td><td>Authorisations go stale in 60 days, so this has to be a job that can issue fresh ones in a day — not a filing cabinet.</td></tr>
+<tr><td><strong>Second upstream carrying live traffic</strong></td><td>5.3</td><td><span class="pill p-red">Missing</span></td><td>We have two carrier relationships, but outbound runs through one, and its trunk credentials are still placeholders. Not a proven second path.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>B2 · The vendor picks — cheapest that is actually good enough</h3>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:16%">Need</th><th style="width:19%">Pick</th><th style="width:16%">Published price</th><th>Why this one, and the alternatives</th></tr></thead>
+<tbody>
+<tr><td><strong>Bot check</strong></td><td>Cloudflare Turnstile</td><td><strong>Free</strong></td><td>Already live. Just extend it to signup and SSO.</td></tr>
+<tr><td><strong>Disposable email</strong></td><td>Public disposable-domain list + MX check</td><td><strong>Free</strong></td><td>No vendor needed. Add your own list of domains from accounts you have cancelled for abuse — that list becomes your best signal within months.</td></tr>
+<tr><td><strong>IP reputation</strong></td><td>MaxMind GeoLite2-ASN + FireHOL + Tor exit list</td><td><strong>Free</strong></td><td>Free account, downloadable databases, no per-call cost. Gives datacenter, VPN and Tor detection. Enough for scoring; do not hard-block on it.</td></tr>
+<tr><td><strong>Device fingerprint</strong></td><td>FingerprintJS open source, self-hosted</td><td><strong>Free</strong> <span style="color:var(--muted)">(Business Source Licence)</span></td><td>Catches multi-accounting and trial farming, which is most of the abuse at signup. The hosted product's free tier is only <strong>1,000 calls/month</strong>; its first paid plan is <strong>$99/month for 20,000</strong> plus <strong>$4 per 1,000</strong> over. Self-host until the accuracy actually costs you money. Check the licence against your use.</td></tr>
+<tr><td><strong>Phone line type</strong><br><span style="color:var(--muted)">is the OTP number a VoIP number?</span></td><td>Twilio Lookup — Line Type Intelligence</td><td><strong>$0.008 per lookup</strong><br>($8 per 1,000)</td><td>Transparent pricing, and — the point your document makes — it is <strong>independent of our carriers</strong>, so the check survives a suspension. Cheaper: Veriphone at <strong>$2.40 per 1,000</strong> at 10k volume (down to $0.40/1k at a million), 1Lookup at <strong>$4.95 per 1,000</strong>. Telesign is <strong>$11 per 1,000</strong> flat across 233 countries. <strong>Avoid Telnyx here</strong> at $0.0015 — cheapest, but it is our messaging carrier, which is exactly the dependency your document warns against.</td></tr>
+<tr><td><strong>Sanctions screening</strong></td><td>OpenSanctions, self-hosted</td><td><strong>Free</strong> (open data)<br>hosted: <strong>€0.10 per call</strong></td><td>Open data, open-source matcher, run it yourself. The hosted API is cost-effective under roughly 30,000 calls a month. Alternatives: <strong>sanctions.io</strong> (public pricing calculator, custom plans from 25,000 screenings/month), <strong>ComplyAdvantage</strong> from <strong>$99/month</strong> per monitored entity — that one is a whole case-management platform, more than we need.</td></tr>
+<tr><td><strong>Emergency address validation</strong></td><td>USPS Addresses 3.0 API, with Smarty as fallback</td><td>USPS <strong>free</strong><br>Smarty <strong>250 free/month</strong>, then from <strong>~$0.60 per 1,000</strong></td><td>USPS is free and US-only, which is exactly the scope. Smarty adds rooftop geocoding and non-postal addresses for rural and new-build locations, which matters for dispatchable location. Google's Address Validation is <strong>5,000 free calls/month then $17 per 1,000</strong> — twenty-eight times Smarty's rate; do not default to it.</td></tr>
+<tr><td><strong>Tie-break on REVIEW cases only</strong></td><td>IPQualityScore</td><td>credit-based; phone lookup costs <strong>3 credits</strong> vs 1 for an IP</td><td>Only call it on the ambiguous middle band, as your document says. That keeps the bill near zero and the accuracy where it matters.</td></tr>
+<tr><td><strong>FCC 499, state registrations, robocall database</strong></td><td>A regulatory filing agent</td><td>quote only</td><td>Not software. Inteserra, The Commpliance Group, TaxConnex or taxTheta. Only needed once we are a US provider — see the trigger in Part A.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box green">
+<h4>The whole screening stack, priced</h4>
+<p>At 500 signups a month: Turnstile <strong>$0</strong> + email <strong>$0</strong> + IP <strong>$0</strong> + device <strong>$0</strong> self-hosted + 500 phone lookups at $0.008 = <strong>$4</strong> + sanctions self-hosted <strong>$0</strong> + address validation <strong>$0</strong> on USPS.</p>
+<p class="big">About $4 a month. The cost of not doing it is the platform.</p>
+</div>
+
+<h3>B3 · The order to do it in</h3>
+<ol>
+<li><strong>Spend cap and destination default-deny</strong> — Stage 1.1 and 1.2, our own code, no vendor, no budget. Your document is right that these come first: they work even when screening misses, and screening always misses something. They are also blocked on the same missing piece as the billing work — nothing debits a balance for usage — so <strong>do them together with the metering project</strong> in the billing audit.</li>
+<li><strong>Fix the 10DLC webhook host</strong> — one line, production is pointing at a QA machine.</li>
+<li><strong>Extend Turnstile to signup and SSO</strong> — the signup form is the one that matters most and is the one still unchecked.</li>
+<li><strong>Velocity limits and the outbound gate</strong> — Stage 1.3 and 1.4.</li>
+<li><strong>The five signals and the scorer</strong> — Stage 2. Roughly $4 a month. Start from the reference implementation in the fraud-shield skill rather than writing it fresh.</li>
+<li><strong>E911 address capture and validation at Gate 3</strong> — free on the USPS API, and it is a federal obligation as well as a fraud control.</li>
+<li><strong>Traffic-health metrics per customer</strong> — the call records already hold what is needed; this is a query and a dashboard.</li>
+<li><strong>Traceback owner, number inventory export, porting readiness</strong> — Stage 5. Nearly free, and they are the only things that help if we are the ones cut off.</li>
+</ol>
+
+<p class="foot">
+Prices quoted are published list rates found in September 2026 and will move — treat them as the shape of the cost, not a quotation. No communications tax vendor publishes pricing; every figure attributed to one is either from its cloud-marketplace listing or from that vendor's general (non-telecom) product, and is labelled as such.<br>
+Platform facts were checked against the live production database, the live call router source, the messaging service source, and the admin screens in the web app.
+</p>
+
+</div>
+</body>
+</html>
