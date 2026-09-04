@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backend architecture — what we have, what we don't</title>
+<style>
+  :root{--ink:#101418;--muted:#5a6672;--line:#dfe4ea;--bg:#fbfcfd;--card:#fff;
+    --red:#b3261e;--redbg:#fdeceb;--amber:#8a5a00;--amberbg:#fff5e0;
+    --green:#146c43;--greenbg:#e8f5ee;--blue:#0b5cab;--bluebg:#eaf2fb;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:32px 22px 90px}
+  h1{font-size:29px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:21px;margin:44px 0 6px;padding-top:22px;border-top:2px solid var(--line)}
+  h3{font-size:16.5px;margin:26px 0 6px}
+  p{margin:9px 0}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .n{font-size:24px;font-weight:700;line-height:1.15}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0;
+          border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13.2px;min-width:780px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f4f6f8;font-weight:600;font-size:12.2px;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.2px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.3px;font-weight:700;white-space:nowrap}
+  .p-red{background:var(--redbg);color:var(--red)}
+  .p-amber{background:var(--amberbg);color:var(--amber)}
+  .p-green{background:var(--greenbg);color:var(--green)}
+  .p-blue{background:var(--bluebg);color:var(--blue)}
+  .box{border-left:4px solid var(--line);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;background:var(--card)}
+  .box.red{border-color:var(--red);background:var(--redbg)}
+  .box.amber{border-color:var(--amber);background:var(--amberbg)}
+  .box.green{border-color:var(--green);background:var(--greenbg)}
+  .box.blue{border-color:var(--blue);background:var(--bluebg)}
+  .box h4{margin:0 0 6px;font-size:15px}
+  pre{background:#12171c;color:#e7edf3;padding:14px 16px;border-radius:8px;overflow-x:auto;font-size:12.1px;line-height:1.55}
+  ol,ul{margin:9px 0;padding-left:22px}
+  li{margin:5px 0}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+  .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Backend architecture — what we have, and what we don't</h1>
+<p class="sub">4 September 2026 · every service, port, database and script enumerated on the live production machines, not read off a diagram.</p>
+
+<div class="grid">
+  <div class="stat"><div class="n">27</div><div class="l">backend repositories</div></div>
+  <div class="stat"><div class="n">288,823</div><div class="l">lines of backend code</div></div>
+  <div class="stat"><div class="n">763</div><div class="l">public endpoints, all in one service</div></div>
+  <div class="stat"><div class="n">4</div><div class="l">automated test files, in the whole backend</div></div>
+  <div class="stat"><div class="n">24</div><div class="l">processes on the main box</div></div>
+  <div class="stat"><div class="n">3</div><div class="l">databases + 2 Redis + 1 message bus</div></div>
+</div>
+
+<div class="box blue">
+<h4>The shape, in one paragraph</h4>
+<p>There are <strong>three layers</strong>, and they were built by different people at different times with different rules. The <strong>application layer</strong> is a large gateway service with fourteen small services behind it, all Node and TypeScript, all in Git. The <strong>call-control layer</strong> is Kamailio and FreeSWITCH with eight helper services in Python, Lua and Go — this layer lived outside version control until yesterday. The <strong>data layer</strong> is one central MySQL, twenty-three per-customer MySQL databases, a MongoDB with fifty-five collections, two Redis instances and a message bus that half the platform ignores.</p>
+<p>It works. The problems are not exotic — they are the ordinary consequences of the three layers never having been designed together.</p>
+</div>
+
+<h2>1 · The picture</h2>
+<pre>
+                        INTERNET
+                           │
+                   ┌───────┴────────┐
+                   │  nginx :443    │  TLS, one vhost per portal
+                   └───────┬────────┘
+                           │  everything under /api/*
+                   ┌───────▼──────────────────────────┐
+                   │  default-api  :3000              │   97,491 lines
+                   │  gateway + monolith              │   763 endpoints
+                   │  44 controllers · 54 models      │   34% of all backend code
+                   └───┬──────────────────────────┬───┘
+                       │ internal HTTP            │
+   ┌───────────────────┴──────────┐               │
+   │ tenant-api        :3001      │               │  MySQL (DigitalOcean)
+   │ notification-api  :3002      │               ├─► mycountrymobile_db  50 tables
+   │ socket-api        :3003      │               ├─► mcm_&lt;id&gt; × 23       12–14 tables
+   │ sms-api           :3004      │               │
+   │ media-api         :3005      │               ├─► MongoDB (DO)  55 collections
+   │ contact-api       :3006      │               ├─► Redis :6379 + :6389
+   │ campaign-api      :3008      │               └─► NATS  :4222
+   │ video-api         :3010      │
+   │ calendar-api      :3011      │
+   │ crm-integration   :3012      │
+   │ chat-api          :3014      │
+   │ presence-api      :3019      │
+   │ security-api      :3022      │
+   └──────────────────────────────┘
+
+   ── CALL CONTROL ──────────────────────────────────────────────
+   Kamailio :5060/:5061/:8080   SIP edge, registrar, WSS
+        │
+   FreeSWITCH (docker)  :4066 public  :5066 internal
+        │  asks over HTTP for every decision:
+        ├─ dialplan_service.py      :9000   the call router  (2,674 lines)
+        ├─ directory_service.py     :9001   who is a user
+        ├─ callcenter_config_shim   :9002   ──► fs-configuration-manager :9012 (Go)
+        ├─ queue_agent_service.py   :9006   who can take a queue call
+        └─ recording-control        :9100
+   plus: callcenter-queue.lua (1,372 lines) · functions.lua · cdr-ingest timer
+         recording-upload timer · kamailio-live-calls · call-manager-api (Go)
+         esl-manager :5555 (originates outbound calls)
+         coturn · LiveKit (server + SIP + redis)
+</pre>
+
+<h2>2 · The application layer — what each service owns</h2>
+<p>All fourteen are Node/TypeScript, all in Bitbucket, all deployed on two machines. Only <code>default-api</code> is reachable from the internet; the rest sit on ports 3001–3022 and are called internally.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:14%">Service</th><th style="width:6%">Port</th><th style="width:8%">Size</th><th style="width:9%">Own auth</th><th>What it owns</th></tr></thead>
+<tbody>
+<tr><td><strong>default-api</strong></td><td>3000</td><td>97,491</td><td><span class="pill p-green">yes</span></td><td><strong>Everything else.</strong> Auth, users, roles, companies, sites, plans, billing, payments, numbers, DIDWW, fax, DNC, identity, invites, admin, cron. It is both the front door and the biggest application.</td></tr>
+<tr><td>tenant-api</td><td>3001</td><td>16,544</td><td><span class="pill p-green">yes</span></td><td>Everything inside a customer's own database — IVR menus, ring groups, call history, contacts, greetings, per-company settings.</td></tr>
+<tr><td>campaign-api</td><td>3008</td><td>24,618</td><td><span class="pill p-green">yes</span></td><td>Campaigns, the auto-dialer, leads, dispositions, call scripts, DNC — <strong>and the call queues and agent state</strong>. That last part is a surprise: queues live here, not in the phone-system service.</td></tr>
+<tr><td>chat-api</td><td>3014</td><td>17,038</td><td><span class="pill p-green">yes</span></td><td>Internal chat and messaging threads. Uses the message bus.</td></tr>
+<tr><td>crm-integration-api</td><td>3012</td><td>17,340</td><td><span class="pill p-green">yes</span></td><td>Third-party CRM connectors and token storage.</td></tr>
+<tr><td>contact-api</td><td>3006</td><td>12,201</td><td><span class="pill p-green">yes</span></td><td>Contacts and address books.</td></tr>
+<tr><td>sms-api</td><td>3004</td><td>9,126</td><td><span class="pill p-green">yes</span></td><td>SMS and MMS, and <strong>10DLC brand and campaign registration</strong> — it holds our own campaign-registry account and calls the registry directly.</td></tr>
+<tr><td>video-api</td><td>3010</td><td>7,900</td><td><span class="pill p-green">yes</span></td><td>Meetings and video rooms, recordings.</td></tr>
+<tr><td>socket-presence-api</td><td>3019</td><td>7,709</td><td><span class="pill p-green">yes</span></td><td>Who is online, busy, away.</td></tr>
+<tr><td>calendar-api</td><td>3011</td><td>6,779</td><td><span class="pill p-green">yes</span></td><td>Calendars, events, reminders.</td></tr>
+<tr><td>security-api</td><td>3022</td><td>3,937</td><td><span class="pill p-green">yes</span></td><td>Security alerts and rate/velocity rules used by the payment and login guards.</td></tr>
+<tr><td>socket-api</td><td>3003</td><td>2,622</td><td><span class="pill p-green">yes</span></td><td>Web-socket fan-out to browsers.</td></tr>
+<tr><td>notification-api</td><td>3002</td><td>2,148</td><td><span class="pill p-green">yes</span></td><td>Email, SMS and in-app notification delivery.</td></tr>
+<tr><td>media-api</td><td>3005</td><td>894</td><td><span class="pill p-green">yes</span></td><td>Signed upload URLs and object storage.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box amber">
+<h4>Correction worth stating plainly</h4>
+<p>My first pass at this said most of these services had no authentication. That was wrong — I looked for a folder called <code>middlewares</code> and they use <code>middleware</code>. <strong>Every one of the fourteen has its own auth layer.</strong> The one exception is <code>esl-manager</code> — see section 5.</p>
+</div>
+
+<h2>3 · The call-control layer</h2>
+<p>This is the part that actually connects calls, and it is a different world: Python, Lua and Go, driven by FreeSWITCH asking questions over HTTP.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:20%">Component</th><th style="width:7%">Port</th><th style="width:8%">Language</th><th style="width:8%">Size</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><strong>dialplan_service.py</strong><br><span style="color:var(--muted)">runs as <code>fs-xml-api</code></span></td><td>9000</td><td>Python</td><td>2,674</td><td><strong>The call router.</strong> Every inbound and outbound call asks this what to do. It is the single most important process on the platform.</td></tr>
+<tr><td>callcenter-queue.lua</td><td>—</td><td>Lua</td><td>1,372</td><td>The queue engine. Runs inside FreeSWITCH. Does <em>not</em> use FreeSWITCH's own call-centre module.</td></tr>
+<tr><td>queue_agent_service.py</td><td>9006</td><td>Python</td><td>1,266</td><td>Which agents may receive a queue call.</td></tr>
+<tr><td>kamailio-live-calls.py</td><td>—</td><td>Python</td><td>1,857</td><td>Live call state fed from the SIP proxy.</td></tr>
+<tr><td>queue_media.py</td><td>—</td><td>Python</td><td>598</td><td>Fetches queue greetings straight from object storage.</td></tr>
+<tr><td>cdr-ingest.py</td><td>—</td><td>Python</td><td>448</td><td>Turns finished calls into call-history rows. Runs on a 10-second timer.</td></tr>
+<tr><td>directory_service.py</td><td>9001</td><td>Python</td><td>237</td><td>Tells FreeSWITCH who is a valid user.</td></tr>
+<tr><td>recording_control.py</td><td>9100</td><td>Python</td><td>198</td><td>Start/stop recording on a live call.</td></tr>
+<tr><td>callcenter_config_shim.py</td><td>9002</td><td>Python</td><td>188</td><td>Translates FreeSWITCH's config request into a call to the Go service.</td></tr>
+<tr><td>channel_limit.py</td><td>—</td><td>Python</td><td>91</td><td>Per-customer concurrent-call cap.</td></tr>
+<tr><td><strong>fs-configuration-manager</strong></td><td>9012</td><td>Go</td><td>2,340</td><td>Builds the IVR menu XML and downloads greetings.</td></tr>
+<tr><td>call-manager-api</td><td>—</td><td>Go</td><td>1,649</td><td>Rates and carrier selection for the SIP proxy.</td></tr>
+<tr><td>esl-manager</td><td>5555</td><td>Node</td><td>12,346</td><td>Talks to FreeSWITCH's event socket — <strong>originates outbound calls</strong>, transcription, campaign dialling.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box green">
+<h4>Good news: this layer is now under version control, and it matches</h4>
+<p>I diffed every committed switch file against the live server. <strong>82 of 85 are byte-identical.</strong> The three differences are the three files where a secret was deliberately redacted before committing. That is a genuine improvement — a week ago none of this existed in any repository.</p>
+<p>Five files on the server are still outside Git: <code>cdr-ingest-v3.py</code>, <code>cdr-ingest-v4.py</code>, two backfill scripts and a trunk test script. The v3 and v4 drafts matter — someone was mid-rewrite of the CDR ingest and stopped. <strong>Only v1 is what actually runs.</strong></p>
+</div>
+
+<h2>4 · The data layer</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:17%">Store</th><th style="width:11%">Where</th><th style="width:12%">Size</th><th>What lives there</th></tr></thead>
+<tbody>
+<tr><td><strong>mycountrymobile_db</strong><br>MySQL</td><td>DigitalOcean managed</td><td>50 tables</td><td>The shared spine: companies, users, roles, sites, plans, billings, cards, numbers, rate cards, identities, OTP, webhooks. Everything that is not a customer's own content.</td></tr>
+<tr><td><strong>mcm_&lt;timestamp&gt;</strong><br>MySQL × 23</td><td>same server</td><td>12 or 14 tables</td><td>One database per customer: call history, contacts, IVR menus, greetings, ring groups, call-forwarding templates, AI agents, per-company settings.</td></tr>
+<tr><td><strong>MongoDB</strong></td><td>DigitalOcean managed</td><td>55 collections</td><td>Everything that grows fast or has no fixed shape: queues (19), tiers (31), agents (44), campaigns (13), meetings (303), notifications (1,489), <strong>user_activities (12,590)</strong>, AI knowledge chunks (619), alerts, DNC.</td></tr>
+<tr><td>Redis :6379</td><td>local</td><td>—</td><td>Application cache and sessions.</td></tr>
+<tr><td>Redis :6389</td><td>local</td><td>—</td><td>A second instance, separate purpose.</td></tr>
+<tr><td>NATS :4222</td><td>local</td><td>—</td><td>Message bus. Running. See below.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box red">
+<h4>Two real data problems</h4>
+<p><strong>1. The tenant databases have drifted apart.</strong> Fifteen customers have 12 tables; eight have 14. The two extras are <code>company_settings</code> and <code>company_settings_history</code> — added on 3 September. So the per-section company settings feature works for eight customers and silently does not exist for fifteen.</p>
+<p><strong>The cause is structural, not a slip.</strong> The tenant migration runner is only ever called when a database is <em>created</em>. Nothing applies a new migration to the databases that already exist. There is one hand-wired exception in the tenant service where a single earlier migration is <code>require()</code>d directly from a controller — that is the workaround, and it does not scale.</p>
+<p><strong>2. Backup tables left in production.</strong> <code>sites_callerid_backup_20260828</code>, <code>users_role_backup_20260828</code> and <code>did_countries_package_cost_backup</code> are sitting in the live schema. Harmless today, confusing in six months.</p>
+</div>
+
+<h2>5 · What we have — the honest strengths</h2>
+<ul>
+<li><strong>The service split is sensible.</strong> Chat, video, contacts, calendar, SMS, campaigns, CRM as separate services is the right decomposition for this product. It is not a big ball of mud.</li>
+<li><strong>Every internal service authenticates.</strong> Thirteen of fourteen have a purpose-built auth middleware.</li>
+<li><strong>Internal ports are not reachable from the internet.</strong> I tested 3000, 3001, 3004, 3008, 3022, 4222 and 6389 from outside — all blocked by the firewall.</li>
+<li><strong>Multi-tenancy is real.</strong> A per-customer database is genuine isolation, not a <code>company_id</code> column and hope.</li>
+<li><strong>We own our own campaign-registry account</strong> and call the registry directly. Most platforms rent someone else's.</li>
+<li><strong>Central database migrations exist and are ordered</strong> — the discipline is there for the shared schema, just not for tenants.</li>
+<li><strong>The switch layer is now in Git and byte-matches production.</strong></li>
+<li>Standard, well-chosen infrastructure: Kamailio for SIP edge, FreeSWITCH for media, coturn for NAT traversal, LiveKit for video, managed MySQL and MongoDB.</li>
+</ul>
+
+<h2>6 · What we don't have</h2>
+
+<div class="box red">
+<h4>G1 · No automated tests. Four files, across 288,823 lines.</h4>
+<p>One each in <code>asr-manager</code>, <code>campaign-api</code>, <code>chat-api</code>, <code>esl-manager</code>. Nothing in <code>default-api</code>, which is a third of the codebase and handles every payment. There is no CI gate, so a rebuild is a leap of faith — which is exactly why the security patches keep getting wiped by rebuilds.</p>
+</div>
+
+<div class="box red">
+<h4>G2 · No billing, rating or usage service exists at all</h4>
+<p>Look at the service list again. There is a service for chat, for calendars, for video — and nothing that meters usage, applies a rate, or posts to a ledger. Rating is scattered: a Go service does carrier rates for the SIP proxy, the call records carry a cost column, the billing tables live inside the monolith, and no component joins them. <strong>That absence is the architectural root of the billing findings in the previous report.</strong></p>
+</div>
+
+<div class="box red">
+<h4>G3 · Two parallel implementations, one dead, one in production</h4>
+<p>The systemd unit called <code>fs-xml-api</code> does not run the <code>fs-xml-api</code> repository. It runs a <strong>Python rewrite</strong> at <code>/opt/fs-xml-api-1.2.5/dialplan_service.py</code>. Same for <code>fs-directory-manager</code>: the Go repo is 1,361 lines and the thing running is a 237-line Python script.</p>
+<p>So we are carrying <strong>Go repositories in Bitbucket that nobody runs</strong> — <code>fs-xml-api</code> (6,874 lines), <code>fs-directory-manager</code> (1,361), <code>fs-callcenter</code> (7,544), <code>directory-manager</code> (1,361), <code>sip-user-data-api</code>, <code>asr-manager</code> (3,789). Roughly <strong>20,000 lines of dead code</strong> that a new developer will read and believe.</p>
+<p>Either delete them or mark them superseded in their README. Right now the repository lies about what runs.</p>
+</div>
+
+<div class="box red">
+<h4>G4 · The most important process on the platform is single-threaded</h4>
+<p>The call router is one Python <code>HTTPServer</code> with a small connection backlog and a single database connection. Every call decision — inbound, outbound, transfers, queues, menus — passes through it, one at a time. It has no repository history before yesterday, no tests, and no second instance.</p>
+<p>Nothing has fallen over yet because the call volume is tiny. This is the component that will fail first under real load, and when it fails, every call fails.</p>
+</div>
+
+<div class="box amber">
+<h4>G5 · Tenant migrations only run at creation</h4>
+<p>Covered above. The fix is a job that walks every tenant database and applies unapplied migrations — with a per-tenant record of what has been applied. Half a day, and it removes a whole class of "works for some customers" bugs.</p>
+</div>
+
+<div class="box amber">
+<h4>G6 · A message bus that half the platform ignores</h4>
+<p>NATS is installed and running. <code>campaign-api</code> and <code>chat-api</code> genuinely use it. <code>default-api</code> has a full <code>NatsController</code> that subscribes to <code>main.&gt;</code> — and its startup call is <strong>commented out</strong>.</p>
+<p>So the platform has two ways of talking to itself: direct internal HTTP for most things, and a bus for a couple of features. Pick one. Today, the bus is a dependency that is running, costing memory, and doing a fraction of its job.</p>
+</div>
+
+<div class="box amber">
+<h4>G7 · esl-manager's authentication fails open</h4>
+<p><code>esl-manager</code> is the service that <strong>originates outbound calls</strong>. Its auth check reads: if no token is configured, allow everyone. On production, <strong>no token is configured</strong> — there is no environment file at its working directory and its unit sets no environment at all.</p>
+<p>Only the firewall stops this being serious, and only two of its routes are guarded anyway. This is the same class of bug as the captcha default that was fixed on 3 September: <strong>a missing setting should fail closed, not open.</strong></p>
+</div>
+
+<div class="box amber">
+<h4>G8 · The gateway is a third of the backend</h4>
+<p><code>default-api</code> is 97,491 lines, 763 endpoints, 44 controllers, 54 models, and it is <em>also</em> the only thing exposed to the internet and <em>also</em> where the billing crons run. Every restart takes down the whole API. It has restarted 97 times on the main box.</p>
+<p>This is not something to fix by rewriting. But the next big thing that goes in — usage and rating, for instance — should be a service, not another 5,000 lines here.</p>
+</div>
+
+<div class="box amber">
+<h4>G9 · Defence is a single firewall rule</h4>
+<p>Every internal service binds <code>0.0.0.0</code>, not <code>127.0.0.1</code>. They are safe because ufw blocks those ports. One firewall mistake and fourteen services are on the public internet at once. Binding to localhost costs one line per service and removes the single point of failure.</p>
+</div>
+
+<div class="box blue">
+<h4>G10 · Smaller gaps worth a line each</h4>
+<ul>
+<li><strong>No API documentation.</strong> One swagger file for one of fifteen services.</li>
+<li><strong>No shared library.</strong> Auth, logging and validation are re-implemented in each service, slightly differently — which is why one of them fails open and the others do not.</li>
+<li><strong>No health checks or metrics.</strong> Nothing exports a status. "Is it up" is answered by <code>pm2 list</code>.</li>
+<li><strong>Two Redis instances</strong> with no documented split.</li>
+<li><strong>An address-verification table with zero rows.</strong> The schema for verifying a number's service address exists and has never been written to.</li>
+<li><strong>Five CDR-ingest versions on disk</strong>, four of them dead, plus five dated backups of the running one. That is what editing directly on the server looks like six weeks later.</li>
+<li><strong>Two machines run the same code against the same database</strong>, including the nightly billing job — covered in the billing report.</li>
+</ul>
+</div>
+
+<h2>7 · Source-control truth table</h2>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:26%">Category</th><th style="width:10%">Count</th><th>What</th></tr></thead>
+<tbody>
+<tr><td><span class="pill p-green">In Git and running</span></td><td>14 + 8</td><td>All fourteen Node services, plus the eight switch-side services committed yesterday (82 of 85 files byte-identical to production).</td></tr>
+<tr><td><span class="pill p-red">In Git, dead</span></td><td>~6</td><td><code>fs-xml-api</code>, <code>fs-directory-manager</code>, <code>fs-callcenter</code>, <code>directory-manager</code>, <code>sip-user-data-api</code>, <code>asr-manager</code> — roughly 20,000 lines nobody runs.</td></tr>
+<tr><td><span class="pill p-amber">Running, not in Git</span></td><td>5</td><td><code>cdr-ingest-v3.py</code>, <code>cdr-ingest-v4.py</code>, two backfill scripts, a trunk test script. The two CDR drafts are an abandoned rewrite of a live component.</td></tr>
+<tr><td><span class="pill p-amber">In Git, unclear</span></td><td>3</td><td><code>admin-portal</code>, <code>web-portal</code>, <code>video-recorder-portal</code> — front-ends, only one of which is deployed here.</td></tr>
+<tr><td><span class="pill p-red">Deployed patches not in a build</span></td><td>several</td><td>The media-route fix, the recording permission gate, the greeting audio route and the AI-writing endpoint are patched into the compiled output on the server. <strong>A rebuild wipes them.</strong> The patch scripts are committed, so they can be re-applied — but nothing runs them automatically.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>8 · What to do, in order</h2>
+<ol>
+<li><strong>Make a missing setting fail closed.</strong> Fix <code>esl-manager</code>'s auth default, and grep every service for the same pattern. Half a day, and it is the highest ratio of risk removed to effort spent on this page.</li>
+<li><strong>Bind internal services to localhost.</strong> One line each. Stops the firewall being the only thing between fourteen services and the internet.</li>
+<li><strong>Write the tenant migration sweeper</strong> — walk every tenant database, apply what is missing, record what was applied. Then run it and give the fifteen customers their settings tables.</li>
+<li><strong>Delete or clearly mark the dead Go repositories</strong>, and commit or delete the five orphan scripts. A repository that lies about what runs costs every future developer a day.</li>
+<li><strong>Put the dist patches into the build.</strong> Every one of them is a security or feature fix that a rebuild silently removes. Either merge them into source properly or make the deploy script run the patch scripts.</li>
+<li><strong>Add tests where money moves</strong> — the payment controller, the renewal cron, the rating helper. Not a coverage target; five tests on the paths that charge cards.</li>
+<li><strong>Build usage and rating as its own service</strong>, not as more of <code>default-api</code>. This is the same project as the metering work in the billing report — do it once, and put it in the right place.</li>
+<li><strong>Decide on the message bus.</strong> Either turn <code>default-api</code>'s subscriber back on and commit to it, or remove NATS. Half-adopted infrastructure is worse than either choice.</li>
+<li><strong>Give the call router a second instance and a health check.</strong> It is the single point of failure for every call on the platform.</li>
+</ol>
+
+<p class="foot">
+Method: process and port lists, systemd units, firewall rules and external port tests taken from the live machines; schema and row counts read from the production databases; line counts and structure from the Bitbucket working copies; switch-side files compared file-by-file against the running server by hash.<br>
+One correction is recorded in section 2: an earlier reading of the internal services' authentication was wrong, and the corrected finding is that all but one authenticate.
+</p>
+
+</div>
+</body>
+</html>
