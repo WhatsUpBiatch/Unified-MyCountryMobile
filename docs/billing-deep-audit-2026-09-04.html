@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Billing — deep audit against the reference product, 4 September 2026</title>
+<title>Billing — deep audit against the reference product</title>
 <style>
   :root{
     --ink:#101418; --muted:#5a6672; --line:#dfe4ea; --bg:#fbfcfd; --card:#fff;
@@ -54,15 +54,23 @@
 <div class="wrap">
 
 <h1>Billing — deep audit against the reference product</h1>
-<p class="sub">4 September 2026 · every claim below was checked on the live production database, the live servers, or the actual source. Where a claim could not be proved, it says so.</p>
+<p class="sub">4 September 2026 · every claim below was checked on the live production database, the live servers, or the actual source. Where a claim could not be proved, it says so.<br><strong>Second pass, same day:</strong> Parts 6 and 7 added — AI, chatbot and omnichannel billing, and the three remaining reference add-ons. One finding (M5) is narrowed as a result.</p>
 
 <div class="grid">
-  <div class="stat"><div class="n">18</div><div class="l">reference billing articles read in full</div></div>
+  <div class="stat"><div class="n">18 of 18</div><div class="l">reference billing articles now covered</div></div>
   <div class="stat"><div class="n">23</div><div class="l">companies on the live platform</div></div>
   <div class="stat"><div class="n">156</div><div class="l">bills ever written · <strong>0</strong> carry tax</div></div>
   <div class="stat"><div class="n">78</div><div class="l">failed charge rows, all with no follow-up</div></div>
   <div class="stat"><div class="n">3</div><div class="l">servers running the nightly billing job at once</div></div>
   <div class="stat"><div class="n">$0.00</div><div class="l">of call, SMS or fax usage ever billed</div></div>
+  <div class="stat"><div class="n">$0.84</div><div class="l">of AI usage billed — the one meter that works</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">omnichannel rows, of any kind, anywhere</div></div>
+</div>
+
+<div class="box blue">
+<h4>Added 4 September, second pass — read this alongside M5</h4>
+<p>A deeper look at the AI, chatbot and omnichannel side changed one of the findings below. <strong>There <em>is</em> a service on this platform that meters usage, applies an allowance, checks the balance, charges the wallet and refuses to run when the wallet is empty.</strong> It is the AI agent. It is complete, it is correct, and it is live.</p>
+<p>That makes M5 narrower than it reads — and much easier to fix, because the pattern to copy already exists in our own code. See <strong>Part 6</strong>, and <strong>Part 7</strong> for the three reference add-ons this report had not yet covered.</p>
 </div>
 
 <div class="box red">
@@ -239,6 +247,7 @@
 <li>Nothing checks a balance before placing a call.</li>
 </ul>
 <p>The plain version: <strong>a customer on the $2 plan can make unlimited international calls and be charged $2.</strong> The carrier still invoices us for every minute.</p>
+<p><strong>Correction, second pass:</strong> this is true of calling, messaging and fax — but <em>not</em> of the AI agent, which does all of it correctly. Part 6 explains, and it is good news: the thing M5 asks for has already been written once, in this codebase, by us.</p>
 </div>
 
 <div class="box amber">
@@ -322,6 +331,118 @@
 
 <h3>Leave until you need it</h3>
 <p>Licence pooling, unified credit pooling, flex-vs-contracted licences, credits analytics, spending alerts. All of these solve problems that only appear with multi-site customers or high volume. None is a launch blocker.</p>
+
+<h2>Part 6 — AI, chatbot and omnichannel</h2>
+
+<div class="box green">
+<h4>6.1 · The AI agent is the best-billed service we have — by a distance</h4>
+<p>Everything the reference product describes for usage billing, the AI path already does. In our own code, today:</p>
+<ol>
+<li><strong>Allowance first.</strong> Each plan carries <code>ai_call_free_minutes</code> and <code>ai_message_free_reply</code>; each company gets its own copy at signup and on every renewal.</li>
+<li><strong>A balance check <em>before</em> the session starts.</strong> <code>if (freeMinutes &lt;= 0 &amp;&amp; rateUsd &gt; 0 &amp;&amp; balance &lt; rateUsd) → allowed: false</code>. No credit, no session. This is the exact control calling does not have.</li>
+<li><strong>A charge at the end, in a transaction, with a row lock.</strong> Free minutes are consumed first, the remainder is priced at the plan rate, and <code>companies.amount</code> is decremented — all under <code>LOCK.UPDATE</code>, so two sessions cannot both spend the last dollar.</li>
+<li><strong>A usage record per session.</strong> The session document carries <code>call_billable_minutes</code>, <code>cost_total_usd</code>, <code>cost_unit_rate_usd</code>, <code>cost_units</code>, <code>cost_unit_type</code>, <code>call_billing_status</code>, <code>call_billed_at</code>, <code>charged_reply_ids</code> — and a human-readable basis line such as <em>"7 minutes @ $0.120/min"</em>.</li>
+<li><strong>Daily roll-ups.</strong> A second collection aggregates cost, tokens, duration, sessions, sentiment and intent per company per day.</li>
+</ol>
+<p><strong>And it is genuinely running.</strong> On production right now:</p>
+<pre>AI voice sessions   49 charged · 129 billable minutes · $0.84 taken from wallets
+AI chat sessions    45 sessions · 146 units · $0 charged (allowance covered them)
+allowances moving   Capanicus  11 of 750 minutes left, 439 of 8,000 replies left
+                    Testers4   49 of 50 minutes left
+plan rates set      Starter $0.120/min · Professional $0.120 · Ultimate $0.030
+                    Starter 50 min + 500 replies … Ultimate 750 min + 8,000</pre>
+<p>Compare that with calling: <strong>129 AI minutes have been billed, and zero telephone minutes ever have.</strong></p>
+</div>
+
+<div class="box amber">
+<h4>6.2 · Three gaps in the AI billing, all small</h4>
+<ol>
+<li><strong>No ledger row.</strong> The charge decrements <code>companies.amount</code> and writes nothing to <code>billings</code>. So money leaves a customer's wallet and appears on no invoice, no statement and no usage screen. A customer who watches their balance fall cannot find out why. The bill type <code>Balance Deduct</code> exists in the schema for exactly this and has never been used.</li>
+<li><strong>Chat sessions carry no billing status.</strong> Free replies are decremented one at a time and return early, so <code>call_billing_status</code> stays empty on all 45 chat sessions. Free versus paid is unreportable for chat.</li>
+<li><strong>The allowance never resets on its own.</strong> It is topped back up by the renewal path. A company whose renewal fails — and four fail every night — keeps a decremented allowance indefinitely.</li>
+</ol>
+<p><strong>How to add:</strong> one <code>Billing.create</code> inside the same transaction as the decrement, typed <code>Balance Deduct</code>, with the session id in the description. Half a day, and it makes AI usage visible on the invoice, the statement and the usage screen at once — all three read the same table.</p>
+</div>
+
+<div class="box red">
+<h4>6.3 · Omnichannel is an empty shell</h4>
+<p>The route exists (<code>/api/omni</code>, 11 endpoints), the tables exist, the collections exist. Every one of them is empty:</p>
+<pre>omni_channels        0        omni_chat_lists   0
+omni_channel_setting 0        omni_did_lists    0
+                              chats             0</pre>
+<p>So there is nothing to bill, because there is no product yet. The reference product treats omnichannel sessions as a metered service drawing on the same wallet — and it is explicit that they are an <em>older</em> line being folded into the AI-agent product.</p>
+<p><strong>How to add — and the recommendation is: do not, yet.</strong> When omnichannel does ship, do not invent a third metering model. Route it through the AI agent's session-and-charge path, which already handles a session, an allowance, a rate, a balance check and a cost record. One meter, three channels.</p>
+</div>
+
+<div class="box blue">
+<h4>6.4 · What this means for the metering project</h4>
+<p>The plan in Part 5 said "build a usage table, write a row per event, deduct from the wallet, refuse when empty". <strong>All four of those already exist</strong> — for AI. The work is not to design them; it is to lift the same pattern onto calling, messaging and fax, and to add the one missing piece (the ledger row) in both places at once.</p>
+<p>That is a materially smaller and lower-risk project than this report first described, and the reviewer for it is already written: the AI path is the specification.</p>
+</div>
+
+<h2>Part 7 — The three add-ons this report had not covered</h2>
+<p>Completing the eighteen reference billing articles. All three are <strong>packaging</strong> ideas — ways to sell usage without selling credits — and each maps onto machinery we already have.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:18%">Add-on</th><th style="width:30%">How the reference does it</th><th style="width:9%">Us</th><th>How we would add it</th></tr></thead>
+<tbody>
+<tr><td><strong>AI agent conversation credits</strong></td><td>A separate wallet from calling credits. A session is billable only when the customer actually interacted <em>and</em> the agent did something — looked something up or performed a task — <em>and</em> the session closed. Billed even if it ends in a transfer to a human. Email alerts at 80%, 90% and 100% of the allowance, each with a link straight to auto-recharge. The AI wallet belongs to the primary office and is not shared.</td><td><span class="pill p-green">Mostly have it</span></td><td>We have the wallet, the rate, the allowance, the balance check and the charge. <strong>Three things to add:</strong> (a) the billable-session <em>test</em> — today any closed session with minutes is charged, with no requirement that a skill was actually called, so we may be charging for sessions the reference would not; (b) the 80/90/100% email alerts, which reuse the low-balance alert that already exists; (c) the ledger row from 6.2.</td></tr>
+<tr><td><strong>Global unlimited calling</strong></td><td>A per-seat monthly licence giving <strong>8,000 international minutes per licence per month</strong> across 65 named countries, with a published per-minute rate beyond it. Applies to <em>every</em> user in the office — it cannot be bought for some. Outbound only. Unused minutes do not roll over.</td><td><span class="pill p-red">Missing</span></td><td>Three pieces, and two exist. <strong>(1)</strong> A per-seat add-on licence — we have <code>company_licenses</code> but no concept of a licence <em>type</em>, so add a type column. <strong>(2)</strong> A monthly minute bucket per company, reset on renewal — identical in shape to <code>ai_call_free_minutes</code>, which already resets that way; copy it. <strong>(3)</strong> A country list the bucket applies to — <code>plans.call_countries</code> is already a JSON country list, so the shape exists. The bucket must be consumed <em>before</em> the wallet, which is the same spend-order the AI path implements. <strong>Blocked on:</strong> calling not being metered at all — this cannot be built before the metering work.</td></tr>
+<tr><td><strong>Unlimited domestic calling</strong></td><td>Same idea for the home country: a flat monthly per-seat fee, <strong>3,000 minutes per licence per month</strong> under a fair-usage policy, applied to all contact-centre users in the office. Covers inbound <em>and</em> outbound domestic, excludes inbound toll-free. Existing credits stay and are still used for toll-free and international.</td><td><span class="pill p-red">Missing</span></td><td>Identical machinery to the row above with a different country set and a different bucket size — build one mechanism, configure it twice. Note the definition of "domestic" needs care: the reference counts US↔Canada, Australia↔New Zealand, US→Puerto Rico and within-Great-Britain as domestic, which is a rule table, not a country match.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box blue">
+<h4>7.1 · The pattern underneath all three</h4>
+<p>All three add-ons are the same object: <strong>a bucket of units, attached to a licence, reset every cycle, consumed before the wallet, scoped to a set of destinations.</strong> Build that object once and all three are configuration:</p>
+<pre>bucket:  { licence_type, units, unit_type, period, scope, rollover: false }
+
+  AI agent credits     units 750   minutes  scope: ai            (built)
+  Global unlimited     units 8000  minutes  scope: 65 countries  (to build)
+  Unlimited domestic   units 3000  minutes  scope: home country  (to build)
+  Plan calling minutes units n     minutes  scope: plan countries(to build)</pre>
+<p>We have already built one instance of it, for AI. <strong>Generalise that rather than writing a second system.</strong></p>
+</div>
+
+<h3>7.2 · Reference-article coverage, complete</h3>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:34%">Article</th><th style="width:12%">Covered in</th><th>Verdict on us</th></tr></thead>
+<tbody>
+<tr><td>Billing information · Billing summary</td><td>Parts 2–3</td><td>Screen live; no next-bill estimate, no payment method here, no notes</td></tr>
+<tr><td>Manage licences</td><td>Part 3</td><td>Buying works; the count is never enforced</td></tr>
+<tr><td>Manage licence pool</td><td>Part 3</td><td>Not needed until multi-site</td></tr>
+<tr><td>Unified credit pool</td><td>Part 3</td><td>Not needed until multi-site</td></tr>
+<tr><td>Credits and usage</td><td>Parts 3–4</td><td>Wallet exists; only AI ever debits it</td></tr>
+<tr><td>Credits analytics</td><td>Part 3</td><td>Missing — needs usage rows first</td></tr>
+<tr><td><strong>AI agent conversation credits</strong></td><td><strong>Part 6</strong></td><td><strong>Mostly built and running — our strongest billing surface</strong></td></tr>
+<tr><td>Purchase add-on licences</td><td>Part 2</td><td>Read-only screen; no buy button, deliberately (see M8)</td></tr>
+<tr><td><strong>Global unlimited calling</strong></td><td><strong>Part 7</strong></td><td><strong>Missing — blocked on metering</strong></td></tr>
+<tr><td><strong>Unlimited domestic calling</strong></td><td><strong>Part 7</strong></td><td><strong>Missing — same mechanism as above</strong></td></tr>
+<tr><td>Cost centres</td><td>Part 2</td><td>Codes save; no allocations, no reports — screen says so</td></tr>
+<tr><td>Credit card verification</td><td>Part 3</td><td>Missing entirely</td></tr>
+<tr><td>On hold &amp; suspended accounts</td><td>M4</td><td>Two states only: works, or everyone locked out at day 7</td></tr>
+<tr><td>Cancel your account</td><td>M6</td><td>Three cancellations unprocessed since July</td></tr>
+<tr><td>Billing FAQs</td><td>Parts 1, 3</td><td>Proration, upgrades, card types, tax exemption — none modelled</td></tr>
+<tr><td>Understanding flex licences</td><td>Part 3</td><td>One licence type only; no flex-versus-contract concept</td></tr>
+<tr><td>Cancellation and refund FAQs</td><td>Part 3</td><td>Refund columns exist; zero refunds ever; no written policy in the product</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box amber">
+<h4>7.3 · Where these land in the order of work</h4>
+<p>Nothing in Part 7 goes before the eight items in Part 5. The add-ons are <strong>revenue packaging</strong>, and packaging usage you cannot measure is not possible. The sequence is:</p>
+<ol>
+<li>Part 5's eight pre-launch fixes.</li>
+<li>The metering project — with the AI path as the worked example to copy.</li>
+<li>Generalise the AI bucket into the object in 7.1.</li>
+<li>Then the two calling add-ons are a configuration exercise, not a build.</li>
+</ol>
+<p>The one item from this section that can be done immediately and independently is <strong>the ledger row in 6.2</strong> — half a day, and it makes today's real AI charges visible to the customers already paying them.</p>
+</div>
 
 <div class="box blue">
 <h4>Two things our product does that the reference does not</h4>
