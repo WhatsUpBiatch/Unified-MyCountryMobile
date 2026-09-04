@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compliance — the expensive part is built, the free part is missing</title>
+<style>
+  :root{--ink:#101418;--muted:#5a6672;--line:#dfe4ea;--bg:#fbfcfd;--card:#fff;
+    --red:#b3261e;--redbg:#fdeceb;--amber:#8a5a00;--amberbg:#fff5e0;
+    --green:#146c43;--greenbg:#e8f5ee;--blue:#0b5cab;--bluebg:#eaf2fb;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:32px 22px 90px}
+  h1{font-size:29px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:21px;margin:44px 0 6px;padding-top:22px;border-top:2px solid var(--line)}
+  h3{font-size:16.5px;margin:26px 0 6px}
+  p{margin:9px 0}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .n{font-size:24px;font-weight:700;line-height:1.15}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0;
+          border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13.2px;min-width:790px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f4f6f8;font-weight:600;font-size:12.2px;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.2px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.3px;font-weight:700;white-space:nowrap}
+  .p-red{background:var(--redbg);color:var(--red)}
+  .p-amber{background:var(--amberbg);color:var(--amber)}
+  .p-green{background:var(--greenbg);color:var(--green)}
+  .p-blue{background:var(--bluebg);color:var(--blue)}
+  .box{border-left:4px solid var(--line);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;background:var(--card)}
+  .box.red{border-color:var(--red);background:var(--redbg)}
+  .box.amber{border-color:var(--amber);background:var(--amberbg)}
+  .box.green{border-color:var(--green);background:var(--greenbg)}
+  .box.blue{border-color:var(--blue);background:var(--bluebg)}
+  .box h4{margin:0 0 6px;font-size:15px}
+  pre{background:#12171c;color:#e7edf3;padding:13px 15px;border-radius:8px;overflow-x:auto;font-size:12.1px;line-height:1.55}
+  ol,ul{margin:9px 0;padding-left:22px}
+  li{margin:5px 0}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+  .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+  .lead{font-size:16.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Compliance — the expensive part is built, the free part is missing</h1>
+<p class="sub">4 September 2026 · a deep pass on Part B. Every claim traced to a file, a database row, or a live check on the switch.</p>
+
+<div class="box blue">
+<h4>The thesis, stated properly</h4>
+<p class="lead">The things that <em>look</em> expensive — a predictive dialer that obeys the FCC's abandon rule, do-not-call scrubbing on every single dial, a recorded-call announcement, our own account with the messaging registry — <strong>are already built and cost nothing to run</strong>.</p>
+<p class="lead">The things that <em>look</em> free — a keyword handler for the word STOP, an upper bound on a number, a clock check before dialling, a tick-box that records consent, writing down a street address — <strong>are the ones nobody did, and each one on its own is the whole liability.</strong></p>
+<p>That is not an accident. Building a pacing engine is interesting work. Clamping a field to 3 is not. The interesting work got done.</p>
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="n">3% / 2s</div><div class="l">FCC abandon rule — our defaults match it exactly</div></div>
+  <div class="stat"><div class="n">100%</div><div class="l">…but a customer can set the cap this high</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">messaging campaigns registered</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">service addresses on file, for 34 numbers</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">lines of STOP-keyword handling</div></div>
+  <div class="stat"><div class="n">$500–1,500</div><div class="l">statutory damages, per call or text</div></div>
+</div>
+
+<h2>1 · What is genuinely built — and it is more than I expected</h2>
+
+<div class="box green">
+<h4>1.1 · The predictive dialer obeys the FCC rule, by design</h4>
+<p>The pacing engine (<code>campaign-api/src/services/dialer/pacing.ts</code>, 340 lines) has three dial modes and a real feedback loop: the over-dial multiplier starts cautious at 0.8 and is pulled back whenever the abandon rate breaches the campaign's cap.</p>
+<p>Its defaults are <strong>exactly the federal rule</strong>, which means somebody read the regulation:</p>
+<pre>targetAbandonRate:        3     // FCC: max 3% of live answers
+complianceAbandonSeconds: 2     // FCC: an agent must speak within 2 seconds
+maxCallsPerAgent:         3
+perTickCap:               5     // a burst cannot swamp the trunk</pre>
+<p>It also carries <strong>one of only four test files in the entire 288,000-line backend</strong> — and the test is specifically <em>"breaching the abandon cap pulls the multiplier down; staying well under lets it recover"</em>. The single most compliance-sensitive piece of code we own is also the single best-tested one.</p>
+</div>
+
+<div class="box green">
+<h4>1.2 · Do-not-call is checked before every dial, not in a nightly batch</h4>
+<p><code>CampaignRepository</code> validates each candidate against the suppression list <strong>just in time</strong>, immediately before reserving it, and persists the flag so the number is skipped for good. The comment in the source says it plainly: <em>"DNC validation is intentionally per-candidate here."</em> That is the correct design — a list checked at upload time is worthless by the time the call is placed.</p>
+</div>
+
+<div class="box green">
+<h4>1.3 · Recorded calls are announced, and the announcement really works</h4>
+<p>The call router injects the notice on both directions — <code>execute_on_answer=playback</code> on outbound, <code>pre_answer</code> then <code>playback</code> on inbound. I checked the file on the live switch: <strong>64,166 bytes, present, and FreeSWITCH's <code>file_exists</code> returns true.</strong> There is also an on-demand path where an agent presses <code>*2</code> / <code>*3</code> and the announcement is injected into the live bridge.</p>
+<p>This is what makes recording lawful in two-party-consent states. It exists and it functions.</p>
+</div>
+
+<div class="box green">
+<h4>1.4 · Other things that are real</h4>
+<ul>
+<li><strong>Our own account with the messaging registry.</strong> Five brands registered, all status ACTIVE with EINs on file. Most platforms rent someone else's.</li>
+<li><strong>Bot protection</strong> live on login, password reset and admin since 3 September.</li>
+<li><strong>A 72-hour purge for removed people</strong>, with an audit entry written on the purge — a deliberate, documented retention decision.</li>
+<li><strong>A security audit log</strong> with 9,565 rows, and 112 trusted-device records.</li>
+<li><strong>A per-customer concurrent-call cap</strong>, live since 3 September.</li>
+</ul>
+</div>
+
+<h2>2 · Where we are exposed</h2>
+<p>Ordered by how bad it is, not by how hard it is to fix. Note the "fix" column — that is the point of this report.</p>
+
+<div class="box red">
+<h4>E1 · Every messaging campaign we register declares that subscribers cannot opt out</h4>
+<p>In <code>sms-api/src/repositories/TendDlcBrandRepository.ts</code>, the payload sent to the registry is hard-coded:</p>
+<pre>subscriberOptin:   true
+subscriberOptout:  false     &lt;-- we declare people CANNOT opt out
+subscriberHelp:    false     &lt;-- and cannot ask for help
+optinKeywords:     null
+optoutKeywords:    null
+optoutMessage:     null
+helpMessage:       null</pre>
+<p>The validation schema for those fields is <strong>commented out</strong>, so nothing can override them.</p>
+<p>Two things are wrong at once. First, supporting STOP and HELP is a baseline requirement of the messaging ecosystem — declaring otherwise is the most common single cause of campaign rejection. Second, and worse: <strong>the declaration is accurate.</strong> We genuinely do not handle opt-out (see E2). So this is not a paperwork slip; it is a truthful statement that we do not meet the standard.</p>
+<p><strong>Fix: about two hours</strong> — take the four keyword fields from the brand form, un-comment the schema, and stop hard-coding false.</p>
+</div>
+
+<div class="box red">
+<h4>E2 · Nothing in the platform reacts to the word STOP</h4>
+<p>I searched the whole messaging service for opt-out handling. There is none — no keyword parser, no suppression write, no confirmation reply. If a recipient texts STOP, the message is stored as an ordinary inbound message and the next campaign texts them again.</p>
+<p>The federal revocation rule took effect on <strong>11 April 2026</strong> — it is in force now. It says a consumer may revoke consent <em>in any reasonable manner</em>, and the regulator has named the words that must work: <strong>STOP, QUIT, END, REVOKE, OPT-OUT, CANCEL, UNSUBSCRIBE</strong>. Once revoked, you have <strong>10 business days</strong> to stop, and revocation applies to <em>all</em> future calls and texts to that number, not just the campaign it came from.</p>
+<p>Statutory damages are <strong>$500 per message, $1,500 if wilful</strong>, with a private right of action — which is why this is the area that produces class actions rather than regulator letters.</p>
+<p><strong>Fix: about a day</strong> — a keyword matcher on inbound messages, a write to the suppression list, an automatic confirmation reply, and the same list consulted by the dialer (which it already is).</p>
+</div>
+
+<div class="box red">
+<h4>E3 · The FCC abandon cap can be switched off from the interface</h4>
+<p>The defaults are right. The limits are not:</p>
+<pre>targetAbandonRate        clamp(value, 0.1, 100)   &lt;-- a customer may set 100%
+complianceAbandonSeconds clamp(value, 0,   60)    &lt;-- and 60 seconds instead of 2</pre>
+<p>A customer who sets the abandon rate to 100 and the window to 60 has, through supported settings on a screen we built, disabled the federal rule entirely — while the product still reports itself as compliant. The engine will faithfully pace to whatever cap it is given.</p>
+<p><strong>Fix: two lines.</strong> Clamp the rate to 3 and the window to 2. If a business reason ever exists to relax them, that is an internal override, not a customer field.</p>
+</div>
+
+<div class="box red">
+<h4>E4 · The abandon rate is measured per run, not per 30-day campaign</h4>
+<p>The rule measures abandons across <strong>each 30-day calling campaign</strong>. Our counters live in <code>CampaignLiveState</code> and are per-run — they start at zero every time a campaign is started.</p>
+<p>So a campaign that abandons 12% of its calls, is stopped, and is started again shows a clean sheet, both to the pacing engine and to anyone reading the numbers. The engine then re-learns from scratch with the cautious 0.8 multiplier, dialling under-informed each time.</p>
+<p><strong>Fix: half a day</strong> — persist the counters against the campaign with a rolling 30-day window, and seed the engine from them on start.</p>
+</div>
+
+<div class="box red">
+<h4>E5 · Nothing checks the time of day before dialling</h4>
+<p>Telemarketing calls are restricted to <strong>8am–9pm in the recipient's local time</strong>, and several states are stricter. A campaign in our platform carries a <code>timezone</code> field — and I found no code anywhere in the backend that compares a clock to a calling window. No <code>calling_window</code>, no <code>quiet_hours</code>, nothing.</p>
+<p>This is the single easiest violation to commit at scale: one campaign started at the wrong hour dials every lead in the list.</p>
+<p><strong>Fix: half a day</strong> — derive the recipient's zone from the number's area code, refuse to dial outside the window, and hold the lead for the next window rather than discarding it.</p>
+</div>
+
+<div class="box red">
+<h4>E6 · There is no record that anyone consented</h4>
+<p>A lead has a name, a number and a status. It has <strong>no consent field</strong> — no opt-in flag, no source, no timestamp, no capture URL, no wording shown. I searched the lead model and the campaign schema; there is nothing.</p>
+<p>Consent is an affirmative defence. In a dispute, the platform that cannot produce the artefact loses by default. This matters twice over: our customers need it, and <em>we</em> need to be able to show a carrier that our customers hold it.</p>
+<p><strong>Fix: a day</strong> — four columns on a lead (consent source, timestamp, evidence reference, wording) filled at import, and shown on the lead card.</p>
+</div>
+
+<div class="box amber">
+<h4>E7 · We are not scrubbing the national do-not-call registry</h4>
+<p>Our suppression list is <strong>per company and internal</strong> — <code>isNumberInDnc(number, companyUuid)</code>, and the whole platform holds <strong>10 numbers</strong>.</p>
+<p>The one federal integration we have points at <code>api.ftc.gov/v0/dnc-complaints</code>. That is the regulator's <em>complaints</em> feed — a list of numbers people have complained <em>about</em>. It is not the National Do Not Call Registry, which is a separate, paid subscription requiring a registered account number.</p>
+<p>So a customer running a marketing campaign through us is scrubbing against their own list and a complaints feed, and not against the registry that actually matters.</p>
+<p><strong>Fix: a subscription plus about two days.</strong> This one genuinely costs money — but it is the customer's obligation, so it can be a paid feature rather than a cost we absorb.</p>
+</div>
+
+<div class="box amber">
+<h4>E8 · We do not sign our calls</h4>
+<p>I searched the entire SIP proxy configuration for caller-ID authentication — no signing, no verification, no identity header handling. Our outbound calls carry whatever attestation the upstream carrier chooses to give them, which for traffic handed over unsigned is the lowest tier.</p>
+<p>This is not theoretical housekeeping. On <strong>3 September 2026 the regulator removed fourteen named companies</strong> from the robocall mitigation database, and every downstream provider then has two business days to stop accepting their traffic. Attestation drift from A toward C is the leading indicator your document already names as worth alerting on — and we cannot even measure it, because we do not participate.</p>
+<p><strong>Fix: this is a registration project, not a coding one</strong> — and only once we are a US provider. See the ordering in section 4.</p>
+</div>
+
+<div class="box amber">
+<h4>E9 · Not one of our 34 numbers has a service address on file</h4>
+<p>Four tables exist for exactly this purpose. All four are empty:</p>
+<pre>identities                  0 rows
+identity_address            0 rows
+identity_proofs             0 rows
+did_address_verifications   0 rows      (34 numbers held)</pre>
+<p>Consequences, in order of seriousness: emergency calls cannot deliver a location; the dispatchable-location requirement cannot be met; the Gate 3 control in your own fraud document has nothing to validate; and number types that the carrier gates on identity are simply unavailable to us.</p>
+<p>The schema is built. Nobody wired the form to it.</p>
+<p><strong>Fix: a day for capture and validation</strong> — the postal API is free, and the tables already exist.</p>
+</div>
+
+<div class="box amber">
+<h4>E10 · Five registered brands, and the data in them is junk</h4>
+<p>The registry holds five brands under our own account, all ACTIVE, all with tax IDs set. Their names are <code>::::::</code>, <code>TestConnect</code> (three times) and <code>Test Communications 123</code>, all created on 1 September.</p>
+<p>These are real registrations with a real fee against our account. And <strong>zero campaigns exist</strong> — so no messaging traffic is authorised at all today, which is the one saving grace.</p>
+<p>Carriers audit a service provider's registry record. Five junk brands is what a poorly-run provider looks like from the outside, and your fraud document is explicit that a high rejection rate reads upstream as poor customer vetting.</p>
+<p><strong>Fix: an hour</strong> — delete them, and gate brand submission behind a real company name and tax ID check.</p>
+</div>
+
+<div class="box amber">
+<h4>E11 · Customer-data obligations, none of which exist yet</h4>
+<ul>
+<li><strong>Customer proprietary network information.</strong> A US provider must run a programme — access controls on call records, staff training, breach notification, and an <strong>annual certification signed by an officer, due 2 March each year</strong>. We have none of it. The one piece that exists is the recording-listen permission gate.</li>
+<li><strong>Lawful intercept capability.</strong> Nothing. This is a build-and-certify project, not a switch to flip.</li>
+<li><strong>Retention and erasure for call data.</strong> People have a documented 72-hour purge. Call history, recordings, transcripts and messages have <strong>no retention rule and no erasure path at all</strong> — so we can neither promise a customer we delete their data nor prove that we do.</li>
+<li><strong>Audit logging covers one company.</strong> 9,565 rows, all from a single tenant since 2 September. Either it is not enabled platform-wide, or only one tenant does auditable things — either way it is not evidence.</li>
+<li><strong>Nobody owns traceback.</strong> The 24-hour response deadline is a legal obligation with no named person behind it.</li>
+</ul>
+</div>
+
+<h2>3 · The two lists, side by side</h2>
+<p>This is the whole argument in one table. Look at the two cost columns.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:34%">Control</th><th style="width:11%">State</th><th style="width:14%">Cost to run</th><th style="width:14%">Cost to fix</th><th>Exposure if wrong</th></tr></thead>
+<tbody>
+<tr><td colspan="5" style="background:#f4f6f8"><span class="tag">Built — and free to run</span></td></tr>
+<tr><td>Predictive pacing to the 3% / 2-second rule</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+<tr><td>Do-not-call check before every single dial</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+<tr><td>Recorded-call announcement, both directions</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+<tr><td>Our own messaging-registry account</td><td><span class="pill p-green">Built</span></td><td>per brand</td><td>—</td><td>—</td></tr>
+<tr><td>Bot protection at the front door</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+<tr><td>72-hour purge for removed people</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+<tr><td>Per-customer concurrent-call cap</td><td><span class="pill p-green">Built</span></td><td>free</td><td>—</td><td>—</td></tr>
+
+<tr><td colspan="5" style="background:#f4f6f8"><span class="tag">Missing — and nearly free to fix</span></td></tr>
+<tr><td>Clamp the abandon cap to 3% and 2 seconds</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>2 lines</strong></td><td>The federal rule is switchable from a settings screen</td></tr>
+<tr><td>Delete the five junk registry brands</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>1 hour</strong></td><td>How a badly-run provider looks to a carrier audit</td></tr>
+<tr><td>Stop declaring "no opt-out" to the registry</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>2 hours</strong></td><td>Campaign rejection; a false-looking declaration</td></tr>
+<tr><td>Persist abandon counters over 30 days</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>½ day</strong></td><td>The cap resets every time a campaign restarts</td></tr>
+<tr><td>8am–9pm calling window, recipient's local time</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>½ day</strong></td><td>One badly-timed campaign violates for every lead</td></tr>
+<tr><td>STOP / HELP keyword handling and suppression</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>1 day</strong></td><td><strong>$500–$1,500 per message, private right of action</strong></td></tr>
+<tr><td>Consent record on every lead</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>1 day</strong></td><td>No affirmative defence; lose the dispute by default</td></tr>
+<tr><td>Service address captured and validated per number</td><td><span class="pill p-red">Missing</span></td><td>free (postal API)</td><td><strong>1 day</strong></td><td>Emergency calls cannot deliver a location</td></tr>
+<tr><td>Named owner for traceback, 24-hour deadline</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>1 hour</strong></td><td>Removal from the mitigation database</td></tr>
+<tr><td>Retention rule for call data and recordings</td><td><span class="pill p-red">Missing</span></td><td>free</td><td><strong>1 day</strong></td><td>Cannot honour a deletion request or prove we did</td></tr>
+<tr><td>Audit logging on every tenant</td><td><span class="pill p-amber">One tenant</span></td><td>free</td><td><strong>½ day</strong></td><td>Logs that are not universal are not evidence</td></tr>
+
+<tr><td colspan="5" style="background:#f4f6f8"><span class="tag">Missing — and these genuinely cost money, later</span></td></tr>
+<tr><td>National do-not-call registry subscription</td><td><span class="pill p-red">Missing</span></td><td>subscription</td><td>~2 days</td><td>Customer obligation — can be a paid feature</td></tr>
+<tr><td>Caller-ID authentication (signing)</td><td><span class="pill p-red">Missing</span></td><td>carrier/registration</td><td>project</td><td>Calls labelled or blocked; database removal</td></tr>
+<tr><td>Customer-data programme + annual certification</td><td><span class="pill p-red">Missing</span></td><td>legal counsel</td><td>project</td><td>Officer-signed filing, due 2 March</td></tr>
+<tr><td>Lawful intercept capability</td><td><span class="pill p-red">Missing</span></td><td>vendor</td><td>project</td><td>Build-and-certify, not a switch</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box amber">
+<h4>Add it up</h4>
+<p>Everything in the middle block — eleven items, every one of which is a real regulatory exposure — comes to roughly <strong>six developer-days and one hour of somebody's attention</strong>. Nothing in it needs a vendor, a subscription, a lawyer or a registration.</p>
+<p>Everything in the bottom block costs real money and takes real time — and <strong>none of it applies until we are a US provider</strong>, which by the tax analysis is not yet.</p>
+</div>
+
+<h2>4 · One piece of good luck, and what it buys you</h2>
+<div class="box blue">
+<p><strong>The dialer has never really run.</strong> Thirteen campaigns exist. Agent activity records: <strong>zero</strong>. Registered messaging campaigns: <strong>zero</strong>, so no A2P traffic is authorised. Suppression list: ten numbers.</p>
+<p>Which means every exposure in section 2 is <strong>prospective, not historic</strong>. There is no back-catalogue of violations to unwind, no consent to reconstruct for calls already made, no messages already sent to people who said stop. That is unusually lucky, and it is a wasting asset — it stops being true the first week a customer runs a real campaign.</p>
+<p><strong>The window to fix this costs six days and closes the moment the dialer goes live.</strong> After that, every one of these becomes both a fix and a clean-up.</p>
+</div>
+
+<h2>5 · The order</h2>
+<h3>This week — six days, no budget, no vendor</h3>
+<ol>
+<li><strong>Clamp the abandon cap</strong> to 3% and 2 seconds. Two lines. Do it first because it takes minutes and closes a hole that a customer can open from a screen.</li>
+<li><strong>Delete the five junk brands</strong> and gate brand submission on a real name and tax ID.</li>
+<li><strong>Stop declaring "no opt-out"</strong> — take the keywords and messages from the form, un-comment the schema.</li>
+<li><strong>Build STOP / HELP handling</strong> — match the seven named words, write to the suppression list, reply once, and make it apply to <em>all</em> traffic to that number, not just the campaign it came from. This is the single highest-value day of work on this page.</li>
+<li><strong>Add the calling window</strong> — recipient's local time, hold rather than discard.</li>
+<li><strong>Persist abandon counters</strong> over a rolling 30 days, seeded on campaign start.</li>
+<li><strong>Add consent fields to a lead</strong> and require them at import.</li>
+<li><strong>Capture and validate the service address</strong> when a number is assigned — the postal API is free and the tables are already there.</li>
+<li><strong>Name a traceback owner</strong> and give them an alert that reaches a phone, not an inbox.</li>
+<li><strong>Write down a retention rule</strong> for call history, recordings and messages — and implement the deletion job that enforces it.</li>
+</ol>
+
+<h3>Alongside the metering project — Stage 1 of your own document</h3>
+<p>The spend cap and destination default-deny are unchanged from the last report, and still the biggest fraud exposure: the call router has no balance check and no destination list, so a new account can dial anywhere on earth from its first minute. Both are blocked on the same missing piece as billing — nothing debits a balance for usage. <strong>Do them in the same project.</strong></p>
+
+<h3>Only when we become a US provider</h3>
+<p>Registry subscription, caller-ID signing, the customer-data programme and its annual certification, lawful intercept, and the regulatory filings. Same trigger as the tax engine in the previous report — a US revenue run rate, a US provider registration, or the first US customer on a US number.</p>
+
+<p class="foot">
+Evidence: pacing engine, campaign repository, lead schema and messaging repository read in the Bitbucket working copies; brand, campaign, agent-activity and suppression-list counts read from the production MongoDB; identity, address, audit and device counts from the production MySQL; the recording announcement confirmed on the live switch by <code>file_exists</code>; the SIP proxy configuration searched in full for caller-ID authentication.<br>
+Regulatory positions are drawn from the FCC's own material and current practitioner guidance and are stated as engineering requirements, not legal advice — the filings and the certification need counsel.
+</p>
+
+</div>
+</body>
+</html>
