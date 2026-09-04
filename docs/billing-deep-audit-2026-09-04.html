@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billing — deep audit against the reference product, 4 September 2026</title>
+<style>
+  :root{
+    --ink:#101418; --muted:#5a6672; --line:#dfe4ea; --bg:#fbfcfd; --card:#fff;
+    --red:#b3261e; --redbg:#fdeceb; --amber:#8a5a00; --amberbg:#fff5e0;
+    --green:#146c43; --greenbg:#e8f5ee; --blue:#0b5cab; --bluebg:#eaf2fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 22px 90px}
+  h1{font-size:29px;line-height:1.25;margin:0 0 6px}
+  h2{font-size:21px;margin:44px 0 6px;padding-top:22px;border-top:2px solid var(--line)}
+  h3{font-size:16.5px;margin:26px 0 6px}
+  p{margin:9px 0}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .n{font-size:26px;font-weight:700;line-height:1.1}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0;
+          border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:13.4px;min-width:720px}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f4f6f8;font-weight:600;font-size:12.4px;letter-spacing:.02em;position:sticky;top:0}
+  tbody tr:last-child td{border-bottom:none}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.4px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .p-red{background:var(--redbg);color:var(--red)}
+  .p-amber{background:var(--amberbg);color:var(--amber)}
+  .p-green{background:var(--greenbg);color:var(--green)}
+  .p-blue{background:var(--bluebg);color:var(--blue)}
+  .box{border-left:4px solid var(--line);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;background:var(--card)}
+  .box.red{border-color:var(--red);background:var(--redbg)}
+  .box.amber{border-color:var(--amber);background:var(--amberbg)}
+  .box.green{border-color:var(--green);background:var(--greenbg)}
+  .box.blue{border-color:var(--blue);background:var(--bluebg)}
+  .box h4{margin:0 0 6px;font-size:15px}
+  pre{background:#12171c;color:#e7edf3;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:12.3px;line-height:1.5}
+  ol,ul{margin:9px 0;padding-left:22px}
+  li{margin:5px 0}
+  .lead{font-size:16.5px}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+  .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Billing — deep audit against the reference product</h1>
+<p class="sub">4 September 2026 · every claim below was checked on the live production database, the live servers, or the actual source. Where a claim could not be proved, it says so.</p>
+
+<div class="grid">
+  <div class="stat"><div class="n">18</div><div class="l">reference billing articles read in full</div></div>
+  <div class="stat"><div class="n">23</div><div class="l">companies on the live platform</div></div>
+  <div class="stat"><div class="n">156</div><div class="l">bills ever written · <strong>0</strong> carry tax</div></div>
+  <div class="stat"><div class="n">78</div><div class="l">failed charge rows, all with no follow-up</div></div>
+  <div class="stat"><div class="n">3</div><div class="l">servers running the nightly billing job at once</div></div>
+  <div class="stat"><div class="n">$0.00</div><div class="l">of call, SMS or fax usage ever billed</div></div>
+</div>
+
+<div class="box red">
+  <h4>The one-line summary</h4>
+  <p>The <em>shop</em> works — a customer can pick a plan, pay by card, and the account turns on. Everything <em>after</em> the first payment is where the platform is thin: nothing charges for what people actually use, no tax is ever collected, nobody is chased when a payment fails, and the nightly billing job runs on three machines at once against one database. Before taking real money at scale, fix items M1 to M5 in Part 5.</p>
+</div>
+
+<h2>Part 1 — How the reference product bills</h2>
+<p>Their billing is built on <strong>five separate ideas</strong>. Ours currently has one and a half of them. Understanding the five is the whole map.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:16%">Idea</th><th style="width:38%">What it means</th><th>Why it exists</th></tr></thead>
+<tbody>
+<tr><td><strong>1. Licences</strong></td><td>You buy seats up front. You pay for a seat whether or not anyone sits in it. You can only create as many users as you have licences. Seats bought mid-month are prorated to the day. Seats removed stay live until the end of the cycle you already paid for.</td><td>It is the predictable, recurring part of the bill. It is also the hard limit on how many people you can add — the licence count <em>is</em> the enforcement.</td></tr>
+<tr><td><strong>2. Credits (a wallet)</strong></td><td>A pre-paid balance for the things you cannot predict: calling minutes, SMS segments, fax pages, AI conversations. Spending order is fixed: plan allowance first → the matching commitment → the general credit wallet. Auto-recharge tops the wallet up when it drops below a set floor.</td><td>Usage is variable. A wallet means a customer can never run up a surprise debt, and the company never gives away service it has not been paid for.</td></tr>
+<tr><td><strong>3. Usage history</strong></td><td>Every single chargeable event is a row: who, when, which number, direction, duration, rate, billing increment, which wallet paid, and what it cost. Filterable by user, month, service, amount. Exportable to CSV or Excel.</td><td>This is the evidence. When a customer disputes a bill, you show them the row. Without it, every dispute is a refund.</td></tr>
+<tr><td><strong>4. Taxes and fees</strong></td><td>Telecom tax is not sales tax. On top of the plan price they add: federal universal service fund, a relay-service fee, a compliance cost-recovery fee, a per-line E911 fee (about $0.99 per user per month), plus state and local surcharges, plus GST/HST in Canada — all driven by the company's billing address.</td><td>These are legally mandated. Not collecting them does not make them go away; it makes them a liability the platform pays out of its own margin.</td></tr>
+<tr><td><strong>5. Account lifecycle</strong></td><td>Card verification before the first payment. Then, if a payment fails: <em>on hold</em> (email the admin, banner in the app, a spoken reminder at the start of calls — <strong>but lines stay live</strong>), then <em>suspended</em> (lines dead, callers hear why). Self-service cancellation for small month-to-month accounts. A written refund rule: 3 days, no exceptions.</td><td>A failed card is usually an expired card, not a deadbeat. The graded hold gives an honest customer time to fix it, and gives the business a defensible point at which to stop giving away service.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Things they have that are worth knowing about but are not launch blockers</h3>
+<ul>
+<li><strong>Licence pool</strong> — unused seats float between offices of the same company automatically, one pool per currency. Only relevant once a customer has several sites.</li>
+<li><strong>Unified credit pool</strong> — one shared wallet across offices; each office spends its own allowance first, then the shared pot.</li>
+<li><strong>Flex vs contracted licences</strong> — flex is self-service, list price, prorated to the day, cancel any time. Contracted is a signed term at a better rate. Two different products with two different rules.</li>
+<li><strong>Cost centres</strong> — pure reporting labels. Split an office, a user, or a licence across up to 10 codes; each split must total exactly 100%; precedence is user → licence → office. They explicitly change nothing about the invoice.</li>
+<li><strong>Billing change log</strong> — every licence added or removed, filterable by user and month, exportable.</li>
+<li><strong>Credits analytics</strong> — trends by date range, service, and credit sub-type (domestic, international, toll-free, contact-centre inbound, contact-centre outbound).</li>
+</ul>
+
+<h2>Part 2 — Our ten billing screens, one by one</h2>
+<p>What each screen actually does today, checked in the code.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:15%">Screen</th><th style="width:9%">State</th><th style="width:38%">What it really does</th><th>What is missing against the reference</th></tr></thead>
+<tbody>
+<tr><td><strong>Summary</strong></td><td><span class="pill p-green">Live</span></td><td>Reads the real invoice list and the real month-to-date usage. Deliberately prints "Not available yet" instead of a zero where the platform does not know a figure.</td><td>No next-bill estimate with a due date. No payment method shown or editable from here. No notes on an invoice. No self-serve upgrade button.</td></tr>
+<tr><td><strong>Usage</strong></td><td><span class="pill p-amber">Partial</span></td><td>Shows allowance vs used per service, with an honest "nobody has counted" for services with no counter.</td><td>Every counter on every company is <strong>zero</strong> (proved below). No per-event usage history, no rate column, no CSV export, no filters by user or service.</td></tr>
+<tr><td><strong>Plan</strong></td><td><span class="pill p-green">Live</span></td><td>Current plan, comparison, change-plan request, rate lookup, storage, licence management, DID list, agent costing.</td><td>Plan prices on this screen do not match the database (see M9/M10). No proration preview before you confirm. No flex-vs-contract concept.</td></tr>
+<tr><td><strong>Licences &amp; resources</strong></td><td><span class="pill p-amber">Partial</span></td><td>A tab shell over licence management and storage.</td><td>The licence count is <strong>not enforced anywhere</strong> — one company has 4,003 users on 2,001 licences. No scheduled removal, no restore, no pool.</td></tr>
+<tr><td><strong>Credit &amp; payment</strong></td><td><span class="pill p-amber">Partial</span></td><td>Add a card, manage cards, top up, and set auto-recharge. Top-ups genuinely work — 11 completed refills on the live system.</td><td>Auto-recharge is stored <strong>per person</strong>, not per company, and the job that spends it has no safety key (M2). No card verification step. No spending alerts.</td></tr>
+<tr><td><strong>Invoices</strong></td><td><span class="pill p-green">Live</span></td><td>Lists real bills with line detail, searchable by number and year. Exports the page as a PDF and says plainly that this is not a formal stamped invoice.</td><td>No legal invoice document, no tax lines (there is no tax to show), no notes, no chronological "billing history" with a paid/owing status the way the reference shows it.</td></tr>
+<tr><td><strong>Statement</strong></td><td><span class="pill p-green">Live</span></td><td>Walks every page of the billing list to build a full statement.</td><td>Nothing to reconcile against, because usage never becomes a line item.</td></tr>
+<tr><td><strong>Modules &amp; access</strong></td><td><span class="pill p-blue">Ours only</span></td><td>Explains why a part of the product is not visible — either the plan does not include it, or the role cannot see it. Reads the live plan features.</td><td>Nothing; the reference has no equivalent. Keep it.</td></tr>
+<tr><td><strong>Add-ons</strong></td><td><span class="pill p-amber">Read-only</span></td><td>Describes each add-on and shows honestly whether your plan already includes it.</td><td>You cannot buy one. The screen says why: the only endpoint that sells licences takes the price from the browser. That is the right call — do not add a buy button until M11 is fixed.</td></tr>
+<tr><td><strong>Cost centres</strong></td><td><span class="pill p-amber">Stored only</span></td><td>Codes save to the company and come back. The screen says clearly that nothing splits spending by them yet.</td><td>No allocation at office / user / licence level, no 100% rule, no precedence, no three CSV exports. This is the smallest gap of the ten and the least urgent.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Part 3 — Feature-by-feature comparison</h2>
+<p><span class="pill p-green">Have it</span> works today · <span class="pill p-amber">Part</span> exists but incomplete or not enforced · <span class="pill p-red">Missing</span> not built · <span class="pill p-blue">N/A</span> not needed yet</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th style="width:22%">Capability</th><th style="width:26%">Reference behaviour</th><th style="width:9%">Us</th><th>Evidence / note</th></tr></thead>
+<tbody>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Licences</td></tr>
+<tr><td>Buy seats self-service</td><td>Three places: company, billing, office. Prorated to next cycle.</td><td><span class="pill p-green">Have it</span></td><td>6 completed "License Purchase" bills, $141.90.</td></tr>
+<tr><td>Pay for unassigned seats</td><td>Charged whether assigned or not.</td><td><span class="pill p-green">Have it</span></td><td><code>companies.licenses</code> drives the renewal price.</td></tr>
+<tr><td>Seat count caps user creation</td><td>Hard limit — you cannot invite past your licences.</td><td><span class="pill p-red">Missing</span></td><td><strong>Capanicus: 2,001 licences, 4,003 users.</strong> Three companies have paid licences and zero licence rows.</td></tr>
+<tr><td>Schedule removal / restore</td><td>Removals apply at cycle end; you can cancel a removal for free.</td><td><span class="pill p-amber">Part</span></td><td><code>is_license_revoked</code> exists and the renewal job honours it. No screen to restore.</td></tr>
+<tr><td>Transfer a licence to another user</td><td>Yes.</td><td><span class="pill p-red">Missing</span></td><td>No endpoint.</td></tr>
+<tr><td>Flex vs contracted</td><td>Two products, different rules and prices.</td><td><span class="pill p-red">Missing</span></td><td>One licence type only.</td></tr>
+<tr><td>Licence pool across offices</td><td>Automatic, per currency.</td><td><span class="pill p-blue">N/A</span></td><td>Single-site customers only, for now.</td></tr>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Money in</td></tr>
+<tr><td>Card payments</td><td>Visa, MC, Amex, Discover, debit. No prepaid.</td><td><span class="pill p-green">Have it</span></td><td>Stripe. 9 cards on file across 9 companies.</td></tr>
+<tr><td>Card verification before first charge</td><td>Small charge, customer enters the amount, two tries, then locked; charge refunded within 14 days.</td><td><span class="pill p-red">Missing</span></td><td>No verification step anywhere. <code>payment_verified</code> is set by the payment itself.</td></tr>
+<tr><td>Pre-paid wallet / credits</td><td>Central to their model, with a defined spend order.</td><td><span class="pill p-amber">Part</span></td><td>A balance exists (<code>companies.amount</code>) and top-ups credit it. <strong>Nothing ever debits it.</strong></td></tr>
+<tr><td>Auto-recharge</td><td>Per office. Below a floor, top up by a set amount.</td><td><span class="pill p-red">Broken</span></td><td>Stored per <em>person</em>; the job loops over every user in the platform every 2 minutes with no safety key. See M2.</td></tr>
+<tr><td>Annual / multi-month billing</td><td>Monthly and annual, prorated on switch.</td><td><span class="pill p-amber">Part</span></td><td>1 / 3 / 6 / 12-month durations exist. Every live company is on 1 month.</td></tr>
+<tr><td>Promo codes / discounts</td><td>Annual discount.</td><td><span class="pill p-amber">Part</span></td><td>Columns exist; <strong>0 of 156</strong> bills used one. The yearly discount data is wrong — see M9.</td></tr>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Usage and metering</td></tr>
+<tr><td>Every call is a priced row</td><td>Call ID, from, to, direction, duration, rate, increment, wallet, cost.</td><td><span class="pill p-red">Missing</span></td><td>A cost <em>is</em> written into the tenant's call history — but it never becomes a bill, never touches the balance, and <code>charge</code> is often 0 while <code>cost</code> is not.</td></tr>
+<tr><td>SMS / MMS by segment</td><td>Per segment, 160 chars (70 unicode).</td><td><span class="pill p-amber">Part</span></td><td>Rate cards exist (651 SMS rates). No usage rows, no charges.</td></tr>
+<tr><td>Fax by page</td><td>Per page, with status.</td><td><span class="pill p-amber">Part</span></td><td>Rate card exists. No usage rows.</td></tr>
+<tr><td>Plan allowance counters</td><td>Committed / spent / available / used %.</td><td><span class="pill p-red">Broken</span></td><td><strong>All 23 companies show <code>call_duration_used = 0</code>.</strong> The allowance itself is 0 on 17 of 23 and "999999999" on 6 — it is not even provisioned consistently.</td></tr>
+<tr><td>Usage history with filters + export</td><td>User, month, service, credits, amount; CSV and XLSX.</td><td><span class="pill p-red">Missing</span></td><td>No usage-event table exists in any tenant database.</td></tr>
+<tr><td>Balance check before an outbound call</td><td>Implicit — no credits, no call.</td><td><span class="pill p-red">Missing</span></td><td>The call path never asks about money.</td></tr>
+<tr><td>Inbound call rating</td><td>Inbound is a charged service.</td><td><span class="pill p-red">Broken</span></td><td>Every plan's inbound rate card points at <code>a1b005f6-…</code>, <strong>which does not exist</strong> in the rate-card table and has zero rates.</td></tr>
+<tr><td>Toll-free rating</td><td>Separate, higher rate.</td><td><span class="pill p-red">Missing</span></td><td><code>tollfree_rates = 0.0000</code> on all three live plans.</td></tr>
+<tr><td>Number (DID) monthly rental</td><td>Charged per line, per month.</td><td><span class="pill p-red">Broken</span></td><td>19 "DID Charges" bills, <strong>every one for $0.00</strong>. One real "DID Renew" at $9.00 in total history.</td></tr>
+<tr><td>Storage overage</td><td>Per GB above the plan.</td><td><span class="pill p-green">Have it</span></td><td>Price per GB is set, a nightly job renews extra storage, usage is synced every 15 minutes.</td></tr>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Taxes and fees</td></tr>
+<tr><td>Sales / GST / HST</td><td>By billing address.</td><td><span class="pill p-red">Broken</span></td><td>Stripe Tax <em>is</em> wired in, but the amount charged is the pre-tax figure, and <strong>0 of 156</strong> bills carry any tax. See M3.</td></tr>
+<tr><td>E911 fee per line</td><td>~$0.99 per user per month.</td><td><span class="pill p-red">Missing</span></td><td>No concept of a regulatory fee.</td></tr>
+<tr><td>Universal service / relay / compliance fees</td><td>Itemised on every bill.</td><td><span class="pill p-red">Missing</span></td><td>—</td></tr>
+<tr><td>SMS brand &amp; campaign registration fees</td><td>One-off plus monthly, passed through.</td><td><span class="pill p-red">Missing</span></td><td>—</td></tr>
+<tr><td>Tax-exempt handling</td><td>Certificate on file.</td><td><span class="pill p-red">Missing</span></td><td>—</td></tr>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Lifecycle and collections</td></tr>
+<tr><td>Failed payment → email the admin</td><td>Immediate, with a link to fix the card.</td><td><span class="pill p-red">Missing</span></td><td>78 failed rows. Every one silent. Not one email.</td></tr>
+<tr><td>"On hold" state — lines stay live</td><td>Banner, email, spoken reminder to the admin. Service continues.</td><td><span class="pill p-red">Missing</span></td><td>We have only two states: works, or everyone is locked out.</td></tr>
+<tr><td>"Suspended" state — lines dead, callers told why</td><td>Distinct, later state.</td><td><span class="pill p-amber">Part</span></td><td>At <strong>7 days past expiry</strong> every user is set inactive and sessions destroyed. Verified live: three companies are in this state. Nothing tells the caller why.</td></tr>
+<tr><td>Expiry notice to the customer</td><td>Yes.</td><td><span class="pill p-green">Have it</span></td><td>One email + in-app + SMS the moment a plan flips to expired.</td></tr>
+<tr><td>Self-service cancellation</td><td>Trials and small month-to-month accounts.</td><td><span class="pill p-red">Broken</span></td><td>A request screen exists. <strong>Three cancellations have sat unprocessed since July</strong>, their billing dates long past.</td></tr>
+<tr><td>Refund rule</td><td>Written: 3 days, no refunds on unused licences or annual plans.</td><td><span class="pill p-red">Missing</span></td><td>Refund columns exist; <strong>0 refunds ever issued</strong>. No policy in the product.</td></tr>
+<tr><td>Reactivate after payment</td><td>Pay, service resumes.</td><td><span class="pill p-amber">Part</span></td><td>Renewal payment works; nothing reverses the users that the 7-day job set inactive.</td></tr>
+
+<tr><td colspan="4" class="tag" style="background:#f4f6f8">Records and reporting</td></tr>
+<tr><td>Formal PDF invoice</td><td>Download per bill.</td><td><span class="pill p-red">Missing</span></td><td>Screen prints itself as a PDF and says so honestly.</td></tr>
+<tr><td>Billing history with paid/owing status</td><td>Chronological, with description and notes.</td><td><span class="pill p-amber">Part</span></td><td>Status exists; there is no "owing" concept because nothing is ever owed — it either charges or it fails.</td></tr>
+<tr><td>Notes on an invoice</td><td>Visible to both sides.</td><td><span class="pill p-red">Missing</span></td><td>—</td></tr>
+<tr><td>Billing change log</td><td>Licence adds/removes, filter by user and month, CSV.</td><td><span class="pill p-red">Missing</span></td><td>—</td></tr>
+<tr><td>Cost centres</td><td>Codes, allocations, 3 CSV reports.</td><td><span class="pill p-amber">Part</span></td><td>Codes only, and the screen says so.</td></tr>
+<tr><td>Credits analytics</td><td>Trends by service and sub-type.</td><td><span class="pill p-red">Missing</span></td><td>Needs usage rows first.</td></tr>
+<tr><td>Spending alerts</td><td>Flags an unusual jump.</td><td><span class="pill p-red">Missing</span></td><td>Low-balance email alert exists — that is a different thing.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Part 4 — What is actually wrong, with the proof</h2>
+
+<div class="box red">
+<h4>M1 · Three servers run the nightly billing job against the same database</h4>
+<p><strong>Proof.</strong> <code>mcm-new</code> and <code>mcm-ucaas3</code> both have <code>DB_HOST=ucass-mysql-do-user-11297133-0…</code> and <code>DB_NAME=mycountrymobile_db</code>, and both logs say <em>"Cron jobs registered on PM2 instance 0"</em>. The job's guard only skips when <code>NODE_APP_INSTANCE</code> is set and is not <code>"0"</code> — it stops a second copy on the <em>same</em> machine, and nothing else. The database then shows the result: at 00:10 every night the same company gets <strong>3 or 4 identical billing rows, seconds apart</strong>.</p>
+<pre>2026-09-04  Capanicus   3 rows  00:10:01, 00:10:02, 00:10:04
+2026-09-04  Testers4    3 rows  00:10:02, 00:10:04, 00:10:08
+2026-09-02  Capanicus   4 rows  00:10:03 ×3, 00:10:04</pre>
+<p>I confirmed two of the three writers. The third writes to production but I could not name the machine — the two clone sites (695 and ucaas.in) both use their own local databases and have crons switched off, and the switch box runs no API. <strong>That unidentified third writer should be found before anything else</strong>, because it is a machine nobody is accounting for that has write access to the live billing tables.</p>
+<p><strong>Why it has not hurt yet:</strong> the plan-renewal charge carries a safety key built from company + plan + licences + amount + <em>today's date</em>, so the card processor collapses the duplicates into one charge. Auto-recharge (M2) carries <strong>no such key</strong>. That is the exposure.</p>
+</div>
+
+<div class="box red">
+<h4>M2 · Auto-recharge can charge a customer many times over</h4>
+<p>Four faults stack up in one routine:</p>
+<ol>
+<li>It loops over <strong>every user on the platform</strong>, not every company — but the balance it checks and tops up is the <em>company's</em>. Five people in one company with auto-recharge on means five top-ups.</li>
+<li>The five run <strong>in parallel</strong>, so they all read the same low balance before any of them has credited it.</li>
+<li>The payment is created with <strong>no safety key</strong>, so the card processor cannot collapse duplicates.</li>
+<li>The job runs <strong>every two minutes</strong>, and the balance only rises when the processor's callback arrives. If that callback is slow or lost, it charges again two minutes later. Then again.</li>
+</ol>
+<p>The in-process "already running" guard does not help, because of M1 — three processes, three guards.</p>
+<p><strong>Why it has not hurt yet:</strong> only two auto-recharges have ever fired, both on 31 July, because almost nobody has the setting on. At launch, that changes.</p>
+</div>
+
+<div class="box red">
+<h4>M3 · Tax is calculated and then thrown away</h4>
+<p>The tax routine calls the payment provider's tax service correctly, and returns a full breakdown: sub-total, tax amount, tax percentage, total. But the field the charging code uses — <code>total_cost</code> — is set to <code>plan price × licences</code>, the figure <em>before</em> tax. The renewal job then charges exactly that.</p>
+<p>So even on the day tax registration is completed, <strong>the tax would still not be charged</strong>. It is a one-line fix in the return value, and it must be made before registering, not after.</p>
+<p>Separately: <strong>0 of 156 bills carry any tax</strong>, which is consistent with there being no tax registration on the payment provider account yet. And there is no concept at all of the telecom-specific fees (E911 per line, universal service, relay, compliance) that the reference itemises on every bill. Those are legal obligations, not optional line items.</p>
+</div>
+
+<div class="box red">
+<h4>M4 · Nobody is ever told their payment failed</h4>
+<p>When the renewal job cannot charge, it writes a row and moves on:</p>
+<pre>2026-09-04 00:10:11  MCM          $2.00   "Renewal skipped - no card"
+2026-09-04 00:10:10  Testcompany  $6.00   "Plan renewal failed: Failed to list payments: Keys…"
+2026-09-04 00:10:08  Testers4     $27.99  "Renewal skipped - no card"
+2026-09-04 00:10:04  Capanicus    $30.00  "Renewal skipped - no card"</pre>
+<p>No email. No banner. No reminder. The same four rows are written again the next night, and the night after — 78 of them so far. The customer's first and only signal is that on day 7 every single user is locked out at once, with no warning in between.</p>
+<p>There is also a gap in the code's own logic: the "no card" branch does <strong>not</strong> apply the two-days-overdue rule that the "card declined" branch does. A company with no card simply drifts, still fully working, until the separate 7-day sweep catches it.</p>
+<p>Note one thing in the reference that is easy to miss and is the right design: <strong>on hold, the lines stay live.</strong> A failed card is usually an expired card. Cutting service on day one costs you the customer; cutting on day seven with no warning costs you the customer <em>and</em> a support fight.</p>
+</div>
+
+<div class="box red">
+<h4>M5 · Nothing charges for what people actually use</h4>
+<p>This is the biggest hole and the easiest one to miss, because several pieces of it exist and look healthy.</p>
+<ul>
+<li>Rate cards are <strong>real and loaded</strong> — 92,622 outbound call rates, 651 SMS rates, fax and MMS cards.</li>
+<li>A per-call cost <strong>is</strong> written into each tenant's call history. In one tenant, 53 of 153 calls carry a cost; total, $1.47.</li>
+<li>But <code>charge</code> — the figure meant to be the customer's — is often <strong>0 while <code>cost</code> is not</strong>. On 3 September: 14 answered calls, 10 rated, <strong>every charge 0.00</strong>.</li>
+<li>Nothing carries any of it into the ledger. There is no "Balance Deduct" row in the entire billing history. Every company's <code>call_duration_used</code> is <strong>0</strong>.</li>
+<li>Inbound cannot be rated at all: every plan points at rate card <code>a1b005f6-…</code>, which does not exist.</li>
+<li>Number rental produces bills of <strong>$0.00</strong> — 19 of them.</li>
+<li>Nothing checks a balance before placing a call.</li>
+</ul>
+<p>The plain version: <strong>a customer on the $2 plan can make unlimited international calls and be charged $2.</strong> The carrier still invoices us for every minute.</p>
+</div>
+
+<div class="box amber">
+<h4>M6 · Three cancellations have been ignored since July</h4>
+<p>Three companies asked to cancel. Their requests sit at status "pending" with billing dates of 29 July, 30 July and 28 August. The renewal job <em>does</em> contain the code to honour a cancellation — but it only looks at companies whose plan has already expired and which reach that branch, and these three never got there. Meanwhile two of them have been charged nothing and one is still marked active.</p>
+</div>
+
+<div class="box amber">
+<h4>M7 · The plan prices are wrong in two different directions</h4>
+<p><strong>The yearly Ultimate price is broken data.</strong> Monthly $2, quarterly $6, six-month $12 — and then yearly shows an original price of <strong>$24</strong> with a "25% discount" price of <strong>$378</strong>. The discounted price is fifteen times the original. Anyone choosing yearly to save money pays 15× more.</p>
+<p><strong>The screen and the database disagree.</strong> The plan catalogue in the website says Ultimate is $42 per seat per month. The database says $2, and $2 is what is charged — 14 companies are on it. One of those two numbers is a promise you are breaking; only you can say which.</p>
+</div>
+
+<div class="box amber">
+<h4>M8 · Money endpoints trust the browser</h4>
+<ul>
+<li><code>/api/payment/charge</code> (plan upgrade) takes <code>company_uuid</code> from the request body and never checks it against the signed-in user. The trial-upgrade endpoint does the same. The renewal endpoint <em>does</em> check — so the fix is a two-line copy from one file to another.</li>
+<li>The same two endpoints take the <strong>licence count from the browser</strong>, and the licence count is what sets the price.</li>
+<li>In four places a saved card is looked up by its id alone, with <strong>no company filter</strong> — <code>Card.findOne({ where: { uuid: card_id } })</code>. The card processor's own "this card belongs to another customer" check blocks the worst outcome, but the platform should never have needed rescuing by it.</li>
+</ul>
+<p>This is exactly why the add-ons screen has no buy button today. That was the right decision; keep it until this is fixed.</p>
+</div>
+
+<div class="box amber">
+<h4>M9 · Licence counts are sold but never enforced</h4>
+<p>Capanicus has <strong>2,001 licences and 4,003 users</strong>. Three companies have paid licences and zero licence records. Nothing anywhere refuses to create user number <em>n+1</em>. In the reference, the licence count <em>is</em> the enforcement — it is the reason people buy more.</p>
+</div>
+
+<div class="box amber">
+<h4>M10 · A successful renewal depends on a callback that may not arrive</h4>
+<p>When the nightly job charges a card successfully, it does <strong>not</strong> itself extend the plan. The new expiry date and the "active" status are written later, by the payment provider's callback. If that callback fails — and it refuses outright when it cannot resolve a company from the event — the money is taken and the plan is not extended. The next night the job runs again with a fresh safety key (the key includes the date), and <strong>charges again.</strong></p>
+<p>I have no evidence this has happened yet. It is a latent design fault worth closing while volumes are small.</p>
+</div>
+
+<div class="box amber">
+<h4>M11 · The hourly lock-out job has no brakes</h4>
+<p>The job that deactivates users 7 days past expiry selects on the expiry date <strong>only</strong> — the plan-status filter is commented out in the source. Any company whose expiry date is stale for any reason (including the M10 callback failure) has every user set inactive and every session destroyed, <strong>every hour</strong>, whether or not they have paid. Nothing ever reverses it.</p>
+</div>
+
+<h2>Part 5 — What to do, in order</h2>
+
+<h3>Before you take real money from real customers</h3>
+<div class="scroll">
+<table>
+<thead><tr><th style="width:6%">#</th><th style="width:26%">Do this</th><th style="width:12%">Who</th><th>Why it is first</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Find the third machine writing to the billing tables, and switch crons off everywhere except one.</td><td>You + infra</td><td>Nothing else is safe while three processes are charging cards. Set <code>NODE_APP_INSTANCE</code> to anything other than <code>0</code> on every box but the primary — that is the existing switch, and it works.</td></tr>
+<tr><td><strong>2</strong></td><td>Give auto-recharge a safety key, move it to one row per company, and stop it running every 2 minutes.</td><td>API developer</td><td>It is the one money path with no duplicate protection at all.</td></tr>
+<tr><td><strong>3</strong></td><td>Charge the tax-inclusive total, then register for tax.</td><td>Developer, then you</td><td>One line in the tax routine. Do it in that order or the registration collects nothing.</td></tr>
+<tr><td><strong>4</strong></td><td>Email the customer the moment a payment fails, and again on days 3 and 6.</td><td>API developer</td><td>78 silent failures. The email templates and the sender already exist — the expiry notice uses them.</td></tr>
+<tr><td><strong>5</strong></td><td>Add the "on hold" state: lines stay live, banner and email, for 7 days.</td><td>Developer + you</td><td>Turns a cliff into a slope. It is the difference between a customer who fixes their card and one who leaves.</td></tr>
+<tr><td><strong>6</strong></td><td>Take <code>company_uuid</code> and the licence count from the session, not the request body.</td><td>API developer</td><td>Two files, copied from the renewal endpoint that already does it right.</td></tr>
+<tr><td><strong>7</strong></td><td>Fix the yearly Ultimate price, and settle $2 vs $42.</td><td>You</td><td>Data, not code. Only you can decide the number.</td></tr>
+<tr><td><strong>8</strong></td><td>Process the three cancellations from July, by hand today.</td><td>You</td><td>Three real customers asked to leave five weeks ago.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Before you can bill for usage at all — the metering project</h3>
+<p>This is the one genuinely large piece of work, and it has a natural order. Each step is useful on its own.</p>
+<ol>
+<li><strong>Point the inbound rate card at a rate card that exists.</strong> Half a day. Nothing can rate inbound until this is done.</li>
+<li><strong>One usage table per tenant.</strong> One row per chargeable event — call, message, fax — with: what it was, who, when, from, to, direction, duration or segments or pages, the rate applied, the increment, and the cost. This table <em>is</em> the usage history screen, the CSV export, and the evidence in a billing dispute. Build it once, properly.</li>
+<li><strong>Write a row at the end of every call, message and fax.</strong> The call cost is already being worked out — it just goes nowhere. Send it here.</li>
+<li><strong>Deduct from the wallet, and record the deduction.</strong> Allowance first, then balance. The bill type <code>Balance Deduct</code> already exists in the schema and has never been used once.</li>
+<li><strong>Refuse to dial when the balance is empty.</strong> The single most valuable line of code in this list.</li>
+<li><strong>Make the allowance counters real</strong> — provision them on the company at signup and increment them as usage lands. Today they are zero on all 23 companies and the usage screen honestly says it does not know.</li>
+<li><strong>Charge for numbers.</strong> Nineteen $0.00 rental bills is nineteen months of a carrier cost we absorbed.</li>
+</ol>
+
+<h3>Then, to match the reference</h3>
+<ul>
+<li>Card verification before the first charge.</li>
+<li>A real PDF invoice, with tax and fee lines itemised.</li>
+<li>Enforce the licence cap when creating users, and add transfer + scheduled removal + restore.</li>
+<li>The billing change log.</li>
+<li>Cost centre allocations and the three CSV reports (the codes already save).</li>
+<li>A written refund and cancellation policy in the product, matching whatever you decide.</li>
+<li>Regulatory fees: E911 per line, universal service, relay, compliance recovery.</li>
+</ul>
+
+<h3>Leave until you need it</h3>
+<p>Licence pooling, unified credit pooling, flex-vs-contracted licences, credits analytics, spending alerts. All of these solve problems that only appear with multi-site customers or high volume. None is a launch blocker.</p>
+
+<div class="box blue">
+<h4>Two things our product does that the reference does not</h4>
+<p><strong>Modules &amp; access</strong> explains <em>why</em> a part of the product is not visible to you — plan or role. The reference makes you guess. Keep it.</p>
+<p><strong>Honest blanks.</strong> Several screens print "Not available yet" instead of a zero, because on a billing page a zero is a claim. That instinct is right and worth protecting as the metering work lands — a wrong number on a bill costs more to fix than a missing one.</p>
+</div>
+
+<p class="foot">
+Sources: 18 reference billing articles read in full · live production database <code>mycountrymobile_db</code> and tenant <code>mcm_1785851118409</code> · live servers <code>mcm-new</code>, <code>mcm-ucaas3</code>, <code>mcm-switch</code>, and both clone sites · source in <code>default-api</code> (billing, plan, payment, cron controllers and the shared helper) and the ten billing screens in the web app.<br>
+Not verified, and flagged as such above: the identity of the third machine writing billing rows, and whether the renewal callback has ever actually failed in production.
+</p>
+
+</div>
+</body>
+</html>
