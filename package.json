@@ -10,7 +10,8 @@
     "lint": "tsc -b && eslint .",
     "test": "tsc -b && eslint .",
     "preview": "vite preview",
-    "prepare": "husky"
+    "prepare": "husky",
+    "dev:mock": "vite --mode mock"
   },
   "dependencies": {
     "@cyntler/react-doc-viewer": "^1.17.1",
