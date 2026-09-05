@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
+import { RuleCard } from '@/components/mcm/rule-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { count } from 'sms-length';
-import { LifeBuoy, MessageSquare, MessageSquareText, ShieldAlert } from 'lucide-react';
+import { MessageSquareText } from 'lucide-react';
 
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
@@ -150,26 +150,6 @@ const validateForm = (form: MessagingForm): Record<string, string> => {
   return errors;
 };
 
-/* Kept as a thin name over SettingRow so the call sites below read as they did,
-   while the markup is the same one every other settings screen uses. */
-const ToggleRow = ({
-  title,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  title: string;
-  description: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) => (
-  <SettingRow
-    label={title}
-    description={description}
-    control={<Switch checked={checked} onCheckedChange={onCheckedChange} />}
-  />
-);
-
 const CompanyMessaging = () => {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<MessagingForm>(DEFAULT_FORM);
@@ -299,70 +279,86 @@ const CompanyMessaging = () => {
             </div>
           )}
 
-          <SettingCard
-            icon={<MessageSquare className="h-5 w-5" />}
+          <RuleCard
+            tone="indigo"
             title="Inbound and outbound SMS/MMS"
             description="One switch for texting with people outside the company, on every number this account owns."
             status="app-only"
-            note="Works in this app. When this is off, people are stopped from sending texts here. If you need texting stopped completely — for a legal hold or a carrier complaint — release the SMS numbers and contact support as well."
-          >
-            <ToggleRow
-              title="Allow SMS and MMS"
-              description="On means people here can text customers and customers can text back."
-              checked={form.sms_mms_enabled}
-              onCheckedChange={(checked) => updateForm({ sms_mms_enabled: checked })}
-            />
-            <div className="rounded-lg border border-gray-200 p-3">
-              <p className="text-sm font-semibold text-gray-900">
-                What switching this off is meant to do
-              </p>
-              <p className="text-xs text-gray-500">
-                &ldquo;Turn off SMS&rdquo; sounds more total than it is, so here is the intended
-                scope in full.
-              </p>
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs font-semibold text-gray-900">Stops</p>
-                  <ul className="mt-1 flex list-disc flex-col gap-1 pl-4 text-xs text-gray-600">
-                    <li>Texts to and from people outside the company, in and out.</li>
-                    <li>The SMS APIs, so anything you have wired up to text customers.</li>
-                    <li>SMS satisfaction (CSAT) surveys sent after a call or chat.</li>
-                  </ul>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-3">
-                  <p className="text-xs font-semibold text-gray-900">Keeps working</p>
-                  <ul className="mt-1 flex list-disc flex-col gap-1 pl-4 text-xs text-gray-600">
-                    <li>Messaging between people who both have accounts here.</li>
-                    <li>
-                      That traffic never touches a carrier — it runs over this platform&rsquo;s own
-                      messaging channel, so it is not SMS and this switch does not cover it.
-                    </li>
-                  </ul>
+            valueLabel="Texting with people outside the company"
+            /* On or off, said once at full size. It was a switch on a row like
+               any other, on a page whose first question is whether texting
+               works at all. */
+            value={form.sms_mms_enabled ? 'Allowed' : 'Off'}
+            valueHint={
+              form.sms_mms_enabled
+                ? 'People here can text customers, and customers can text back.'
+                : 'Nobody here can send a text, and inbound texts are not delivered.'
+            }
+            action={
+              <Switch
+                checked={form.sms_mms_enabled}
+                onCheckedChange={(checked) => updateForm({ sms_mms_enabled: checked })}
+              />
+            }
+            nested={
+              <div className="mcm-msg-panel">
+                <strong>What switching this off is meant to do</strong>
+                <p>
+                  &ldquo;Turn off SMS&rdquo; sounds more total than it is, so here is the intended
+                  scope in full.
+                </p>
+                <div className="mcm-msg-cols">
+                  <div className="mcm-msg-col">
+                    <strong>Stops</strong>
+                    <ul>
+                      <li>Texts to and from people outside the company, in and out.</li>
+                      <li>The SMS APIs, so anything you have wired up to text customers.</li>
+                      <li>SMS satisfaction (CSAT) surveys sent after a call or chat.</li>
+                    </ul>
+                  </div>
+                  <div className="mcm-msg-col">
+                    <strong>Keeps working</strong>
+                    <ul>
+                      <li>Messaging between people who both have accounts here.</li>
+                      <li>
+                        That traffic never touches a carrier — it runs over this platform&rsquo;s
+                        own messaging channel, so it is not SMS and this switch does not cover it.
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-            </div>
-          </SettingCard>
+            }
+            note="Works in this app. When this is off, people are stopped from sending texts here. If you need texting stopped completely — for a legal hold or a carrier complaint — release the SMS numbers and contact support as well."
+          />
 
-          <SettingCard
-            icon={<ShieldAlert className="h-5 w-5" />}
+          <RuleCard
+            tone="rose"
             title="Outbound SMS/MMS from unregistered numbers (US only)"
             description="Whether US numbers with no approved 10DLC campaign behind them may still be used to text."
             status="active"
+            valueLabel="Texting from unregistered US numbers"
+            /* Blocked is the safe state and the one almost every US account
+               should be in, so it is named rather than left as an unlit switch. */
+            value={form.unregistered_us_outbound_allowed ? 'Allowed' : 'Blocked'}
+            valueHint={
+              form.unregistered_us_outbound_allowed
+                ? 'Carriers are likely to block these anyway, and to charge a higher rate for the attempt.'
+                : 'Off is the safe answer, and the one almost every US account should keep.'
+            }
+            action={
+              <Switch
+                checked={form.unregistered_us_outbound_allowed}
+                onCheckedChange={(checked) =>
+                  updateForm({ unregistered_us_outbound_allowed: checked })
+                }
+              />
+            }
             note="Active. You are warned before sending from a number that is not registered, because carriers are likely to block it and charge a higher rate. Registering your brand is what clears the block."
-          >
-            <ToggleRow
-              title="Allow texting from unregistered US numbers"
-              description="Off is the safe answer, and the one almost every US account should keep."
-              checked={form.unregistered_us_outbound_allowed}
-              onCheckedChange={(checked) =>
-                updateForm({ unregistered_us_outbound_allowed: checked })
-              }
-            />
-            <div className="rounded-lg border border-gray-200 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-gray-900">
-                  Your 10DLC registration right now
-                </p>
+            nested={
+              <div className="mcm-msg-panel">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>Your 10DLC registration right now</strong>
                 {isDlcLoading && (
                   <span className="rounded-sm bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-600">
                     Checking...
@@ -405,77 +401,88 @@ const CompanyMessaging = () => {
                   Register an SMS campaign
                 </Link>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Registration is two steps and both live under 10DLC Compliance in this admin: the
-                brand is who you are, the campaign is what you will be texting people about. A
-                number only counts as registered once it sits under an approved campaign.
-              </p>
-            </div>
-          </SettingCard>
+                <p>
+                  Registration is two steps and both live under 10DLC Compliance in this admin: the
+                  brand is who you are, the campaign is what you will be texting people about. A
+                  number only counts as registered once it sits under an approved campaign.
+                </p>
+              </div>
+            }
+          />
 
-          <SettingCard
-            icon={<LifeBuoy className="h-5 w-5" />}
+          <RuleCard
+            tone="teal"
             title="HELP message"
             description="The reply someone should get when they text HELP to one of your numbers."
             status="coming-soon"
-            note="Coming soon: sending this reply for you. For now it is the wording to give your carrier when you register, so your reply is agreed and written down in one place."
-          >
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-900">HELP reply</p>
-                <Button
-                  type="button"
-                  variant="transparent"
-                  onClick={() => updateForm({ help_message: HELP_MESSAGE_TEMPLATE })}
-                >
-                  Use the template
-                </Button>
-              </div>
-              <textarea
-                className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm leading-6 text-gray-900 shadow-none placeholder:text-gray-400 focus:ring-0 focus-visible:shadow-none focus-visible:outline-0"
-                rows={4}
-                value={form.help_message}
-                placeholder={HELP_MESSAGE_TEMPLATE}
-                onChange={(event) => updateForm({ help_message: event.target.value })}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-gray-500">
-                  {helpCount.length} characters · {helpCount.messages}{' '}
-                  {helpCount.messages === 1 ? 'segment' : 'segments'} ·{' '}
-                  {helpCount.characterPerMessage} characters per segment ({helpCount.encoding})
-                </p>
-                {helpCount.length > HELP_SINGLE_SEGMENT_CHARS && (
-                  <p className="text-xs text-amber-700">
-                    Over one segment. It will arrive as {helpCount.messages} texts and be billed as{' '}
-                    {helpCount.messages}.
+            valueLabel="HELP reply"
+            /* Written or not is the state worth reading; the wording itself is
+               below. Segments matter because each one is billed. */
+            value={
+              form.help_message.trim()
+                ? `${helpCount.length} characters · ${helpCount.messages} ${
+                    helpCount.messages === 1 ? 'segment' : 'segments'
+                  }`
+                : 'Not written yet'
+            }
+            valueHint={
+              form.help_message.trim()
+                ? undefined
+                : 'Carriers ask for this wording when you register. Start from the template.'
+            }
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => updateForm({ help_message: HELP_MESSAGE_TEMPLATE })}
+              >
+                Use the template
+              </Button>
+            }
+            nested={
+              <>
+                <textarea
+                  className="mcm-msg-textarea"
+                  rows={4}
+                  value={form.help_message}
+                  placeholder={HELP_MESSAGE_TEMPLATE}
+                  onChange={(event) => updateForm({ help_message: event.target.value })}
+                />
+                <div className="mcm-msg-meta">
+                  <span>
+                    {helpCount.characterPerMessage} characters per segment ({helpCount.encoding})
+                  </span>
+                  {helpCount.length > HELP_SINGLE_SEGMENT_CHARS && (
+                    <span className="mcm-msg-over">
+                      Over one segment — it arrives as {helpCount.messages} texts and is billed as{' '}
+                      {helpCount.messages}.
+                    </span>
+                  )}
+                </div>
+                {errors.help_message && <p className="mcm-msg-error">{errors.help_message}</p>}
+                <div className="mcm-msg-panel" style={{ marginTop: 12 }}>
+                  <strong>A HELP reply is expected to contain</strong>
+                  <ul>
+                    <li>Your business name, spelled the way customers know you.</li>
+                    <li>
+                      A line saying what these messages are, so the reply makes sense on its own.
+                    </li>
+                    <li>A way to reach a person — a phone number, an email or a website.</li>
+                    <li>
+                      Any fees, in the usual wording: &ldquo;Msg &amp; data rates may apply&rdquo;.
+                    </li>
+                    <li>How to stop — &ldquo;Reply STOP to opt out&rdquo;.</li>
+                  </ul>
+                  <p>
+                    Short is better. Everything above fits in one or two segments, and a reply that
+                    runs long is more likely to be truncated by a handset than read.
                   </p>
-                )}
-              </div>
-              {errors.help_message && (
-                <p className="text-xs font-semibold text-red-600">{errors.help_message}</p>
-              )}
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="text-xs font-semibold text-gray-900">
-                  A HELP reply is expected to contain
-                </p>
-                <ul className="mt-1 flex list-disc flex-col gap-1 pl-4 text-xs text-gray-600">
-                  <li>Your business name, spelled the way customers know you.</li>
-                  <li>
-                    A line saying what these messages are, so the reply makes sense on its own.
-                  </li>
-                  <li>A way to reach a person — a phone number, an email or a website.</li>
-                  <li>
-                    Any fees, in the usual wording: &ldquo;Msg &amp; data rates may apply&rdquo;.
-                  </li>
-                  <li>How to stop — &ldquo;Reply STOP to opt out&rdquo;.</li>
-                </ul>
-                <p className="mt-2 text-xs text-gray-500">
-                  Short is better. Everything above fits in one or two segments, and a reply that
-                  runs long is more likely to be truncated by a handset than read.
-                </p>
-              </div>
-            </div>
-          </SettingCard>
+                </div>
+              </>
+            }
+            note="Coming soon: sending this reply for you. For now it is the wording to give your carrier when you register, so your reply is agreed and written down in one place."
+          />
 
           <div className="cs-savebar">
             <p className="text-xs text-gray-500">

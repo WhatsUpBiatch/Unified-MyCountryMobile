@@ -202,7 +202,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .ic {
   width: 1em;
@@ -405,7 +405,7 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .stat .v {
   font-size: 25px;
@@ -908,6 +908,23 @@
      corner over it. On a settings tab it is the panel, and it was the one square
      container in an area of 12px ones. Scoped here so the drawers keep theirs. */
   border-radius: var(--r);
+  /* It had the radius but no edge, so against the grey ground it read as a
+     white shape fading out rather than a panel.
+
+     Deliberately darker than the --line hairline the inner containers use.
+     --line is tuned for a divider sitting on a surface; on the outside edge of
+     the panel, against the page ground, it disappeared. Mixed rather than
+     picked so it still follows the theme — in dark mode --ink-4 and --line both
+     invert and the edge stays proportionally the same. The shadow does the rest
+     of the lifting, so the line itself need not go heavy enough to read as a
+     border on a form field. */
+  border: 1px solid color-mix(in srgb, var(--ink-4) 55%, var(--line));
+  box-shadow: var(--shadow-sm);
+  /* Sized by what is in it. Without this the panel ran roughly 74px past the
+     save row — invisible while it had no border, and an obvious empty white
+     shelf under the buttons once it had one. `flex: none` above stops it being
+     squeezed; this stops it being stretched. */
+  height: fit-content;
 }
 
 /* One panel per tab, and everything the tab holds lives inside it.
@@ -919,7 +936,14 @@
    hairline rather than by a box each. */
 .mcm-page .cs-section {
   background: var(--surface);
-  border: 1px solid var(--line);
+  /* The same edge the form tabs draw — see .cs-section-form above. Emergency
+     address and Holidays are panels in their own right rather than forms, so
+     they land here instead, and with the plain --line hairline they were the
+     two tabs whose panel had no visible outline while its neighbours did.
+     --line is a divider colour: right between cards on a surface, invisible on
+     the outer edge against the page ground. */
+  border: 1px solid color-mix(in srgb, var(--ink-4) 55%, var(--line));
+  box-shadow: var(--shadow-sm);
   border-radius: var(--r);
   padding: 16px 20px;
   gap: 0;
@@ -929,6 +953,11 @@
 .mcm-page.cs-section-form .cs-section {
   background: transparent;
   border: 0;
+  /* Also the shadow, not just the border. .cs-section now carries one so it
+     reads as a panel on the tabs where it IS the panel; inside the form it is
+     only a column, and an unreset shadow drew a soft inner edge down the middle
+     of a panel that already has its own. */
+  box-shadow: none;
   border-radius: 0;
   padding: 0;
 }
@@ -1592,7 +1621,7 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .kpi .v {
   font-size: 26px;
@@ -4277,8 +4306,8 @@
   gap: 6px;
   margin: 14px 0;
   padding: 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--rule-tone) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 20%, transparent);
   border-radius: var(--r);
 }
 .mcm-flowstep {
@@ -4788,4 +4817,568 @@
 .mcm-page .contacts-page-head-add {
   margin-left: auto;
   flex: none;
+}
+
+/* ---- company rule cards -------------------------------------------------
+
+   The rebuilt rule card. See rule-card.tsx for why it is shaped this way; the
+   short version is that the current value used to be the faintest thing on a
+   card whose four parts all carried equal weight.
+
+   Every colour here is a token. The tone is spent on the left spine alone -
+   a card's fill must never read as a status, because that is the badge's job.
+   --------------------------------------------------------------------------- */
+
+.mcm-page .mcm-rule {
+  position: relative;
+  /* A wash of the card's own tone over the surface rather than flat white. At
+     4% it is barely a colour - enough that two cards side by side are visibly
+     different objects, not enough to compete with a status badge. */
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--rule-tone) 5%, transparent),
+      color-mix(in srgb, var(--rule-tone) 1%, transparent) 120px
+    ),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 22%, var(--line));
+  border-radius: var(--r-lg);
+  padding: 16px 18px 14px;
+  overflow: hidden;
+  --rule-tone: var(--accent);
+}
+
+
+.mcm-page .mcm-rule.is-indigo { --rule-tone: #6366f1; }
+.mcm-page .mcm-rule.is-violet { --rule-tone: #8b5cf6; }
+.mcm-page .mcm-rule.is-cyan   { --rule-tone: #0891b2; }
+.mcm-page .mcm-rule.is-teal   { --rule-tone: #0d9488; }
+.mcm-page .mcm-rule.is-rose   { --rule-tone: #e11d48; }
+.mcm-page .mcm-rule.is-sky    { --rule-tone: #0284c7; }
+
+.mcm-page .mcm-rule-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mcm-page .mcm-rule-ht { min-width: 0; flex: 1; }
+.mcm-page .mcm-rule-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.mcm-page .mcm-rule-title h3 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.mcm-page .mcm-rule-h p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  /* Held to a readable measure. Across the full panel these descriptions ran to
+     a line and a half of very long lines with the control stranded far right. */
+  max-width: 62ch;
+}
+
+/* The state block: what this rule currently says, and the way to change it. */
+.mcm-page .mcm-rule-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--rule-tone) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 20%, transparent);
+  border-radius: var(--r);
+}
+.mcm-page .mcm-rule-statet { min-width: 0; flex: 1 1 260px; }
+.mcm-page .mcm-rule-eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
+}
+.mcm-page .mcm-rule-value {
+  margin: 3px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.mcm-page .mcm-rule-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+.mcm-page .mcm-rule-act { flex: 0 0 auto; }
+
+/* The rule switches, side by side. They qualify the value above rather than
+   standing beside it as further decisions, so they are smaller, quieter, and
+   grouped - not two more full-width rows. */
+.mcm-page .mcm-rule-gov {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 10px 22px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+.mcm-page .mcm-rule-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.mcm-page .mcm-rule-toggle-c { flex: 0 0 auto; padding-top: 1px; }
+.mcm-page .mcm-rule-toggle-t { min-width: 0; }
+.mcm-page .mcm-rule-toggle-t > span {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-rule-toggle-t p {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-4);
+}
+
+/* Quiet by default. The old note was a full-bleed tinted band, which reads as
+   an alert - and none of these are alerts, they are explanations. */
+.mcm-page .mcm-rule-note {
+  margin: 12px 0 0;
+  padding-inline-start: 11px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--rule-tone) 40%, var(--line));
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 92ch;
+}
+
+/* The panel draws a divider between its children, which on a card that already
+   has its own border means a grey hairline across the top edge and a second
+   16px of padding above the one the card sets itself.
+
+   The weight has to match to beat it: that rule is
+   `.cs-section > * + *:not(.cs-saverow):not(.cs-savebar)`, and both :not()
+   arguments count, so it scores (0,4,0) — a plain `.cs-section > * + .mcm-rule`
+   scores (0,3,0) and loses. Carrying one :not() of our own levels it, and
+   coming later in the file settles it. */
+.mcm-page .cs-section > .mcm-rule:not(.cs-saverow) {
+  border-top: 1px solid color-mix(in srgb, var(--rule-tone) 22%, var(--line));
+  margin-top: 14px;
+  /* The card's own top padding, restated so the inherited 16px cannot stack. */
+  padding-top: 16px;
+}
+
+/* A full-width control belonging to the rule above it - the recording picker on
+   the greetings tab. Sits between the value and the rule switches, indented so
+   it reads as part of that rule rather than as another one. */
+.mcm-page .mcm-rule-nested {
+  margin-top: 12px;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--rule-tone) 26%, var(--line));
+}
+.mcm-page .mcm-rule-nested-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+/* The greetings warning, which is true of every recording on the tab and so is
+   said once above them rather than repeated on each card. Same treatment as a
+   card's own note; the tone falls back to the accent because there is no card
+   around it to set one. */
+.mcm-page .mcm-greet-note {
+  --rule-tone: var(--accent);
+  margin: 0 0 4px;
+  max-width: 92ch;
+}
+
+/* ---- emergency address (E911) -------------------------------------------
+
+   Not a settings screen: it is one address being written down, and the whole
+   page is that one fact. So it is not built from rule cards - a street address
+   has no "current value and a button to change it", it has a field you type in.
+
+   What it has instead is a preview. Seven inputs give you seven fragments and
+   no way to see the thing you are actually recording; the card on the right
+   assembles them as a responder would be handed them, and updates as you type.
+   Checking an address as a whole is the task, and it was the one thing the form
+   could not do.
+   --------------------------------------------------------------------------- */
+
+.mcm-page .mcm-e911 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(270px, 0.75fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .mcm-page .mcm-e911 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mcm-page .mcm-e911-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A titled run of fields. Two groups, because an address and the number to ring
+   back are two different facts and were previously one undivided column. */
+.mcm-page .mcm-e911-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+.mcm-page .mcm-e911-group:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.mcm-page .mcm-e911-grouph {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-page .mcm-e911-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+/* The preview. Sticky so it stays beside the fields on a long form. */
+.mcm-page .mcm-e911-card {
+  position: sticky;
+  top: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.mcm-page .mcm-e911-card-eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 10px;
+}
+.mcm-page .mcm-e911-lines {
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.55;
+  color: var(--ink);
+  word-break: break-word;
+}
+.mcm-page .mcm-e911-lines .is-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+/* Nothing typed yet. Dashed, because an empty preview is a placeholder rather
+   than a record — it should not look like a saved address with no words in it. */
+.mcm-page .mcm-e911-empty {
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+.mcm-page .mcm-e911-callback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-e911-callback .is-missing {
+  font-family: var(--sans);
+  color: var(--ink-4);
+}
+
+/* Warnings, from tokens. These were written with raw Tailwind palette classes
+   (amber-300/amber-50/amber-900, gray-50), which is the one thing the theme
+   cannot survive: they do not move in dark mode and they do not follow a brand
+   colour change. */
+.mcm-page .mcm-e911-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--r);
+  background: var(--warn-wash);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+.mcm-page .mcm-e911-warn svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.mcm-page .mcm-e911-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.mcm-page .mcm-e911-ack label {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+/* Whether an address exists at all — the first thing this page should answer. */
+.mcm-page .mcm-e911-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+.mcm-page .mcm-e911-state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.mcm-page .mcm-e911-state.is-saved::before {
+  background: var(--live);
+}
+
+/* ---- holidays -----------------------------------------------------------
+
+   The page had its emphasis inverted: importing a country's public holidays
+   sat in a saturated tinted panel and was the loudest thing on screen, while
+   the holiday list it feeds - the actual content of the page - was a line of
+   small grey text under it. The importer is a shortcut, not the subject.
+   --------------------------------------------------------------------------- */
+
+/* The importer, demoted to a bordered helper. */
+.mcm-page .mcm-holi-import {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+}
+.mcm-page .mcm-holi-import-h {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-holi-import p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 70ch;
+}
+.mcm-page .mcm-holi-import-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* The count, promoted. This is what the page is about, so it is read first. */
+.mcm-page .mcm-holi-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 16px;
+}
+.mcm-page .mcm-holi-count strong {
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-page .mcm-holi-count span {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+/* Unsaved work. Was text-amber-700, a palette class that does not move in dark
+   mode; the tokens carry the same warning meaning and do. */
+.mcm-page .mcm-holi-dirty {
+  margin-inline-start: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 700;
+}
+.mcm-page .mcm-holi-empty {
+  margin-top: 10px;
+  padding: 18px 14px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+}
+.mcm-page .mcm-holi-empty strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-holi-empty span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* ---- messaging ----------------------------------------------------------
+
+   The explanatory blocks inside the messaging rules. They were written with
+   palette classes (bg-gray-50, border-gray-200, text-amber-700), which is the
+   one thing the theme cannot survive - they hold still in dark mode while
+   everything around them inverts.
+   --------------------------------------------------------------------------- */
+
+.mcm-page .mcm-msg-panel {
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--surface-2);
+}
+.mcm-page .mcm-msg-panel > strong {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-msg-panel > p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+/* Two halves of one answer - what stops, what keeps working - so they sit side
+   by side and are read against each other rather than one after the other. */
+.mcm-page .mcm-msg-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+.mcm-page .mcm-msg-col {
+  padding: 11px 13px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+}
+.mcm-page .mcm-msg-col > strong {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-msg-col ul,
+.mcm-page .mcm-msg-panel ul {
+  margin: 6px 0 0;
+  padding-inline-start: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  list-style: disc;
+}
+
+/* The HELP reply box. */
+.mcm-page .mcm-msg-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.mcm-page .mcm-msg-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.mcm-page .mcm-msg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-4);
+}
+/* Over one segment costs real money, so it is warned about in the warning
+   colour rather than in amber-700, which does not exist after dark. */
+.mcm-page .mcm-msg-over {
+  font-family: var(--sans);
+  font-weight: 650;
+  color: var(--warn);
+}
+.mcm-page .mcm-msg-error {
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--crit);
 }

@@ -38,7 +38,11 @@ const fullFeatures = () => ({
   }),
   campaign: node(),
   video: node({ access: { RECORDING: true } }),
-  advance_call_management: node(),
+  /* TRANSCRIPTION gates the Transcription and Call monitoring cards on the
+     phone rules screen. Granted here so those screens are reachable in mock
+     mode — without it two of the six cards simply never render and cannot be
+     worked on. */
+  advance_call_management: node({ access: { TRANSCRIPTION: true } }),
   account_setting: node({
     access: {
       USER: { action: { view: true, edit: true } },

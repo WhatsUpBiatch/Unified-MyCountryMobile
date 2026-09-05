@@ -43,6 +43,7 @@ import { SectionHeading } from './section-heading';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import CustomSelect from '@/components/custom/custom-select';
+import { CountryFlag } from '@/components/flag';
 import { CustomDatePicker } from '@/components/custom/custom-datepicker';
 import { handleAlert } from '@/lib/utils';
 /* The rules that turn "United States, 2026" into eleven dates live in their own
@@ -423,24 +424,35 @@ const CompanyHolidays = forwardRef<CompanyHolidaysHandle>((_props, ref) => {
 
       {/* Presets. The point of the panel: a year of holidays in one click rather
           than twelve rows typed by hand. */}
-      <div className="mt-3 rounded-lg border border-ucass-primary-200 bg-ucass-primary-200/40 p-3">
-        <p className="text-xs font-semibold text-gray-900">Add a country&apos;s public holidays</p>
-        <p className="mt-0.5 text-xs text-gray-600">
+      {/* Presets. A shortcut to the list below, so it is drawn as one - it used
+          to be a saturated tinted panel, which made the loudest thing on the
+          page the one thing that is optional. */}
+      <div className="mcm-holi-import">
+        <p className="mcm-holi-import-h">Add a country&apos;s public holidays</p>
+        <p>
           Pick a country and a year, and the public holidays are added to the list below. You can
           edit or remove any of them afterwards.
         </p>
 
-        <div className="mt-2 flex flex-wrap items-end gap-2">
+        <div className="mcm-holi-import-fields">
           <div className="w-full sm:w-72">
             <CustomSelect
               label="Country"
               placeholder="Select a country"
+              /* `code` is ISO-3166 alpha-2, which is what the flag needs. The
+                 preset is looked up by `value` elsewhere, and only `label` and
+                 `value` are read, so the icon rides along harmlessly. */
               options={COUNTRY_PRESETS.map((preset) => ({
                 label: preset.label,
                 value: preset.code,
+                icon: <CountryFlag code={preset.code} />,
               }))}
-              value={country}
-              handleChange={(option: any) => setCountry(option)}
+              value={country?.value ? { ...country, icon: <CountryFlag code={country.value} /> } : country}
+              handleChange={(option: any) =>
+                /* Kept plain in state: the icon is for the picker, and `country`
+                   is compared and read by `value` everywhere else. */
+                setCountry(option ? { label: option.label, value: option.value } : option)
+              }
               isClearable
             />
           </div>
@@ -468,38 +480,36 @@ const CompanyHolidays = forwardRef<CompanyHolidaysHandle>((_props, ref) => {
         </div>
 
         {selectedPreset && (
-          <p className="mt-2 text-xs text-gray-600">
-            <span className="font-semibold text-gray-900">{selectedPreset.label}:</span>{' '}
+          <p>
+            <strong style={{ color: 'var(--ink-2)' }}>{selectedPreset.label}:</strong>{' '}
             {selectedPreset.scope} Check the list against your own working year before you rely on
             it.
           </p>
         )}
       </div>
 
-      {/* The list. */}
-      <div className="mt-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold text-gray-500">
+      {/* The list, which is what the page is for. The count reads as a heading
+          rather than as a caption under the importer. */}
+      <div>
+        <div className="mcm-holi-count">
+          <strong>
             {items.length} holiday{items.length === 1 ? '' : 's'}
-            {items.length > 0 && (
-              <span className="font-normal text-gray-500">
-                {' '}
-                · {repeatingCount} repeat every year · {items.length - repeatingCount} need
-                re-adding next year
-              </span>
-            )}
-          </p>
-          {dirty && <span className="text-xs font-semibold text-amber-700">Unsaved changes</span>}
+          </strong>
+          {items.length > 0 && (
+            <span>
+              {repeatingCount} repeat every year · {items.length - repeatingCount} need re-adding
+              next year
+            </span>
+          )}
+          {dirty && <span className="mcm-holi-dirty">Unsaved changes</span>}
         </div>
 
         {isLoading ? (
           <p className="mt-3 text-sm text-gray-500">Loading…</p>
         ) : sorted.length === 0 && !isAdding ? (
-          <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-center">
-            <p className="text-xs font-semibold text-gray-900">No company holidays yet</p>
-            <p className="mt-0.5 text-xs text-gray-600">
-              Add a country&apos;s public holidays above, or add one by hand.
-            </p>
+          <div className="mcm-holi-empty">
+            <strong>No company holidays yet</strong>
+            <span>Add a country&apos;s public holidays above, or add one by hand.</span>
           </div>
         ) : (
           <div className="mt-2 flex flex-col gap-2">

@@ -1,5 +1,5 @@
 import SelectGreeting from '@/components/custom/greeting-select';
-import { SettingCard, SettingNest, SettingRow } from '@/components/mcm/setting-card';
+import { RuleCard, RuleToggle, type RuleTone } from '@/components/mcm/rule-card';
 import { Switch } from '@/components/ui/switch';
 import { GreetingItem, useGetGreetings } from '@/hooks/common';
 import { useIsStarterPlan } from '@/hooks/use-is-starter-plan';
@@ -9,6 +9,10 @@ import { FC, ReactNode } from 'react';
 import { useFormContext } from 'react-hook-form';
 
 import { HIDDEN_RECORDING_UUIDS } from '@/lib/utils';
+
+/* One per slot, in the order the slots are listed. Fixed rather than derived
+   so a recording keeps its colour even when a plan hides one of the rows. */
+const GREETING_TONES: RuleTone[] = ['indigo', 'cyan', 'teal', 'violet'];
 
 interface ICompanyInfo {
   plan_features?: string;
@@ -179,37 +183,57 @@ const GreetingNotification: FC<IGREETINGPROPS> = ({ intro, footer, containerClas
       }
     >
       {intro}
-      {/* No badge. `status` is dropped rather than set to something softer:
-          with neither `status` nor `enforced`, `resolveStatus` returns undefined
-          and the header renders no chip at all. The note below is untouched -
-          it is the part that actually tells an admin recordings do not reach a
-          caller yet, and it has to stay until they do. */}
-      <SettingCard
-        title="Recorded messages"
-        description="What a caller hears at each point. Each one is off until you turn it on and choose a recording."
-        note="Your choices are saved, but no caller hears them yet — call routing does not play recordings at all. Nothing is lost: whatever you set here starts playing when it does."
-      >
-        {mediaOptionsGreetingNotifications.map(({ name, label, title, blurb }) => (
-          <div key={name} className="user-settings-template-greeting-row">
-            <SettingRow
-              label={title}
-              description={blurb}
-              control={
-                <Switch
-                  checked={!!watchMedia?.[name]?.enabled}
-                  onCheckedChange={(checked: boolean) => onChangeMedia(name, checked)}
-                />
-              }
-            />
 
-            {/* The picker only appears once the message is switched on. There is
-                nothing to choose before that, and a greyed-out picker still reads
-                as something you could use. */}
-            <SettingNest when={!!watchMedia?.[name]?.enabled}>
-              <SettingRow
-                label="Which recording"
-                description="Upload a new one, or pick something already recorded."
-              >
+      {/* One warning for the whole tab, not one per recording.
+          It is true of all four slots equally, and repeating it on each card
+          would drown the thing each card is actually for. No status badge on
+          the cards themselves: that decision was made deliberately, and this
+          strip is the part that tells an admin recordings do not reach a caller
+          yet. It stays until they do. */}
+      <p className="mcm-rule-note mcm-greet-note">
+        Your choices are saved, but no caller hears them yet — call routing does not play
+        recordings at all. Nothing is lost: whatever you set here starts playing when it does.
+      </p>
+
+      {mediaOptionsGreetingNotifications.map(({ name, label, title, blurb }, index) => {
+        const isOn = !!watchMedia?.[name]?.enabled;
+        const chosen = displayValue(name);
+
+        return (
+          <RuleCard
+            key={name}
+            /* Cycled so four cards of the same shape do not read as one slab.
+               The order is fixed by the list above, so a slot keeps its colour
+               rather than changing when a plan hides one of the rows. */
+            tone={GREETING_TONES[index % GREETING_TONES.length]}
+            title={title}
+            description={blurb}
+            valueLabel="Recording"
+            /* Three real states, and they are not the same thing: switched off,
+               on but nothing picked yet, and on with a recording. The middle one
+               used to look identical to the last. */
+            value={!isOn ? 'Off' : chosen?.label || 'None chosen'}
+            valueHint={
+              !isOn
+                ? 'Callers hear nothing here until this is switched on.'
+                : chosen?.label
+                  ? undefined
+                  : 'Pick a recording below, or upload one.'
+            }
+            /* The switch is what turns this message on, so it belongs with the
+               state it changes rather than in the header. */
+            action={
+              <Switch
+                checked={isOn}
+                onCheckedChange={(checked: boolean) => onChangeMedia(name, checked)}
+              />
+            }
+            nested={
+              /* Only once it is on. There is nothing to choose before that, and
+                 a greyed-out picker still reads as something you could use. */
+              isOn ? (
+                <>
+                  <span className="mcm-rule-nested-label">Which recording</span>
                 <SelectGreeting
                   /* The picker sat at its minimum width while the row it is in
                      had space to spare, so "Jenny (Female - American)" and
@@ -253,19 +277,22 @@ const GreetingNotification: FC<IGREETINGPROPS> = ({ intro, footer, containerClas
                     uuid: item.uuid,
                     is_default: item.is_default,
                   }))}
-                  value={displayValue(name)}
+                  value={chosen}
                   errors={(errors.greetings as any)?.[name]?.value?.value?.message}
                 />
-              </SettingRow>
-
-              {/* "Lock it" was removed on 3 Sep 2026 at the customer's request.
-                  Only its row is gone: `locked` is still read and written by
-                  writeRule below, and whatever each company already saved is
-                  carried through untouched, so nothing that depends on the flag
-                  changes meaning and putting the row back is a few lines. */}
-              <SettingRow
+                </>
+              ) : null
+            }
+          >
+            {/* "Lock it" was removed on 3 Sep 2026 at the customer's request.
+                Only its row is gone: `locked` is still read and written by
+                writeRule below, and whatever each company already saved is
+                carried through untouched, so nothing that depends on the flag
+                changes meaning and putting the row back is a few lines. */}
+            {isOn ? (
+              <RuleToggle
                 label="Give this to everyone"
-                description={`On, this ${label} recording is copied onto everyone. Off, people keep what they have.`}
+                description={`This ${label} recording is copied onto everyone. Off, people keep what they have.`}
                 control={
                   <Switch
                     checked={ruleFlags(name).apply}
@@ -273,10 +300,10 @@ const GreetingNotification: FC<IGREETINGPROPS> = ({ intro, footer, containerClas
                   />
                 }
               />
-            </SettingNest>
-          </div>
-        ))}
-      </SettingCard>
+            ) : null}
+          </RuleCard>
+        );
+      })}
 
       {footer}
     </div>

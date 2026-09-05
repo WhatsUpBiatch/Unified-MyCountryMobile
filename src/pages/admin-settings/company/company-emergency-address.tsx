@@ -14,6 +14,7 @@ import { BackButton } from './section-actions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import CustomSelect from '@/components/custom/custom-select';
+import { CountryFlag } from '@/components/flag';
 import Loader from '@/components/custom/loader';
 import { handleAlert } from '@/lib/utils';
 import { useCompanyFeatures } from '@/hooks/rbac';
@@ -223,11 +224,16 @@ const CompanyEmergencyAddress = () => {
     [storedSettings],
   );
 
+  /* `icon` is rendered by CustomSelect ahead of the label, in both the open
+     menu and the closed control. Safe to hang a React element here because the
+     payload takes `country.value` as a string (see onSubmit) rather than
+     spreading this object — nothing of the icon reaches the API. */
   const countryOptions = useMemo(
     () =>
       (Country.getAllCountries() || []).map((country) => ({
         label: country.name,
         value: country.isoCode,
+        icon: <CountryFlag code={country.isoCode} />,
       })),
     [],
   );
@@ -253,6 +259,32 @@ const CompanyEmergencyAddress = () => {
 
   const hasStates = stateOptions.length > 0;
   const hasCities = cityOptions.length > 0;
+
+  /* The live preview beside the fields.
+   *
+   * Watched rather than read on submit, because its whole purpose is to show
+   * the address forming as it is typed - a dispatcher reads it as one block,
+   * and a transposed house number is far easier to catch there than in the
+   * field it was typed into.
+   *
+   * Assembled the way an address is actually written: street, then suite, then
+   * "City, ST 12345" on one line. Empty parts drop out rather than leaving
+   * stray commas, so a half-filled form still reads as an address. */
+  const preview = watch(['address_line_1', 'address_line_2', 'city', 'state', 'postal_code', 'callback_number']);
+  const [pLine1, pLine2, pCity, pState, pPostal, pCallback] = preview;
+
+  const cityLine = [
+    [pCity?.label, pState?.value].filter(Boolean).join(', '),
+    String(pPostal || '').trim(),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const previewLines = [String(pLine1 || '').trim(), String(pLine2 || '').trim(), cityLine].filter(
+    Boolean,
+  );
+  const previewCountry = watchedCountry?.value ? watchedCountry : null;
+  const previewCallback = String(pCallback || '').trim();
 
   // Hydrate the form once the reserved row has loaded.
   useEffect(() => {
@@ -417,30 +449,37 @@ const CompanyEmergencyAddress = () => {
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-3">
             <p className="text-sm font-semibold text-gray-900">Emergency address</p>
-            <p className="text-xs text-gray-500">
+            {/* Whether one exists at all, said plainly. It was a grey aside in
+                the corner, on a page whose entire question is exactly this. */}
+            <span className={`mcm-e911-state${hasSavedAddress ? ' is-saved' : ''}`}>
               {hasSavedAddress && savedAt
-                ? `Last saved ${savedAt.toLocaleString()} - recorded only, not routed`
-                : 'Nothing saved yet'}
-            </p>
+                ? `Recorded ${savedAt.toLocaleDateString()} — written down only, not routed`
+                : 'No address on file'}
+            </span>
           </div>
 
-          <Input
-            label="Street address (line 1)"
-            placeholder="e.g. 100 Market Street"
-            maxLength={120}
-            disabled={!canEdit}
-            error={errors?.address_line_1?.message}
-            {...register('address_line_1')}
-          />
+          <div className="mcm-e911">
+            <div className="mcm-e911-fields">
+              <div className="mcm-e911-group">
+                <span className="mcm-e911-grouph">The address</span>
 
-          <Input
-            label="Suite / floor / building (line 2, optional)"
-            placeholder="e.g. Suite 400, 4th floor"
-            maxLength={120}
-            disabled={!canEdit}
-            error={errors?.address_line_2?.message}
-            {...register('address_line_2')}
-          />
+                <Input
+                  label="Street address (line 1)"
+                  placeholder="e.g. 100 Market Street"
+                  maxLength={120}
+                  disabled={!canEdit}
+                  error={errors?.address_line_1?.message}
+                  {...register('address_line_1')}
+                />
+
+                <Input
+                  label="Suite / floor / building (line 2, optional)"
+                  placeholder="e.g. Suite 400, 4th floor"
+                  maxLength={120}
+                  disabled={!canEdit}
+                  error={errors?.address_line_2?.message}
+                  {...register('address_line_2')}
+                />
 
           <div className="flex w-full flex-col gap-4 md:flex-row">
             <div className={`relative flex w-full gap-1 ${hasStates ? 'md:w-1/2' : 'md:w-full'}`}>
@@ -542,50 +581,87 @@ const CompanyEmergencyAddress = () => {
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-4 md:flex-row">
-            <div className="relative flex w-full gap-1 md:w-1/2">
-              <Input
-                label="Emergency callback number"
-                placeholder="e.g. +14155550123"
-                maxLength={16}
-                disabled={!canEdit}
-                Icon={<PhoneCall className="h-4 w-4 text-gray-500" />}
-                error={errors?.callback_number?.message}
-                {...register('callback_number')}
-              />
-            </div>
-            <div className="flex w-full items-end md:w-1/2">
-              <p className="text-xs text-gray-500">
-                The number responders would ring if the emergency call drops. Today nothing dials it
-                automatically - it is stored for your records and for whoever you hand this address
-                to.
-              </p>
-            </div>
-          </div>
+              </div>
 
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-            <p className="text-xs font-medium text-amber-900">
-              A PO box will be rejected. Emergency responders need a street address they can drive
-              to, so a mailbox is not accepted here - this matches what carriers and other providers
-              require.
-            </p>
-          </div>
+              <div className="mcm-e911-group">
+                <span className="mcm-e911-grouph">If the call drops</span>
+                <Input
+                  label="Emergency callback number"
+                  placeholder="e.g. +14155550123"
+                  maxLength={16}
+                  disabled={!canEdit}
+                  Icon={<PhoneCall className="h-4 w-4 text-gray-500" />}
+                  error={errors?.callback_number?.message}
+                  {...register('callback_number')}
+                />
+                <p className="text-xs text-gray-500">
+                  The number responders would ring if the emergency call drops. Today nothing dials
+                  it automatically - it is stored for your records and for whoever you hand this
+                  address to.
+                </p>
+              </div>
 
-          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <Checkbox
-              id="emergency-address-acknowledgement"
-              checked={acknowledged}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => setAcknowledged(checked === true)}
-              className="mt-0.5"
-            />
-            <Label
-              htmlFor="emergency-address-acknowledgement"
-              className="cursor-pointer items-start text-xs font-medium leading-5 text-gray-800"
-            >
-              I understand this address is only written down. It does not route emergency calls and
-              it is not sent to emergency responders.
-            </Label>
+              {/* Tokens, not palette classes. The originals were amber-300 /
+                  amber-50 / amber-900 and gray-50, which do not move in dark
+                  mode and do not follow a brand colour. */}
+              <div className="mcm-e911-warn">
+                <AlertTriangle className="h-4 w-4" />
+                <p>
+                  A PO box will be rejected. Emergency responders need a street address they can
+                  drive to, so a mailbox is not accepted here - this matches what carriers and other
+                  providers require.
+                </p>
+              </div>
+
+              <div className="mcm-e911-ack">
+                <Checkbox
+                  id="emergency-address-acknowledgement"
+                  checked={acknowledged}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="emergency-address-acknowledgement">
+                  I understand this address is only written down. It does not route emergency calls
+                  and it is not sent to emergency responders.
+                </Label>
+              </div>
+            </div>
+
+            {/* The address as one thing rather than seven fields. Seven inputs
+                give seven fragments and no way to check the whole; this is what
+                somebody would actually be handed. */}
+            <aside className="mcm-e911-card">
+              <span className="mcm-e911-card-eyebrow">What a responder would be given</span>
+
+              {previewLines.length ? (
+                <div className="mcm-e911-lines">
+                  {previewLines.map((line) => (
+                    <div key={line}>{line}</div>
+                  ))}
+                  {previewCountry ? (
+                    <div className="is-country">
+                      <CountryFlag code={previewCountry.value} />
+                      {previewCountry.label}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mcm-e911-empty">
+                  Nothing to show yet. Fill in the address and it appears here as a responder would
+                  be given it.
+                </p>
+              )}
+
+              <div className="mcm-e911-callback">
+                <PhoneCall className="h-3.5 w-3.5" />
+                {previewCallback ? (
+                  previewCallback
+                ) : (
+                  <span className="is-missing">No callback number yet</span>
+                )}
+              </div>
+            </aside>
           </div>
 
           {canEdit && (

@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/u
 import countriesData from '@/assets/json/countries.json';
 import { FC, useEffect, useMemo, useState } from 'react';
 import CustomSelect from '@/components/custom/custom-select';
+import { CountryFlag } from '@/components/flag';
 import { ISELECTVALUE } from '@/interfaces/api-interfaces';
 import { useFormContext } from 'react-hook-form';
 import { Label } from '@/components/ui/label';
@@ -113,6 +114,7 @@ const RegionalModal: FC<RegionalProps> = ({
         label: resolvedCountry.name,
         value: resolvedCountry.name,
         name: resolvedCountry.name || '',
+        icon: <CountryFlag code={resolvedCountry.isoCode} />,
       },
       country_code: {
         label: getCountryCodeLabel(resolvedCountry),
@@ -152,6 +154,9 @@ const RegionalModal: FC<RegionalProps> = ({
         label: countryData?.name,
         value: countryData?.name,
         name: countryData?.name || '',
+        /* Carried on the selected value too, or the flag appears while the menu
+           is open and vanishes the moment a country is chosen. */
+        icon: <CountryFlag code={countryData?.isoCode} />,
       },
       country_code: {
         label: getCountryCodeLabel(countryData),
@@ -178,14 +183,22 @@ const RegionalModal: FC<RegionalProps> = ({
     setLocalErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
+    /* The flag is a React element and must not reach the form. What is set here
+       is saved to the record and, elsewhere, round-tripped through
+       JSON.parse(JSON.stringify(...)) — neither survives a element, and the
+       payload would carry a serialised component instead of a country. The
+       icon exists for the picker; only the three plain fields are the value. */
+    const { label, value: countryValue, name } = draftRegional?.country || {};
+
     setValue('settings.operational_hours.regional.country_code', draftRegional?.country_code, {
       shouldValidate: true,
       shouldDirty: true,
     });
-    setValue('settings.operational_hours.regional.country', draftRegional?.country, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
+    setValue(
+      'settings.operational_hours.regional.country',
+      { label, value: countryValue, name },
+      { shouldValidate: true, shouldDirty: true },
+    );
     setValue('settings.operational_hours.regional.timezone', draftRegional?.timezone, {
       shouldValidate: true,
       shouldDirty: true,
@@ -236,9 +249,12 @@ const RegionalModal: FC<RegionalProps> = ({
             <CustomSelect
               label={'Country'}
               placeholder="Select Country"
+              /* CustomSelect renders `icon` ahead of the label in both the menu
+                 and the closed control, so the flag needs no change there. */
               options={countriesData.map((country: { name: string; isoCode: string }) => ({
                 label: country?.name,
                 value: country?.isoCode,
+                icon: <CountryFlag code={country?.isoCode} />,
               }))}
               handleChange={(e: ISELECTVALUE | null) => {
                 onCountryChange(e);

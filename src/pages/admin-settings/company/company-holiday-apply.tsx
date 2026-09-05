@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import Loader from '@/components/custom/loader';
@@ -685,36 +686,38 @@ const CompanyHolidayApply = () => {
 
   return (
     <div className="cs-block">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ucass-primary-200 text-primary">
-            <CalendarCheck2 className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-gray-900">
-              Copy these holidays onto your lines{' '}
-              <span className="text-xs font-normal text-gray-500">— optional</span>
-            </p>
-            <p className="mt-0.5 text-xs text-gray-600">
-              You do not need this for holidays to work; the list above already closes your lines
-              on its own. Use it to copy the {companyHolidays.length} date
-              {companyHolidays.length === 1 ? '' : 's'} onto your queues, menus, people and numbers
-              so their own screens show them too, instead of opening each one.
-            </p>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen((previous) => !previous)}
-          disabled={running}
-        >
-          {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {open ? 'Hide lines' : 'Choose lines'}
-        </Button>
-      </div>
+      {/* The shared heading, not a hand-built one.
+          This section drew its own: a 40px tile filled with `bg-ucass-primary-200
+          text-primary`, which renders as a solid blue block rather than the
+          quiet tile SectionHeading gives every other section — including the
+          Holidays heading directly above it, so the two sat inches apart looking
+          like different products. SectionHeading exists for exactly this; its
+          own note lists the four treatments it was written to replace, and this
+          was a fifth that never moved across. */}
+      <SectionHeading
+        icon={<CalendarCheck2 className="h-[18px] w-[18px]" />}
+        title="Copy these holidays onto your lines"
+        description={
+          <>
+            Optional. You do not need this for holidays to work; the list above already closes your
+            lines on its own. Use it to copy the {companyHolidays.length} date
+            {companyHolidays.length === 1 ? '' : 's'} onto your queues, menus, people and numbers so
+            their own screens show them too, instead of opening each one.
+          </>
+        }
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOpen((previous) => !previous)}
+            disabled={running}
+          >
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {open ? 'Hide lines' : 'Choose lines'}
+          </Button>
+        }
+      />
 
       <div className="mt-3 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />

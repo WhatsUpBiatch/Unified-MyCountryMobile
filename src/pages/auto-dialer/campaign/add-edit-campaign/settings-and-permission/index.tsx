@@ -1,4 +1,5 @@
 import CustomSelect from '@/components/custom/custom-select';
+import { CountryFlag } from '@/components/flag';
 import countriesData from '@/assets/json/countries.json';
 import { ISELECTVALUE } from '@/interfaces/api-interfaces';
 import { useFormContext } from 'react-hook-form';
@@ -70,9 +71,14 @@ const SettingsAndPermission = ({ campaignStatus }: { campaignStatus: string }) =
   const onCountryChange = (value: ISELECTVALUE | null) => {
     const index = countriesData?.findIndex((item: any) => item?.isoCode === value?.value);
 
-    setValue('settings.operational_hours.regional.country', value, {
-      shouldValidate: true,
-    });
+    /* Only the plain fields. `value` is the option straight from the select and
+       now carries a flag element; this object is written into the form and saved
+       with the campaign, and a React element cannot survive that round trip. */
+    setValue(
+      'settings.operational_hours.regional.country',
+      value ? { label: value.label, value: value.value } : value,
+      { shouldValidate: true },
+    );
 
     const countryData = countriesData[index];
     const countryLabel = `${countryData.name} (${countryData.phonecode?.startsWith('+') ? countryData.phonecode : `+${countryData.phonecode}`})`;
@@ -161,11 +167,22 @@ const SettingsAndPermission = ({ campaignStatus }: { campaignStatus: string }) =
             options={countriesData.map((country: { name: string; isoCode: string }) => ({
               label: country?.name,
               value: country?.isoCode,
+              icon: <CountryFlag code={country?.isoCode} />,
             }))}
             handleChange={(e: ISELECTVALUE | null) => {
               onCountryChange(e);
             }}
-            value={watch('settings.operational_hours.regional.country')}
+            /* Rebuilt for display instead of stored, since the saved object must
+               stay plain. The ISO code is read from country_code, which holds it
+               reliably - `country` itself is written as a name on one path and an
+               ISO code on another. */
+            value={(() => {
+              const selected = watch('settings.operational_hours.regional.country');
+              const iso = watch('settings.operational_hours.regional.country_code')?.value;
+              return selected?.value
+                ? { ...selected, icon: <CountryFlag code={iso} /> }
+                : selected;
+            })()}
             error={(errors.settings as any)?.operational_hours?.regional?.country?.value?.message}
           />
           <CustomSelect

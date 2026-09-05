@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
+import { RuleCard, RuleToggle } from '@/components/mcm/rule-card';
+import { CountryFlag } from '@/components/flag';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Flag, Globe, Headphones, Mic, PhoneOutgoing, ScrollText, Voicemail } from 'lucide-react';
+import { ScrollText } from 'lucide-react';
 
 import CustomSelect from '@/components/custom/custom-select';
 import Loader from '@/components/custom/loader';
@@ -432,6 +433,21 @@ const CompanyPolicies = () => {
     );
   }
 
+  /* Retention is stored per kind - recordings and voicemail each carry their own
+     mode and day count - so the card states both rather than pretending to one
+     number. */
+  const describeRetention = (entry: { mode: string; days: string }) =>
+    entry?.mode === 'indefinite' ? 'kept' : `${entry?.days || '—'} days`;
+
+  /* Attached here, not in COUNTRY_OPTIONS: that module declares itself pure and
+     React-free, and it also seeds the number-buying form where an element on the
+     option would reach a saved payload. */
+  const selectedCountry = selectedOption(COUNTRY_OPTIONS, form.default_country);
+  const countryOptionsWithFlags = COUNTRY_OPTIONS.map((option) => ({
+    ...option,
+    icon: <CountryFlag code={option.value} />,
+  }));
+
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
@@ -465,15 +481,16 @@ const CompanyPolicies = () => {
             </div>
           )}
 
-          <SettingCard
-            icon={<Globe className="h-5 w-5" />}
+          <RuleCard
+            tone="indigo"
             title="Default language"
             description="The language used for voicemail prompts and IVR menus when nothing more specific is set."
             status="active"
-            note="Active. Used when you record a new greeting — it opens in this language. Greetings and menus you already have keep the language they were made in."
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1">
+            valueLabel="Prompt language"
+            value={selectedOption(LANGUAGE_OPTIONS, form.default_language)?.label || 'Not set'}
+            valueHint="New greetings you record will open in this language."
+            nested={
+              <div className="max-w-sm">
                 <CustomSelect
                   label="Prompt language"
                   options={LANGUAGE_OPTIONS}
@@ -482,37 +499,83 @@ const CompanyPolicies = () => {
                     updateForm({ default_language: option?.value || DEFAULT_FORM.default_language })
                   }
                 />
-                <p className="text-xs text-gray-500">
-                  New greetings you record will open in this language.
-                </p>
               </div>
-            </div>
-          </SettingCard>
+            }
+            note="Active. Used when you record a new greeting — it opens in this language. Greetings and menus you already have keep the language they were made in."
+          />
 
-          <SettingCard
-            icon={<Flag className="h-5 w-5" />}
+          <RuleCard
+            tone="cyan"
             title="Default country"
             description="The country your number search opens on."
             status="active"
+            valueLabel="Default country"
+            value={
+              selectedCountry ? (
+                <>
+                  <CountryFlag code={selectedCountry.value} />
+                  {selectedCountry.label}
+                </>
+              ) : (
+                'No default chosen'
+              )
+            }
+            valueHint={
+              selectedCountry
+                ? undefined
+                : 'Number search opens on an empty country box until one is set.'
+            }
+            nested={
+              <div className="max-w-sm">
+                <CustomSelect
+                  label="Default country"
+                  /* Flags are attached here rather than in COUNTRY_OPTIONS:
+                     that module states it is pure and free of React, and it also
+                     seeds the number-buying form, where an element on the option
+                     would end up in a saved payload. Only `.value` is read out of
+                     this select, so nothing leaks. */
+                  options={countryOptionsWithFlags}
+                  value={
+                    selectedCountry
+                      ? { ...selectedCountry, icon: <CountryFlag code={selectedCountry.value} /> }
+                      : null
+                  }
+                  placeholder="No default chosen"
+                  handleChange={(option: any) =>
+                    updateForm({ default_country: option?.value || '' })
+                  }
+                />
+              </div>
+            }
             note="Active. When you buy a number, the country box starts here. You can still choose a different country for any purchase."
-          >
-            <CustomSelect
-              label="Default country"
-              options={COUNTRY_OPTIONS}
-              value={selectedOption(COUNTRY_OPTIONS, form.default_country)}
-              placeholder="No default chosen"
-              handleChange={(option: any) => updateForm({ default_country: option?.value || '' })}
-            />
-          </SettingCard>
+          />
 
-          <SettingCard
-            icon={<Headphones className="h-5 w-5" />}
+          <RuleCard
+            tone="teal"
             title="Who may listen to call recordings"
             description="Whether people can play their own calls back, and whether admins can play anyone's."
             status="app-only"
+            valueLabel="Playback"
+            /* Two switches, four combinations, and each one is a different
+               sentence about who can hear whom. Said outright rather than left
+               to be worked out from the switches below. */
+            value={
+              form.recording_access_admins_all
+                ? form.recording_access_own
+                  ? 'Everyone, plus admins hear all'
+                  : 'Admins only'
+                : form.recording_access_own
+                  ? 'Own calls only'
+                  : 'Nobody'
+            }
+            valueHint={
+              !form.recording_access_own && !form.recording_access_admins_all
+                ? 'No play button appears anywhere in this app.'
+                : undefined
+            }
             note="Works in this app. Turning one off hides the play button for those recordings here. It does not stop somebody who already has a direct link to the file."
           >
-            <SettingRow
+            <RuleToggle
               label="People can play their own calls"
               description="Off means nobody can listen back to their own recorded calls."
               control={
@@ -522,9 +585,9 @@ const CompanyPolicies = () => {
                 />
               }
             />
-            <SettingRow
+            <RuleToggle
               label="Admins can play anyone's calls"
-              description="Off means an admin sees only their own recordings. Please tell your team before changing this — listening to someone's calls is something they expect to know about."
+              description="Off means an admin sees only their own. Tell your team before changing this."
               control={
                 <Switch
                   checked={form.recording_access_admins_all}
@@ -534,13 +597,16 @@ const CompanyPolicies = () => {
                 />
               }
             />
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<Voicemail className="h-5 w-5" />}
+          <RuleCard
+            tone="violet"
             title="Voicemail policy"
             description="PIN strength, how long a caller may talk, and whether messages are transcribed for new users."
             status="coming-soon"
+            valueLabel="PIN and message limits"
+            value={`${form.voicemail_min_pin_length || '—'}-digit PIN · ${form.voicemail_max_message_minutes || '—'} min max`}
+            valueHint={form.voicemail_transcription_default ? 'New people get voicemail-to-text switched on.' : 'New people get voicemail-to-text switched off.'}
             note="Coming soon: the PIN length rule and the message length limit are saved but nothing checks them yet. The transcription switch below is the exception — it already applies to each new person you add."
           >
             <div className="grid gap-3 sm:grid-cols-2">
@@ -577,7 +643,7 @@ const CompanyPolicies = () => {
                 </p>
               </div>
             </div>
-            <SettingRow
+            <RuleToggle
               label="Transcribe voicemail by default"
               description="New users would get voicemail-to-text switched on. Existing users keep whatever they have now — changing this never edits anyone's current setting."
               control={
@@ -589,13 +655,16 @@ const CompanyPolicies = () => {
                 />
               }
             />
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<Mic className="h-5 w-5" />}
+          <RuleCard
+            tone="sky"
             title="Call recording policy"
             description="Whether calls are recorded across the company, and whether callers are told."
             status="coming-soon"
+            valueLabel="Recording mode"
+            value={selectedOption(RECORDING_MODE_OPTIONS, form.recording_mode)?.label || 'Not set'}
+            valueHint={form.recording_announcement ? 'Callers are told the call may be recorded.' : 'Callers are not told.'}
             note="Coming soon. Nothing here starts or stops recording yet — which matters, because it means this cannot switch recording off. Recording is turned on for each person under their own settings."
           >
             <div className="grid gap-3 sm:grid-cols-2">
@@ -614,7 +683,7 @@ const CompanyPolicies = () => {
                 </p>
               </div>
             </div>
-            <SettingRow
+            <RuleToggle
               label="Announce recording to callers"
               description="Play a short notice before a recorded call starts. Many countries require it, so check your local rules before turning it off."
               control={
@@ -679,13 +748,15 @@ const CompanyPolicies = () => {
                 </div>
               </div>
             )}
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<Archive className="h-5 w-5" />}
+          <RuleCard
+            tone="rose"
             title="Data retention"
             description="How long call recordings and voicemail messages are kept before deletion."
             status="coming-soon"
+            valueLabel="Kept for"
+            value={`Recordings ${describeRetention(form.retention_recordings)} · Voicemail ${describeRetention(form.retention_voicemails)}`}
             note="Coming soon. Nothing is deleted automatically yet — recordings and messages are kept until somebody removes them by hand."
           >
             {renderRetention(
@@ -698,13 +769,18 @@ const CompanyPolicies = () => {
               'Voicemail messages',
               'How long a voicemail is kept once it is left.',
             )}
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<PhoneOutgoing className="h-5 w-5" />}
+          <RuleCard
+            tone="teal"
             title="International calling"
             description="Whether a newly created user may dial abroad before an admin says otherwise."
             status="app-only"
+            valueLabel="New people may dial abroad"
+            value={
+              selectedOption(INTERNATIONAL_OPTIONS, form.international_new_user_default)?.label ||
+              (form.international_new_user_default === 'blocked' ? 'Blocked' : 'Allowed')
+            }
             note="Works in this app when you add somebody: a new person starts on this setting. It does not change anyone already added."
           >
             <div className="grid gap-3 sm:grid-cols-2">
@@ -726,7 +802,7 @@ const CompanyPolicies = () => {
                 </p>
               </div>
             </div>
-          </SettingCard>
+          </RuleCard>
 
           <div className="cs-savebar">
             <p className="text-xs text-gray-500">

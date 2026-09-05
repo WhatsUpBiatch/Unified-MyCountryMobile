@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import PlanSummary from './plan-summary';
 import Loader from '@/components/custom/loader';
 import { Country, State, City } from 'country-state-city';
+import { CountryFlag } from '@/components/flag';
 import { postcodeValidator, postcodeValidatorExistsForCountry } from 'postcode-validator';
 import LogoIcon from '@/assets/images/LogoIcon.svg';
 import { useOrganization } from '@/hooks/use-organisation';
@@ -194,9 +195,13 @@ const SignUp = () => {
   //   queryFn: countryList,
   //   select: (data: any) => data?.data?.data?.result?.rows || [],
   // });
+  /* Safe to carry a React element here: the signup payload reads
+     `company_country.value` as a string rather than spreading the option, so
+     nothing of the icon reaches the API. */
   const countryOptions = Country.getAllCountries()?.map((c) => ({
     label: c.name,
     value: c.isoCode,
+    icon: <CountryFlag code={c.isoCode} />,
   }));
 
   const stateOptions = watchedCountry?.value
