@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DialpadSession } from '@/context/dialpad-context';
 import type { ConsoleCallRow } from './call-list-column';
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import { Ic } from './icons';
 import type { ConsoleCallState } from './use-console-call';
 import { useCopilotAsk } from './use-copilot-ask';
@@ -288,7 +289,9 @@ const CopilotPane = ({
                 </div>
                 <div className="kv">
                   <span className="k">Number</span>
-                  <span className="v num">{selectedCall.number}</span>
+                  <span className="v num">
+                    <NumberWithFlag number={selectedCall.number} />
+                  </span>
                 </div>
                 <div className="kv">
                   <span className="k">Direction</span>

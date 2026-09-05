@@ -1010,11 +1010,90 @@ export function formatRecordingDate(createdAt: any) {
   return date.toLocaleString('en-US', options);
 }
 
+/* Recordings the platform ships, rather than ones a company made.
+ *
+ * They live in the media store under `default/recording/<file>` instead of
+ * `<company>/greeting/<file>`, so anything playing one has to build a
+ * different URL — see `greeting-select.tsx` and the recordings library. The
+ * row exists in every tenant with the same uuid, which is what makes matching
+ * on the uuid work at all.
+ *
+ * The last two were added on 3 Sep 2026 to give the Welcome message and
+ * On-hold music rows something to offer on a brand-new account: without them
+ * both dropdowns opened empty, with nothing to pick and no hint that the
+ * answer was to go and record something first. */
 export const DEFAULT_RECORDING_UUIDS = [
   '5b6ecf4c-4df2-43fe-b2c7-dd12f457824d',
   '5b6ecf4c-4df2-43fe-b2c7-dd12f457824c',
   '5b6ecf4c-4df2-43fe-b2c7-dd12f457824b',
   '5b6ecf4c-4df2-43fe-b2c7-dd12f457824a',
+  // Default welcome message  (type welcome_greeting) — see HIDDEN_RECORDING_UUIDS
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578250',
+  // Default hold music       (type on_hold_music)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578251',
+  /* Four proper voicemail greetings, added 3 Sep 2026. The stock rows this
+     slot used to offer were recording announcements wearing a `voicemail`
+     type — see HIDDEN_RECORDING_UUIDS. */
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578260', // Default voicemail
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578261', // After-hours voicemail
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578262', // Busy - all lines voicemail
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578263', // Holiday voicemail
+  /* Welcome message, in a choice of voice and accent, added 3 Sep 2026. All
+     three say the same line; only the voice differs, which is the whole point
+     of offering more than one. Deliberately NOT in HIDDEN_RECORDING_UUIDS -
+     the single generic default was hidden because one stock voice was worse
+     than none, and a choice of three is the answer to that, not more of the
+     same problem. */
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578270', // Jenny (Female - American)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578271', // Guy (Male - American)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578272', // Ryan (Male - British)
+  /* The stock set the account owner curated, promoted from their own library
+     to every tenant on 3 Sep 2026. These replace the three synthesised voices
+     above, which are hidden below - keeping both would have listed two
+     recordings called "Jenny (Female - American)". */
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578280', // Jenny (Female - American)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578281', // Andrew (Male - American)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578282', // Davis (Male - British)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578283', // Victoria (Female - British)
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578284', // Hold music - Arabesque
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578285', // Hold music - Bach Prelude
+];
+
+/* Stock recordings the pickers do not offer.
+ *
+ * These rows stay in every tenant and keep playing wherever they are already
+ * chosen — this only takes them out of the lists, so nothing anybody has
+ * already saved stops working.
+ *
+ * The default welcome message is hidden at the customer's request: they want
+ * their own voices offered there instead of a generic one. Note the cost, which
+ * is the reason it was added on 3 Sep 2026 in the first place — a brand-new
+ * account now opens the Welcome message dropdown with nothing in it again until
+ * somebody records something. The default hold music is deliberately NOT in
+ * this list: an account with no hold music of its own is better off with the
+ * stock loop than with silence. */
+export const HIDDEN_RECORDING_UUIDS = [
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578250',
+  /* The four stock rows that were filed as `voicemail` but are not voicemail
+     greetings. Three of them announce that a call is being RECORDED, and the
+     fourth is a four-second stub; all four were offered as the thing a caller
+     hears before leaving a message, which is simply the wrong recording in
+     that slot. Hidden rather than deleted, for the reason above: any company
+     that already picked one keeps hearing it. The four proper voicemail
+     greetings added on 3 Sep 2026 take their place in the list. */
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f457824a', // Default VM
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f457824b', // Default Recording On
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f457824c', // Default Recording Off
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f457824d', // Default Recording
+  /* The three synthesised welcome voices, replaced on 3 Sep 2026 by the set
+     the account owner curated (uuids ...8280-8283 above). Hidden rather than
+     deleted, as ever: a company that already chose one keeps hearing it.
+     Note what changed since the earlier note here - hiding these used to
+     leave the Welcome slot empty, which is why they were put back; there are
+     now four better recordings in their place, so the slot stays full. */
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578270', // Jenny (Female - American), synthesised
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578271', // Guy (Male - American), synthesised
+  '5b6ecf4c-4df2-43fe-b2c7-dd12f4578272', // Ryan (Male - British), synthesised
 ];
 
 export const formatSize = (size: number): string => {
@@ -1110,10 +1189,45 @@ export const notificationIconColorLookup: any = {
   did_purchase: 'text-success-500',
   change_plan_request: 'text-success-500',
 };
+/** Below this many digits it is an extension, not a phone number — no country. */
+export const EXTENSION_MAX_DIGITS = 6;
+
+/** True when a value is an internal extension rather than a dialable number. */
+export const isExtensionNumber = (value: unknown) => {
+  const raw = String(value ?? '').trim();
+  if (!raw || /[a-z]/i.test(raw)) return false;
+  return raw.replace(/\D/g, '').length > 0 && raw.replace(/\D/g, '').length <= EXTENSION_MAX_DIGITS;
+};
+
+/**
+ * A phone number in international form, e.g. "+91 90045 83988".
+ *
+ * `parsePhoneNumber` THROWS on anything it cannot read — bare digits with no
+ * country code (INVALID_COUNTRY), and short extensions like "7242" — so calling
+ * it unguarded took down whatever was rendering the number. Numbers reach us
+ * both with and without a leading "+", so try the "+" form too before giving up,
+ * and hand back the original when nothing parses.
+ */
 export const formatPhoneNumber = (number: string) => {
   if (!number || typeof number === 'object') return;
-  const phoneNumber = parsePhoneNumber(`${number.replace(/\s/g, '')}`);
-  return phoneNumber?.formatInternational() ?? number?.replace('+', '');
+  const cleaned = String(number).replace(/\s/g, '');
+  if (!cleaned) return;
+
+  const attempt = (value: string) => {
+    try {
+      return parsePhoneNumber(value)?.formatInternational();
+    } catch {
+      return undefined;
+    }
+  };
+
+  /* Retrying a bare number with a "+" is what lets a stored DID keep its flag,
+     but it must NOT be tried on an extension: "7242" parses as +7 242, a
+     Russian number. Anything short enough to be an extension is returned as
+     typed. */
+  const canAssumePlus = !cleaned.startsWith('+') && !isExtensionNumber(cleaned);
+  const formatted = attempt(cleaned) || (canAssumePlus ? attempt(`+${cleaned}`) : undefined);
+  return formatted ?? cleaned.replace('+', '');
 };
 
 /**
@@ -1596,12 +1710,29 @@ export const getArrayLength = (arr: any) => {
   return Array.isArray(arr) && arr?.length;
 };
 
+/**
+ * What the composer tells you about balance before you send.
+ *
+ * A cost of zero means the price is NOT KNOWN — the rate card comes back
+ * without a `rate` on plenty of destinations. It used to be read as
+ * "unaffordable": `Math.floor(balance / 0)` is Infinity, but the guard above it
+ * returned 0 sendable messages, so a fully funded wallet was told it had no
+ * balance and could not send at all. Only report insufficient balance when the
+ * price is actually known and the wallet genuinely cannot cover it.
+ */
 export function getSmsAlert({ freeSmsLeft, smsCount, balanceAmount, totalSmsCharges }: any) {
   if (smsCount <= 0) {
     return 'No SMS to send.';
   }
 
-  const costPerSms = smsCount > 0 && totalSmsCharges > 0 ? totalSmsCharges / smsCount : 0;
+  const charges = Number(totalSmsCharges);
+  const balance = Number(balanceAmount);
+  const costPerSms =
+    smsCount > 0 && Number.isFinite(charges) && charges > 0 ? charges / smsCount : 0;
+  // No price to check against — say nothing about balance rather than blocking.
+  const priceKnown = costPerSms > 0;
+  const safeBalance = Number.isFinite(balance) ? balance : 0;
+  const affordable = priceKnown ? Math.floor(safeBalance / costPerSms) : Number.POSITIVE_INFINITY;
 
   // Case 1: Free SMS available
   if (freeSmsLeft > 0) {
@@ -1611,25 +1742,23 @@ export function getSmsAlert({ freeSmsLeft, smsCount, balanceAmount, totalSmsChar
     }
 
     const paidMessagesNeeded = smsCount - freeSmsLeft;
-    const msgCanSendPaid =
-      balanceAmount > 0 && costPerSms > 0 ? Math.floor(balanceAmount / costPerSms) : 0;
-
-    const totalSendable = freeSmsLeft + Math.min(msgCanSendPaid, paidMessagesNeeded);
-    if (msgCanSendPaid >= paidMessagesNeeded) {
+    if (!priceKnown || affordable >= paidMessagesNeeded) {
       return `${freeSmsLeft} messages are FREE. The remaining ${paidMessagesNeeded} will be charged to your balance.`;
     }
-    return `Only ${totalSendable} messages will be sent (${freeSmsLeft} FREE + ${msgCanSendPaid} paid). Insufficient balance for the rest.`;
+
+    const totalSendable = freeSmsLeft + Math.min(affordable, paidMessagesNeeded);
+    return `Only ${totalSendable} messages will be sent (${freeSmsLeft} FREE + ${affordable} paid). Insufficient balance for the rest.`;
   }
 
   // Case 2: No free SMS
-  const msgCanSend =
-    balanceAmount > 0 && costPerSms > 0 ? Math.floor(balanceAmount / costPerSms) : 0;
-
-  if (msgCanSend <= 0) {
+  if (!priceKnown) {
+    return `All ${smsCount} messages will be sent and charged to your balance.`;
+  }
+  if (affordable <= 0) {
     return 'You do not have enough balance to send any messages.';
   }
-  if (msgCanSend < smsCount) {
-    return `You can send only ${msgCanSend} out of ${smsCount} messages with your current balance ($${balanceAmount}).`;
+  if (affordable < smsCount) {
+    return `You can send only ${affordable} out of ${smsCount} messages with your current balance ($${balanceAmount}).`;
   }
 
   return `All ${smsCount} messages will be sent and charged to your balance.`;

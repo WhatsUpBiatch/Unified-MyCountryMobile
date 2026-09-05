@@ -10,6 +10,10 @@ import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-di
 import { assignRoleBulkUsers, getRoleList } from '@/services/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FC, useEffect, useMemo, useState } from 'react';
+import {
+  roleDisplayDescription,
+  roleDisplayName,
+} from '@/pages/admin-settings/roles/role-names';
 
 interface RoleChangeModalProps {
   open: boolean;
@@ -18,7 +22,11 @@ interface RoleChangeModalProps {
 }
 
 const EMPTY_ROLE_LIST: Array<{ name: string; type: string; uuid: string; role_uuid: string }> = [];
-type RoleOption = ISELECTVALUE & { type: string };
+/* `label` stays the STORED name: it is what the current role is matched on
+   (`item.label === currentRoleName`). `display` is what a person reads. The
+   two are kept apart on purpose — a role's stored name is an authorisation
+   key on the server and must never be swapped for its friendly label. */
+type RoleOption = ISELECTVALUE & { type: string; display: string; blurb: string };
 
 const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) => {
   const queryClient: any = useQueryClient();
@@ -29,7 +37,7 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
   const fullName =
     `${userData?.first_name || ''}${userData?.last_name ? ` ${userData?.last_name}` : ''}`.trim() ||
     userData?.email ||
-    'Selected user';
+    'this person';
 
   const { data, isLoading } = useQuery({
     queryKey: ['useRolesList', false],
@@ -42,11 +50,21 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
 
   const roleOptions = useMemo<RoleOption[]>(
     () =>
-      roleList?.map((role: { name: string; type: string; uuid: string; role_uuid: string }) => ({
-        label: role?.name,
-        value: String(role?.type || '').toLowerCase() === 'custom' ? role?.uuid : role?.role_uuid,
-        type: role?.type || '',
-      })),
+      roleList?.map(
+        (role: {
+          name: string;
+          type: string;
+          uuid: string;
+          role_uuid: string;
+          description?: string;
+        }) => ({
+          label: role?.name,
+          display: roleDisplayName(role?.name),
+          blurb: roleDisplayDescription(role?.name, role?.description),
+          value: String(role?.type || '').toLowerCase() === 'custom' ? role?.uuid : role?.role_uuid,
+          type: role?.type || '',
+        }),
+      ),
     [roleList],
   );
 
@@ -54,9 +72,11 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
     const term = search.trim().toLowerCase();
     if (!term) return roleOptions;
     return roleOptions.filter((role) =>
-      String(role?.label || '')
-        .toLowerCase()
-        .includes(term),
+      [role?.display, role?.label].some((text) =>
+        String(text || '')
+          .toLowerCase()
+          .includes(term),
+      ),
     );
   }, [roleOptions, search]);
 
@@ -89,8 +109,14 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
     const nextRole =
       matchedRole ||
       (currentRoleName
-        ? { label: currentRoleName, value: '', type: '' }
-        : { label: '', value: '', type: '' });
+        ? {
+            label: currentRoleName,
+            display: roleDisplayName(currentRoleName),
+            blurb: '',
+            value: '',
+            type: '',
+          }
+        : { label: '', display: '', blurb: '', value: '', type: '' });
 
     setSelectedRole((prev) => {
       if (prev?.label === nextRole?.label && prev?.value === nextRole?.value) return prev;
@@ -123,7 +149,7 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
       return;
     }
     if (!selectedUserUUID) {
-      handleAlert({ text: 'Unable to identify user for role change.', type: 'error' });
+      handleAlert({ text: 'Could not tell which person to change.', type: 'error' });
       return;
     }
 
@@ -141,9 +167,9 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
       >
         <div className="flex items-start justify-between p-5 border-b border-gray-200">
           <div className="flex flex-col gap-1">
-            <h4 className="text-gray-900 text-lg font-semibold">Select Role</h4>
+            <h4 className="text-gray-900 text-lg font-semibold">Change role</h4>
             <p className="text-sm text-gray-500">
-              Selecting role for <span className="text-primary font-sm">{fullName}</span>
+              Choosing a role for <span className="text-primary font-sm">{fullName}</span>
             </p>
           </div>
           <button
@@ -202,14 +228,17 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
                       <RadioGroupItem value={roleValue} />
                       <div className="flex flex-col">
                         <p className="text-gray-900 font-semibold text-md leading-tight">
-                          {role?.label}
+                          {role?.display || role?.label}
                         </p>
+                        {role?.blurb ? (
+                          <p className="text-xs text-gray-500 leading-snug">{role.blurb}</p>
+                        ) : null}
                       </div>
                     </div>
                     <span
                       className={`uppercase tracking-[0.08em] text-[11px] font-semibold px-2.5 py-1 rounded-md border ${getRoleBadgeClass(role?.label || '')}`}
                     >
-                      {String(role?.type || 'custom').toUpperCase()}
+                      {String(role?.type || '').toLowerCase() === 'system' ? 'Built in' : 'Custom'}
                     </span>
                   </div>
                 );
@@ -226,7 +255,8 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
           <p className="text-gray-600 font-medium">
             Selected:{' '}
             <span className="text-gray-900">
-              {selectedRole?.label || currentRoleName || 'No role selected'}
+              {selectedRole?.display ||
+                (currentRoleName ? roleDisplayName(currentRoleName) : 'No role selected')}
             </span>
           </p>
           <div className="flex justify-end gap-2">
@@ -234,7 +264,7 @@ const RoleChangeModal: FC<RoleChangeModalProps> = ({ open, setOpen, userData }) 
               Cancel
             </Button>
             <Button type="button" variant={'outline'} onClick={handleSubmit} disabled={isPending}>
-              {isPending ? <Loader variant="blue" size="sm" /> : 'Submit'}
+              {isPending ? <Loader variant="blue" size="sm" /> : 'Save'}
             </Button>
           </div>
         </div>

@@ -42,3 +42,6 @@ secrets-backup/
 
 # Generated lint report
 eslint-output.json
+
+# Per-developer permission rules; machine-specific like settings.json above
+.claude/settings.local.json

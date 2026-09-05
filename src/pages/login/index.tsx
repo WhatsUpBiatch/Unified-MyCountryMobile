@@ -6,7 +6,7 @@ import Desktop from '@/assets/images/signup-banner-image.png';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { login, sendOtp, verifyOtp } from '@/services/api';
+import { login, sendOtp, verifyOtp, googleLogin } from '@/services/api';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import Loader from '@/components/custom/loader';
 import { useUser } from '@/hooks/use-user';
@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/assets/icons/icon';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import OtpVerification from '../signup/otp-verification';
 import {
@@ -31,6 +32,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useOrganization } from '@/hooks/use-organisation';
 import { Turnstile, type TurnstileHandle } from '@/hooks/use-turnstile';
+import { ArrowLeft } from 'lucide-react';
 
 const isLocalhost = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'].includes(
   window.location.hostname,
@@ -119,6 +121,7 @@ const Login = () => {
   const navigate = useNavigate();
   const signUpResponseData = useRef<any>(null);
   const loginAccessTokenRef = useRef('');
+  const googleCredentialRef = useRef('');
   /* Kept so a trusted device can finish sign-in from the /login response alone,
      without a verify-otp round trip. */
   const loginResponseRef = useRef<any>(null);
@@ -133,6 +136,9 @@ const Login = () => {
     }
   });
   const [showOtp, setShowOtp] = useState(false);
+  const [showSsoEmail, setShowSsoEmail] = useState(false);
+  const [ssoWorkEmail, setSsoWorkEmail] = useState('');
+  const [isResolvingSso, setIsResolvingSso] = useState(false);
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState<{ email: string; password: string }>();
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
@@ -144,6 +150,37 @@ const Login = () => {
   useEffect(() => {
     setLargeLogoError(false);
   }, [mainSiteInfo?.large_logo]);
+
+  // Handle the enterprise SSO redirect back from the backend
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const t = sp.get('sso_token');
+      const err = sp.get('sso_error');
+      const signupTok = sp.get('sso_signup');
+      if (signupTok) {
+        try { sessionStorage.setItem('sso_signup', JSON.stringify({ email: sp.get('email') || '', name: sp.get('name') || '', token: signupTok })); } catch (e2) {}
+        window.history.replaceState({}, '', window.location.pathname);
+        navigate('/pricing');
+        return;
+      }
+      if (t) {
+        localStorage.setItem(SESSION_NAME, t);
+        window.history.replaceState({}, '', window.location.pathname);
+        window.location.reload();
+        return;
+      }
+      if (err) {
+        const em = sp.get('email') || '';
+        const msg = err === 'no_account'
+          ? `No account found for ${em || 'this email'}. Please contact your administrator.`
+          : 'SSO sign-in failed. Please try again.';
+        handleAlert({ text: msg, type: 'error' });
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // If user already has plan-pending token, send them to renew-plan (no re-login)
   useEffect(() => {
@@ -401,6 +438,69 @@ const Login = () => {
     },
   });
 
+  const { mutate: mutateGoogleLogin } = useMutation({
+    mutationFn: googleLogin,
+    onSuccess: (data: any) => {
+      handleAlert({ text: 'Signed in with Google', type: 'success' });
+      finishSignIn(data);
+    },
+    onError: (err: any) => {
+      const res = err?.response?.data;
+      if (res?.code === 'SSO_NEW_USER') {
+        try {
+          sessionStorage.setItem('google_signup', JSON.stringify({ email: res?.email || '', name: res?.name || '', credential: googleCredentialRef.current }));
+        } catch (e) {}
+        handleAlert({ text: 'Let\u2019s set up your account', type: 'success' });
+        navigate('/pricing');
+        return;
+      }
+      handleAlert({ text: res?.message || 'Google sign-in failed', type: 'error' });
+    },
+  });
+  const handleSsoContinue = async () => {
+    const email = ssoWorkEmail.trim();
+    if (!email) return;
+    setIsResolvingSso(true);
+    try {
+      const org = localStorage.getItem('org_uuid') || '';
+      const resp = await fetch(
+        `${getEnv().VITE_API_BASE_URL}/api/auth/sso/resolve?email=${encodeURIComponent(email)}&website_uuid=${encodeURIComponent(org)}`,
+      );
+      const data = await resp.json();
+      if (!data?.found) {
+        handleAlert({ text: 'No account found for that email. Contact your administrator.', type: 'error' });
+        setIsResolvingSso(false);
+        return;
+      }
+      if (data?.method === 'saml' && data?.company_uuid) {
+        window.location.href = `${getEnv().VITE_API_BASE_URL}/api/auth/sso/saml/${encodeURIComponent(data.company_uuid)}/login`;
+        return;
+      }
+      handleAlert({
+        text: "Your company hasn't enabled SSO yet. Contact your administrator, or sign in with your password.",
+        type: 'error',
+      });
+      setIsResolvingSso(false);
+    } catch (e) {
+      handleAlert({ text: 'Could not start SSO. Please try again.', type: 'error' });
+      setIsResolvingSso(false);
+    }
+  };
+
+  const handleGoogleCredential = (credential?: string) => {
+    if (!credential) {
+      handleAlert({ text: 'Google sign-in was cancelled', type: 'error' });
+      return;
+    }
+    googleCredentialRef.current = credential;
+    mutateGoogleLogin({
+      credential,
+      device_type: 'W',
+      device_id: getDeviceId(),
+      version: packageJson.version,
+    });
+  };
+
   const handleVerify = () => {
     if (!formData) return;
     if (!isPendingVerifyOtp && otp?.length === 6)
@@ -423,6 +523,7 @@ const Login = () => {
 
   return (
     <>
+      {!showSsoEmail && (
       <div className="w-full h-full p-4 md:p-15 md:py-6 bg-gray-200/15 flex items-center justify-center">
         <div className="w-full lg:max-w-[60%] xxl:max-w-[70%] flex sm:flex-row flex-col xs:h-full sm:h-auto md:h-full rounded-xl bg-white shadow-sm overflow-auto">
           <section className="w-full sm:w-1/2 h-full">
@@ -440,6 +541,8 @@ const Login = () => {
               </div>
               <div className="flex flex-col justify-center items-center m-auto">
                 <div className="w-full flex flex-col gap-2 xl:gap-8">
+                  {!showSsoEmail && (
+                  <>
                   <div className="flex flex-col gap-1 xl:gap-3">
                     <h1 className="text-base xl:text-2xl  text-gray-900 font-bold">
                       Log in to your account
@@ -547,7 +650,71 @@ const Login = () => {
                         </Button>
                       )}
                     </form>
+                    <div className="flex items-center gap-3 my-3">
+                      <span className="h-px flex-1 bg-gray-200" />
+                      <span className="text-xs text-gray-500">or</span>
+                      <span className="h-px flex-1 bg-gray-200" />
+                    </div>
+                    <div className="w-full flex justify-center">
+                      <GoogleLogin
+                        onSuccess={(cred) => handleGoogleCredential(cred?.credential)}
+                        onError={() => handleAlert({ text: 'Google sign-in failed', type: 'error' })}
+                        text="signin_with"
+                        shape="rectangular"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSsoEmail(true)}
+                      className="w-full mt-3 flex items-center justify-center gap-3 rounded-lg border border-[#dadce0] bg-white h-[42px] text-sm font-medium text-[#3c4043] shadow-sm hover:bg-gray-50 transition-colors"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                      Login via SSO
+                    </button>
                   </div>
+                  </>
+                  )}
+                  {showSsoEmail && (
+                    <div className="w-full flex flex-col gap-6">
+                      <button
+                        type="button"
+                        data-testid="ssoStepBackArrow"
+                        onClick={() => { setShowSsoEmail(false); setSsoWorkEmail(''); }}
+                        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 w-fit"
+                      >
+                        <ArrowLeft size={18} />
+                        Back
+                      </button>
+                      <div className="flex flex-col gap-1 xl:gap-3">
+                        <h1 className="text-base xl:text-2xl text-gray-900 font-bold">
+                          Login via SSO
+                        </h1>
+                        <h6 className="text-sm xl:text-base text-gray-500 font-normal">
+                          Enter your work email to continue to your company's sign-in page.
+                        </h6>
+                      </div>
+                      <div className="flex flex-col gap-4">
+                        <Input
+                          type="email"
+                          autoFocus
+                          label="Work email"
+                          placeholder="you@yourcompany.com"
+                          value={ssoWorkEmail}
+                          onChange={(e) => setSsoWorkEmail(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSsoContinue(); } }}
+                        />
+                        <Button
+                          variant={'primary'}
+                          type="button"
+                          className="w-full rounded-xl"
+                          disabled={isResolvingSso || !ssoWorkEmail.trim()}
+                          onClick={handleSsoContinue}
+                        >
+                          {isResolvingSso ? <Loader variant="blue" /> : 'Continue'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <p className="text-xs xl:text-sm text-gray-800 font-normal">
                     By creating new account, you automatically agree to our
@@ -643,6 +810,66 @@ const Login = () => {
           </section>
         </div>
       </div>
+      )}
+      {showSsoEmail && (
+        <div
+          data-testid="ssoStandaloneScreen"
+          className="w-full h-full p-4 flex items-center justify-center bg-gray-200/15"
+        >
+          <div className="w-full max-w-md rounded-xl bg-white shadow-sm p-6 xl:p-10 flex flex-col items-center gap-6">
+            <img
+              src={
+                mainSiteInfo?.large_logo
+                  ? `${getEnv().VITE_API_BASE_URL}/${mainSiteInfo?.large_logo}`
+                  : Logo
+              }
+              alt="Logo"
+              className="h-8"
+            />
+            <div className="flex flex-col items-center gap-1 text-center">
+              <h1 className="text-xl xl:text-2xl text-gray-900 font-bold">Login via SSO</h1>
+              <h6 className="text-sm text-gray-500 font-normal">
+                Enter your work email to continue to your company&apos;s sign-in page.
+              </h6>
+            </div>
+            <div className="w-full flex flex-col gap-4">
+              <Input
+                type="email"
+                autoFocus
+                label="Work email"
+                placeholder="you@yourcompany.com"
+                value={ssoWorkEmail}
+                onChange={(e) => setSsoWorkEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSsoContinue();
+                  }
+                }}
+              />
+              <Button
+                variant={'primary'}
+                type="button"
+                className="w-full rounded-xl"
+                disabled={isResolvingSso || !ssoWorkEmail.trim()}
+                onClick={handleSsoContinue}
+              >
+                {isResolvingSso ? <Loader variant="blue" /> : 'Continue with SSO'}
+              </Button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSsoEmail(false);
+                setSsoWorkEmail('');
+              }}
+              className="text-sm font-medium text-primary hover:text-primary/80"
+            >
+              Login via Password
+            </button>
+          </div>
+        </div>
+      )}
       <Dialog open={showOtp} onOpenChange={setShowOtp}>
         <DialogContent
           className="w-full md:w-2/5 p-3"

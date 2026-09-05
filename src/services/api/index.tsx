@@ -26,6 +26,13 @@ export const login = (data: any) => {
     data,
   });
 };
+export const googleLogin = (data: any) => {
+  return apiClient({
+    method: routes.GOOGLE_LOGIN.METHOD,
+    url: routes.GOOGLE_LOGIN.URL,
+    data,
+  });
+};
 
 export const forgetPassword = (data: any) => {
   return apiClient({
@@ -41,6 +48,42 @@ export const newPassword = (data: any) => {
     url: routes.NEW_PASSWORD.URL,
     data,
   });
+};
+
+/* Invite links for new people. inspect/accept are public (the link is the
+   secret); resend/pending are administrators only. */
+export const inspectInvite = (data: { token: string }) => {
+  return apiClient({
+    method: routes.INVITE_INSPECT.METHOD,
+    url: routes.INVITE_INSPECT.URL,
+    data,
+    hideToastOnError: true,
+  } as CustomAxiosRequestConfig);
+};
+
+export const acceptInvite = (data: { token: string; password: string }) => {
+  return apiClient({
+    method: routes.INVITE_ACCEPT.METHOD,
+    url: routes.INVITE_ACCEPT.URL,
+    data,
+  });
+};
+
+export const resendInvite = (data: { user_uuid: string }) => {
+  return apiClient({
+    method: routes.INVITE_RESEND.METHOD,
+    url: routes.INVITE_RESEND.URL,
+    data,
+  });
+};
+
+export const pendingInvites = () => {
+  return apiClient({
+    method: routes.INVITE_PENDING.METHOD,
+    url: routes.INVITE_PENDING.URL,
+    data: {},
+    hideToastOnError: true,
+  } as CustomAxiosRequestConfig);
 };
 
 //Billing
@@ -1412,6 +1455,61 @@ export const deleteMember = (id: any) => {
   });
 };
 
+/* Person states. See routes.tsx beside PERSON_SUSPEND for what each one is. */
+export const suspendMember = (id: string) => {
+  return apiClient({
+    method: routes.PERSON_SUSPEND.METHOD,
+    url: `${routes.PERSON_SUSPEND.URL}/${id}`,
+  });
+};
+
+export const reactivateMember = (id: string) => {
+  return apiClient({
+    method: routes.PERSON_REACTIVATE.METHOD,
+    url: `${routes.PERSON_REACTIVATE.URL}/${id}`,
+  });
+};
+
+export const getPersonStates = () => {
+  return apiClient({
+    method: routes.PERSON_STATES.METHOD,
+    url: routes.PERSON_STATES.URL,
+  });
+};
+
+/* Admin scope. See routes.tsx beside PERSON_SCOPE_SET. */
+export const setPersonScope = (
+  id: string,
+  scope: { level: string; location_uuids: string[]; group_uuids: string[] },
+) => {
+  return apiClient({
+    method: routes.PERSON_SCOPE_SET.METHOD,
+    url: `${routes.PERSON_SCOPE_SET.URL}/${id}`,
+    data: scope,
+  });
+};
+
+export const getPersonScopes = () => {
+  return apiClient({
+    method: routes.PERSON_SCOPES.METHOD,
+    url: routes.PERSON_SCOPES.URL,
+  });
+};
+
+export const listDeletedMembers = () => {
+  return apiClient({
+    method: routes.LIST_DELETED_MEMBERS.METHOD,
+    url: routes.LIST_DELETED_MEMBERS.URL,
+  });
+};
+
+export const restoreMember = (id: string) => {
+  return apiClient({
+    method: routes.RESTORE_MEMBER.METHOD,
+    url: `${routes.RESTORE_MEMBER.URL}/${id}`,
+  });
+};
+
 export const getPlans = () => {
   return apiClient({
     method: routes.GET_PLANS.METHOD,
@@ -1539,6 +1637,54 @@ export const templateList = (data: any) => {
     data,
   });
 };
+
+// Company settings, per section. The toast is left to src/lib/company-defaults.ts:
+// a 404 from `list` is how it learns the server has not got this API yet, and
+// that must be silent; a real failure it reports itself, in the same words the
+// interceptor would have used.
+export const listCompanySettings = () => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SETTINGS_LIST.METHOD,
+    url: routes.COMPANY_SETTINGS_LIST.URL,
+    data: {},
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
+
+export const getCompanySettingsSection = (data: { section: string }) => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SETTINGS_GET.METHOD,
+    url: routes.COMPANY_SETTINGS_GET.URL,
+    data,
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
+
+export const saveCompanySettingsSection = (data: {
+  section: string;
+  settings: any;
+  version?: number;
+}) => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SETTINGS_SAVE.METHOD,
+    url: routes.COMPANY_SETTINGS_SAVE.URL,
+    data,
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
+
+export const getCompanySettingsHistory = (data: { section: string; limit?: number }) => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SETTINGS_HISTORY.METHOD,
+    url: routes.COMPANY_SETTINGS_HISTORY.URL,
+    data,
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
 export const templateDelete = (id: any) => {
   return apiClient({
     method: routes.TEMPLATE_DELETE.METHOD,
@@ -1595,6 +1741,38 @@ export const upsertCompany = (data: {
   } as any);
 };
 
+/* The company's own record through the tenant-scoped endpoint. Both calls are
+   quiet on error because lib/company-self.ts decides what the user is told: a
+   404 from the read means the server has not got this endpoint yet and must be
+   silent, while a real failure must say so. A 401 here is a genuine session
+   problem and is left to the interceptor. */
+export const fetchCompanySelf = () => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SELF.METHOD,
+    url: routes.COMPANY_SELF.URL,
+    data: {},
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
+
+export const updateCompanySelf = (data: {
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+}) => {
+  const config: CustomAxiosRequestConfig = {
+    method: routes.COMPANY_SELF_UPDATE.METHOD,
+    url: routes.COMPANY_SELF_UPDATE.URL,
+    data,
+    hideToastOnError: true,
+  };
+  return apiClient(config);
+};
+
 export const changePassword = (data: any) => {
   return apiClient({
     method: routes.CHANGE_PASSWORD.METHOD,
@@ -1615,18 +1793,20 @@ export const assignNumberUser = (params: any) => {
 
 //sign up
 
-export const signup = (data: any) => {
+export const signup = (data: any, config: any = {}) => {
   return apiClient({
     method: routes.SIGNUP.METHOD,
     url: routes.SIGNUP.URL,
     data,
+    ...config,
   });
 };
-export const signupOnTrial = (data: any) => {
+export const signupOnTrial = (data: any, config: any = {}) => {
   return apiClient({
     method: routes.SIGNUP_ON_TRIAL.METHOD,
     url: routes.SIGNUP_ON_TRIAL.URL,
     data,
+    ...config,
   });
 };
 export const sendOtp = (data: any) => {
@@ -2511,6 +2691,70 @@ export const getAISettingConfig = () => {
     url: routes.GET_AI_SETTINGS.URL,
   });
 };
+
+/* Ask for a rewritten version of a draft message.
+ *
+ * `mode` is one of polish | formalize | elaborate | shorten | custom, and
+ * `instruction` is only read for `custom`. The reply is text and nothing else
+ * happens: the server never sends a message, so the caller decides whether the
+ * suggestion is used at all. The company is taken from the session server-side
+ * rather than sent from here - it selects which brand's AI key is spent. */
+/* Fire-and-forget: a rating must never interrupt what someone was doing, so
+   the caller does not await it and the server always answers 200. */
+export const rateMessageRewrite = (data: { rating: 'up' | 'down'; mode: string }) => {
+  return apiClient({
+    method: routes.AI_MESSAGE_REWRITE_FEEDBACK.METHOD,
+    url: routes.AI_MESSAGE_REWRITE_FEEDBACK.URL,
+    data,
+  });
+};
+
+export const rewriteMessageDraft = (data: {
+  text: string;
+  mode: 'polish' | 'formalize' | 'elaborate' | 'shorten' | 'custom';
+  instruction?: string;
+}) => {
+  return apiClient({
+    method: routes.AI_MESSAGE_REWRITE.METHOD,
+    url: routes.AI_MESSAGE_REWRITE.URL,
+    data,
+  });
+};
+
+/* Both send the messages already loaded in the open conversation - nothing
+   is fetched server-side and nothing is stored once the response returns. */
+export const summarizeConversation = (data: { messages: { sender: string; text: string }[] }) => {
+  return apiClient({
+    method: routes.AI_CONVERSATION_SUMMARIZE.METHOD,
+    url: routes.AI_CONVERSATION_SUMMARIZE.URL,
+    data,
+  });
+};
+
+export const askAboutConversation = (data: {
+  messages: { sender: string; text: string }[];
+  question: string;
+}) => {
+  return apiClient({
+    method: routes.AI_CONVERSATION_ASK.METHOD,
+    url: routes.AI_CONVERSATION_ASK.URL,
+    data,
+  });
+};
+
+/* `draft` is what the person has typed so far. Sent, every suggestion comes
+   back continuing it rather than replacing it. */
+export const suggestReplies = (data: {
+  messages: { sender: string; text: string }[];
+  draft?: string;
+}) => {
+  return apiClient({
+    method: routes.AI_CONVERSATION_SUGGEST_REPLIES.METHOD,
+    url: routes.AI_CONVERSATION_SUGGEST_REPLIES.URL,
+    data,
+  });
+};
+
 export const getUploadPdfUrl = (data?: object) => {
   return apiClient({
     baseURL: getAIPortalBaseURL(),

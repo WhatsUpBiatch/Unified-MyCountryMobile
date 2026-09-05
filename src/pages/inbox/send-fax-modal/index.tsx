@@ -1,8 +1,6 @@
 import CustomSelect from '@/components/custom/custom-select';
-import ErrorTooltip from '@/components/custom/error-tooltip';
+import Flag, { toFlagNumber } from '@/components/flag';
 import Loader from '@/components/custom/loader';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { useUser } from '@/hooks/use-user';
 import { cn, formatFileSize, getEnv, handleAlert } from '@/lib/utils';
 import { mediaUploadUrl, sendFax } from '@/services/api';
@@ -11,8 +9,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import PhoneInput from 'react-phone-input-2';
 import * as yup from 'yup';
+import RecipientField from '../recipient-field';
 
 const MAX_FAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -69,7 +67,7 @@ const SendFaxModal = ({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isSubmitted },
   } = useForm<any>({
     mode: 'onChange',
     defaultValues: {
@@ -84,7 +82,9 @@ const SendFaxModal = ({
   useEffect(() => {
     if (from?.value) return;
     const defaultFrom = selectedDID?.value ? selectedDID : faxDIDOptions[0];
-    if (defaultFrom) setValue('from', defaultFrom, { shouldValidate: true });
+    /* No validation on this hydration: it runs the whole schema and would
+       report the empty To field before anyone has touched the form. */
+    if (defaultFrom) setValue('from', defaultFrom);
   }, [faxDIDOptions, from?.value, selectedDID, setValue]);
 
   const { mutateAsync: sendFaxMutate, isPending } = useMutation({
@@ -192,138 +192,155 @@ const SendFaxModal = ({
   const canSend = Boolean(from?.value && String(to || '').trim() && faxFile);
 
   return (
-    <>
-      <div className="flex min-h-11 items-center justify-between text-gray-900">
-        <div className="truncate text-md font-semibold">New Fax</div>
+    <form
+      className="mcm-col mcm-col-stage flex h-full w-full min-h-0 flex-col"
+      onSubmit={handleSubmit(handleSendFax)}
+    >
+      {/* Same header a thread has — closing is the X. */}
+      <div className="mcm-thread-head">
+        <div className="min-w-0 flex-1">
+          <div className="mcm-thread-name">New fax</div>
+          <div className="mcm-thread-num">
+            <span className="mcm-tag neu">FAX</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="mcm-iconbtn"
+          onClick={() => handleClose()}
+          aria-label="Close new fax"
+          title="Close"
+        >
+          <X className="h-[18px] w-[18px]" />
+        </button>
       </div>
-      <form
-        className="flex min-h-0 w-full flex-1 flex-col justify-between gap-2"
-        onSubmit={handleSubmit(handleSendFax)}
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+
+      {/* addressing — lines, not boxes */}
+      <div className="mcm-addr">
+        <span className="mcm-addr-label">From:</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {from?.value ? <Flag phoneNumber={toFlagNumber(from.value)} /> : null}
           <CustomSelect
-            label="From"
+            className="mcm-addr-select"
             options={faxDIDOptions}
             value={from}
-            placeholder="Select DID Number"
-            error={errors?.from?.message}
+            placeholder="Select a fax number"
             handleChange={(value) => setValue('from', value, { shouldValidate: true })}
             isDisabled={isFromDisabled}
           />
+        </span>
+      </div>
+      <div className="mcm-addr">
+        <span className="mcm-addr-label">To:</span>
+        <RecipientField
+          value={String(to || '')}
+          fromNumber={from?.value}
+          onChange={(next) => setValue('to', next, { shouldValidate: true })}
+          error={isSubmitted ? (errors?.to?.message as string) : ''}
+          autoFocus={!isFromDisabled}
+        />
+      </div>
 
-          <div className="flex w-full flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label>To</Label>
-              {errors?.to?.message ? <ErrorTooltip text={errors.to.message} /> : null}
-            </div>
-            <PhoneInput
-              country="us"
-              value={String(to || '')}
-              onChange={(value: string) => setValue('to', value, { shouldValidate: true })}
-              containerClass={`w-full ${errors?.to?.message ? 'phone-error' : ''}`}
-            />
-          </div>
-
-          <div className="flex w-full flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Fax File</Label>
-              {fileError ? <ErrorTooltip text={fileError} /> : null}
-            </div>
-            <label
-              htmlFor="fax-file-upload"
-              className={cn(
-                'flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-6 text-center transition-colors duration-200',
-                isDragging
-                  ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-gray-300 bg-white text-gray-700 hover:border-primary hover:bg-gray-50',
-                fileError && 'border-red-500',
-              )}
-              onDragOver={(event) => {
+      <div className="mcm-compose-body">
+        {faxFile ? (
+          /* Still a label, so clicking the card swaps the PDF for another one
+             without having to remove it first. */
+          <label
+            htmlFor="fax-file-upload"
+            className="mcm-doc cursor-pointer"
+            title="Choose a different PDF"
+          >
+            <span className="mcm-doc-ic">
+              <FileText className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="mcm-doc-name block">{faxFile.name}</span>
+              <span className="mcm-doc-sub block">{formatFileSize(faxFile.size)} · PDF</span>
+            </span>
+            <button
+              type="button"
+              className="mcm-iconbtn"
+              onClick={(event) => {
+                // inside a label: without this, removing also reopens the picker
                 event.preventDefault();
                 event.stopPropagation();
-                setIsDragging(true);
+                clearFile();
               }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setIsDragging(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setIsDragging(false);
-                selectFile(event.dataTransfer.files?.[0]);
-              }}
+              aria-label="Remove PDF"
+              title="Remove PDF"
             >
-              <input
-                ref={fileInputRef}
-                id="fax-file-upload"
-                type="file"
-                accept="application/pdf,.pdf"
-                className="hidden"
-                onClick={(event) => {
-                  event.currentTarget.value = '';
-                }}
-                onChange={(event) => selectFile(event.target.files?.[0])}
-              />
-
-              {faxFile ? (
-                <div className="flex w-full max-w-sm items-center gap-3 rounded-lg bg-gray-50 px-3 py-3 text-left">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900">{faxFile.name}</p>
-                    <p className="text-xs text-gray-500">{formatFileSize(faxFile.size)} - PDF</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-red-500"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      clearFile();
-                    }}
-                    aria-label="Remove PDF"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
-                    <Upload className="h-5 w-5" />
-                  </div>
-                  <p className="pt-3 text-sm font-medium text-gray-900">
-                    {isDragging ? 'Drop PDF here' : 'Upload PDF'}
-                  </p>
-                  <p className="pt-1 text-xs text-gray-500">Max file size: 10MB</p>
-                </div>
-              )}
-            </label>
-          </div>
-        </div>
-
-        <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
-          <Button
-            variant="transparent"
-            type="button"
-            onClick={() => handleClose()}
-            className="w-full sm:w-auto"
+              <X className="h-4 w-4" />
+            </button>
+          </label>
+        ) : (
+          <label
+            htmlFor="fax-file-upload"
+            className={cn('mcm-drop', isDragging && 'is-dragging', fileError && 'is-error')}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setIsDragging(true);
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setIsDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setIsDragging(false);
+              selectFile(event.dataTransfer.files?.[0]);
+            }}
           >
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
-            type="submit"
-            className="w-full sm:w-auto"
-            disabled={!canSend || isSubmitting}
-          >
-            {isSubmitting ? <Loader variant="white" size="sm" /> : 'Send Fax'}
-          </Button>
+            <Upload className="h-5 w-5" />
+            <span className="mcm-drop-title">{isDragging ? 'Drop PDF here' : 'Upload a PDF'}</span>
+            <span className="mcm-drop-sub">Drag one in, or click to choose · max 10MB</span>
+          </label>
+        )}
+
+        <input
+          ref={fileInputRef}
+          id="fax-file-upload"
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onClick={(event) => {
+            event.currentTarget.value = '';
+          }}
+          onChange={(event) => selectFile(event.target.files?.[0])}
+        />
+
+        {fileError ? (
+          <p className="mcm-compose-hint" style={{ color: 'var(--mcm-crit)' }}>
+            {fileError}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mcm-composer">
+        <div className="mcm-composer-foot" style={{ marginTop: 0 }}>
+          <span>A fax is one PDF. Attach it above, then send.</span>
+          <span className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              className="mcm-btn sm"
+              onClick={() => handleClose()}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="mcm-btn sm primary"
+              disabled={!canSend || isSubmitting}
+            >
+              {isSubmitting ? <Loader variant="white" size="sm" /> : 'Send Fax'}
+            </button>
+          </span>
         </div>
-      </form>
-    </>
+      </div>
+    </form>
   );
 };
 

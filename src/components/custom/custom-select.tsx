@@ -326,7 +326,21 @@ const CustomSelect = ({
           formatOptionLabel={formatOptionLabel}
           isClearable={isClearable}
           menuPortalTarget={resolvedMenuPortalTarget}
-          menuShouldBlockScroll={true}
+          /* The page stays scrollable with a menu open.
+
+             `menuShouldBlockScroll` freezes everything behind the menu, which is
+             why a drawer could not be scrolled while a dropdown was open — the
+             wheel did nothing and the only way out was to close it. It was on
+             because the menu is portalled to the body: left scrollable, the menu
+             would sit still while its own field scrolled away underneath it.
+
+             Closing on scroll answers both. Scrolling inside the menu's own list
+             is exempt, or a long list could not be scrolled at all. */
+          menuShouldBlockScroll={false}
+          closeMenuOnScroll={(event: Event) => {
+            const target = event.target as HTMLElement | null;
+            return !target?.closest?.('[class*="-menu"], [class*="__menu"]');
+          }}
           menuShouldScrollIntoView={false}
           styles={{
             menuPortal: (base) => ({

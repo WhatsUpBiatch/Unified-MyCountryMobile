@@ -1,4 +1,5 @@
 import type { DialpadSession } from '@/context/dialpad-context';
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 import { useDialpad } from '@/hooks/use-dialpad';
 import { useSocketEvents } from '@/hooks/use-socket-events';
 import { useUser } from '@/hooks/use-user';
@@ -294,7 +295,7 @@ const DialpadEndedScreen = ({
       )
         .trim()
         .toUpperCase();
-      const isPredictiveCampaign = campaignDialMethod === 'PREDICTIVE';
+      const isPredictiveCampaign = isServerDialed(campaignDialMethod);
 
       if (isPredictiveCampaign) {
         socketEventsManager.emit(

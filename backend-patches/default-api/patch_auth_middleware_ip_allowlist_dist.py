@@ -64,6 +64,7 @@ NEW = '''            if (!sessionUserUuid ||
                     companyUuid: user.company_uuid,
                     clientIp,
                     userUuid: sessionUserUuid,
+                    userRole: user.role,
                 });
                 if (!allowlistResult.allowed) {
                     yield DeviceSecurityModel_1.default.destroy({

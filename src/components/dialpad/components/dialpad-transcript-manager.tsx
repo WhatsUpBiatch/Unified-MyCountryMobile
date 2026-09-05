@@ -75,10 +75,18 @@ const getSessionContactName = (session: DialpadSession | null): string => {
 const getSessionSipCallId = (session: DialpadSession | null | undefined): string => {
   if (!session) return '';
 
+  /* session.id IS the SIP Call-ID already - dialpad-context.tsx sets it from
+     request.call_id when the RTCSession is created (JsSIP exposes Call-ID as
+     that top-level property, not inside the generic headers bag the other
+     three sources read from). It's the one source guaranteed to be populated
+     the instant a session exists, so it goes last only as a safety net after
+     sources that might carry a more authoritative/updated value once the
+     switch has weighed in - not because it's less trustworthy. */
   return String(
     session?.liveCallData?.sip_call_id ||
       getHeaderFirstValue(session?.headers, 'x-cid') ||
       getHeaderFirstValue(session?.headers, 'call-id') ||
+      session?.id ||
       '',
   ).trim();
 };
@@ -224,14 +232,26 @@ const DialpadTranscriptManager = () => {
       const sentimentHeaderValue = getHeaderFirstValue(session?.headers, 'x-sentimentmonitor');
       const isOutgoingCall = String(session?.direction || '').toLowerCase() === 'outgoing';
 
+      /* The switch has never actually set X-Transcript/X-SentimentMonitor on
+         an inbound leg (checked the dialplan generator - it's nowhere), so
+         gating incoming calls on that header alone left auto-start
+         permanently off for every inbound call regardless of the agent's own
+         setting. Fall back to the same personal setting outgoing already
+         uses whenever the header is absent - the header (if the switch ever
+         does send one, e.g. a queue-level override) still wins when present. */
       const isAutomaticSentimentMonitoringEnabled =
         (isOutgoingCall
           ? isTruthySettingValue(user?.settings?.ai_call_monitoring)
-          : isTruthyHeaderValue(sentimentHeaderValue)) || isCampaignSentimentMonitoringEnabled;
+          : sentimentHeaderValue
+            ? isTruthyHeaderValue(sentimentHeaderValue)
+            : isTruthySettingValue(user?.settings?.ai_call_monitoring)) ||
+        isCampaignSentimentMonitoringEnabled;
       const isAutomaticTranscriptionEnabled =
         (isOutgoingCall
           ? isTruthySettingValue(user?.settings?.transcription)
-          : isTruthyHeaderValue(transcriptHeaderValue)) || isCampaignTranscriptionEnabled;
+          : transcriptHeaderValue
+            ? isTruthyHeaderValue(transcriptHeaderValue)
+            : isTruthySettingValue(user?.settings?.transcription)) || isCampaignTranscriptionEnabled;
 
       const shouldForceAutomaticTranscription =
         isAutomaticSentimentMonitoringEnabled ||
@@ -240,7 +260,15 @@ const DialpadTranscriptManager = () => {
       if (!shouldForceAutomaticTranscription) return;
 
       const sipCallId = getSessionSipCallId(session);
-      if (!sipCallId) return;
+      if (!sipCallId) {
+        // eslint-disable-next-line no-console
+        console.warn('[transcript] auto-start skipped: no sipCallId resolvable for session', {
+          sessionId: session.id,
+          hasLiveCallData: !!session.liveCallData,
+          headerKeys: Object.keys(session.headers || {}),
+        });
+        return;
+      }
 
       const payload = {
         data: {
@@ -256,6 +284,8 @@ const DialpadTranscriptManager = () => {
         },
       };
 
+      // eslint-disable-next-line no-console
+      console.log('[transcript] auto-start emitting', { sessionId: session.id, sipCallId });
       socketEventsManager.emit('transcript', payload);
       handleTranscription(session, 'start');
       autoStartedBySessionRef.current[session.id] = true;

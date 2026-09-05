@@ -7,13 +7,8 @@ import StageColumn from './stage-column';
 import PanelColumn from './panel-column';
 import { useConsoleCall } from './use-console-call';
 import { useCallLogRefresh } from './use-call-log-refresh';
-import {
-  checklistState,
-  contactDisplayName,
-  scoreSentiment,
-  talkRatio,
-  toConsoleTurns,
-} from './copilot-adapter';
+import { useCallerName } from './use-caller-name';
+import { checklistState, scoreSentiment, talkRatio, toConsoleTurns } from './copilot-adapter';
 import './console.css';
 
 /**
@@ -48,9 +43,13 @@ const PhoneConsole = () => {
   const agentName =
     `${user?.user_info?.first_name || ''} ${user?.user_info?.last_name || ''}`.trim() || 'You';
 
+  /* Transcript rows are labelled with who spoke, so they need the resolved
+     name too — otherwise every turn from the colleague at ext 7242 reads
+     "Unknown". */
+  const { callerName } = useCallerName();
   const turns = useMemo(
-    () => toConsoleTurns(session?.transcriptionMessages, agentName, contactDisplayName(session)),
-    [session?.transcriptionMessages, agentName, session],
+    () => toConsoleTurns(session?.transcriptionMessages, agentName, callerName(session)),
+    [session?.transcriptionMessages, agentName, session, callerName],
   );
 
   const spoken = useMemo(() => turns.filter((t) => !t.isSummary), [turns]);

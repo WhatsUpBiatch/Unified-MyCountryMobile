@@ -280,6 +280,7 @@ const CompanyProfileFields = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [PROFILE_FIELDS_KEY],
     });
   };
 

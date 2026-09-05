@@ -1,3 +1,4 @@
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import CustomAvatar from '@/components/custom/custom-avatar';
 import { useSearchParamManager } from '@/hooks/use-search-params';
 import { cn, formatChatDate } from '@/lib/utils';
@@ -140,7 +141,7 @@ const FaxContent = ({
         <div className="min-w-0 flex-1">
           <div className="mcm-thread-name">{name}</div>
           <div className="mcm-thread-num">
-            <span className="mcm-num truncate">{otherNumber}</span>
+            <NumberWithFlag number={otherNumber} className="mcm-num truncate" />
             <span className="mcm-tag neu hidden sm:inline-flex">FAX</span>
           </div>
         </div>

@@ -75,7 +75,7 @@ const DepartmentDetails = ({ tabData = {}, handleBack = () => {} }: any) => {
             </div>
             <div className="border border-gray-200 rounded-xl p-3 bg-white">
               <div className="flex flex-col gap-1">
-                <p className="font-semibold text-gray-900 truncate text-md mb-2">Members</p>
+                <p className="font-semibold text-gray-900 truncate text-md mb-2">People</p>
                 <div className="w-full flex flex-col gap-3">
                   {departmentMembers.length > 0 ? (
                     departmentMembers.map((member: any) => {
@@ -106,7 +106,7 @@ const DepartmentDetails = ({ tabData = {}, handleBack = () => {} }: any) => {
                       );
                     })
                   ) : (
-                    <p>No members found in this departments</p>
+                    <p>Nobody in this group yet</p>
                   )}
                 </div>
               </div>

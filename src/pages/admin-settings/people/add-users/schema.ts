@@ -26,13 +26,13 @@ export const schemaValidationForAddUser = yup.object().shape({
           .max(15, 'Invalid Number Format'),
       }),
     )
-    .min(1, 'At least one user is required'),
+    .min(1, 'Add at least one person'),
   site: yup
     .object({
-      label: requiredString('Site'),
-      value: requiredString('Site'),
+      label: requiredString('Location'),
+      value: requiredString('Location'),
     })
-    .required('Site is required'),
+    .required('Location is required'),
 });
 
 export const passwordValidationSchema = yup.object().shape({
@@ -71,5 +71,5 @@ export const schemaValidationForAddIndividualPassword = yup.object().shape({
           .oneOf([yup.ref('password')], 'Passwords must match'),
       }),
     )
-    .min(1, 'At least one user is required'),
+    .min(1, 'Add at least one person'),
 });

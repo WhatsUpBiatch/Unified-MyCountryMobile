@@ -17,6 +17,10 @@ export const TableManagerRow: FC<{
   getRowClassName?: any;
   showMoreData?: any;
   renderSubComponent?: (rowOriginal: any) => React.ReactNode;
+  /* Opening a record from its row. Cells that are themselves interactive
+     (checkboxes, menus, action buttons) stop propagation, so this only fires
+     for a click on the row itself. */
+  onRowClick?: (rowOriginal: any) => void;
 }> = ({
   row,
   hasSubRows,
@@ -27,6 +31,7 @@ export const TableManagerRow: FC<{
   columns,
   showMoreData = () => {},
   renderSubComponent,
+  onRowClick,
 }) => {
   const [showSubRows, setShowSubRows] = useState(false);
   const [subrows, setSubRows] = useState<any[]>([]);
@@ -55,7 +60,23 @@ export const TableManagerRow: FC<{
       <TableRow
         key={row.id}
         data-state={row.getIsSelected() && 'selected'}
-        className={getRowClassName ? getRowClassName(row) : 'w-full'}
+        className={`${getRowClassName ? getRowClassName(row) : 'w-full'}${
+          onRowClick ? ' cursor-pointer' : ''
+        }`}
+        {...(onRowClick
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              onClick: () => onRowClick(row.original),
+              onKeyDown: (event: React.KeyboardEvent) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onRowClick(row.original);
+                }
+              },
+            }
+          : {})}
       >
         {hasSubRows && (
           <TableCell className=" max-h-3 sm:min-w-6 xl:min-w-3 sm:max-w-6 lg:max-w-3">

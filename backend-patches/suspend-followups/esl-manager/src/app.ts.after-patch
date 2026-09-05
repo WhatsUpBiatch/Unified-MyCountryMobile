@@ -1,0 +1,85 @@
+"use strict";
+require("dotenv").config();
+import { WebSocketServer } from "ws";
+import express from "express";
+import { createServer } from "http";
+import { NatsController } from "./controllers/NatsController";
+import { ESLController } from "./controllers/ESLController";
+import { TranscriptController } from "./controllers/TranscriptController";
+import { CallController } from "./controllers/CallController";
+import { AzureTranscriptController } from "./controllers/AzureTranscriptController";
+import { RegistrationController } from "./controllers/RegistrationController";
+NatsController.init();
+ESLController.init();
+
+const app = express();
+app.use(express.json());
+
+// ============ REGISTRATIONS ============
+// Drop a person's phone registrations the moment they are suspended or
+// removed (default-api calls this; see backend-patches/suspend-followups).
+// Same trust model as the routes below: loopback only. If
+// ESL_MANAGER_API_TOKEN is set, the caller must send it as a Bearer token.
+
+const registrationsAuthorised = (req: express.Request): boolean => {
+  const token = (process.env.ESL_MANAGER_API_TOKEN || "").trim();
+  if (!token) return true;
+  const header = String(req.headers["authorization"] || "");
+  return header === `Bearer ${token}`;
+};
+
+app.post("/registrations/flush", async (req, res) => {
+  if (!registrationsAuthorised(req)) return res.status(401).json({ ok: false, error: "unauthorised" });
+  const result = await RegistrationController.flush({ ...req.query, ...req.body });
+  return res.status(result.error && !result.extension ? 400 : 200).json(result);
+});
+
+app.get("/registrations", async (req, res) => {
+  if (!registrationsAuthorised(req)) return res.status(401).json({ ok: false, error: "unauthorised" });
+  const result = await RegistrationController.list({ ...req.query });
+  return res.status(result.ok ? 200 : 400).json(result);
+});
+
+// ============ TRANSCRIPTION ENDPOINTS ============
+
+app.use("/start-trans", (req, res) => {
+  TranscriptController.startTrans(req.body);
+  return res.status(200).json({ status: "ok" });
+});
+
+app.use("/testing", (_req, res) => {
+  CallController.testing();
+  res.status(200).json({ status: "ok" });
+});
+
+app.use("/transfer-uuid", async (req, res) => {
+  const result = await CallController.transferUuid({
+    ...req.query,
+    ...req.body,
+  });
+  const statusCode = result?.ok ? 200 : 400;
+  return res.status(statusCode).json(result);
+});
+
+const server = createServer(app);
+
+export const wss = new WebSocketServer({ server });
+
+const transcriptionProvider = (process.env.TRANSCRIPTION_PROVIDER || "")
+  .trim()
+  .toLowerCase();
+
+if (transcriptionProvider === "deepgram") {
+  /** Put transcription on Deepgram */
+  wss.on("connection", TranscriptController.connection);
+} else if (transcriptionProvider === "azure") {
+  /** Put transcription on Azure */
+  wss.on("connection", AzureTranscriptController.connection);
+} else {
+  /** Default fallback */
+  wss.on("connection", AzureTranscriptController.connection);
+}
+
+server.listen(5555, function () {
+  console.log("Listening on http://localhost:5555");
+});

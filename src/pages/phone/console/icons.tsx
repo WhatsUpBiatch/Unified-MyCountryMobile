@@ -34,6 +34,7 @@ export type ConsoleIconName =
   | 'x'
   | 'alert'
   | 'book'
+  | 'transcript'
   | 'clock'
   | 'user'
   | 'shield'
@@ -117,6 +118,7 @@ const SPRITE = `<g id="mcmi-home"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-
 <g id="mcmi-x"><path d="M5 5l14 14M19 5 5 19"/></g>
 <g id="mcmi-alert"><path d="M12 3 2.5 20h19zM12 10v4M12 17.2v.1"/></g>
 <g id="mcmi-book"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5zM4 17.5A2.5 2.5 0 0 1 6.5 15H20"/></g>
+<g id="mcmi-transcript"><path d="M20 4H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3v4l4.5-4H20a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="M6 9h9M6 12.5h5"/></g>
 <g id="mcmi-clock"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.3 2"/></g>
 <g id="mcmi-user"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></g>
 <g id="mcmi-shield"><path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/><path d="m9 12 2 2 4-4"/></g>

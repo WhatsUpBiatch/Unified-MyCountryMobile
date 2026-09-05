@@ -7,6 +7,7 @@ import type { DialpadSession } from '@/context/dialpad-context';
 import { Ic } from '../icons';
 import { DialNumber, useConsoleDialer } from '../dial-number';
 import type { ConsoleCallRow } from '../call-list-column';
+import { durationSeconds } from '../copilot-adapter';
 import { DEMO_ENABLED, demoInteractions } from '../demo-data';
 import DemoChip from './demo-chip';
 
@@ -40,7 +41,7 @@ type Item = {
 
 /** 0 -> "not answered", 45 -> "45s", 605 -> "10m 05s", 3725 -> "1h 02m" */
 const humanDuration = (value: unknown) => {
-  const n = Number(value);
+  const n = durationSeconds(value);
   if (!Number.isFinite(n) || n <= 0) return 'not answered';
   const h = Math.floor(n / 3600);
   const m = Math.floor((n % 3600) / 60);
@@ -78,7 +79,9 @@ const HistoryPane = ({
     return (rows as any[]).map((row, i) => {
       const demo = narrative[i % Math.max(1, narrative.length)];
       const start = String(row?.start_stamp ?? '').trim();
-      const billsec = Number(row?.billsec ?? row?.duration ?? 0);
+      /* Same shape problem as the call list: billsec/duration are "HH:MM:SS"
+         strings, so Number() was NaN and every call here read "not answered". */
+      const billsec = durationSeconds(row);
       const direction = String(row?.direction || '').trim() || 'Inbound';
       const missed =
         direction === 'Missed' || String(row?.hangup_cause || '').toUpperCase() === 'NO_ANSWER';

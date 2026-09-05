@@ -1,0 +1,290 @@
+diff -ruN a/src/app.ts b/src/app.ts
+--- a/src/app.ts	2026-09-03 11:44:59.081397890 +0000
++++ b/src/app.ts	2026-09-03 11:44:59.096397964 +0000
+@@ -24,6 +24,7 @@
+ import trustedDeviceRoute from "./routers/trustedDeviceRoute";
+ import userRoute from "./routers/userRoute";
+ import personStateRoute from "./routers/personStateRoute";
++import adminScopeRoute from "./routers/adminScopeRoute";
+ import validatorRoute from "./routers/validatorRoute";
+ // import v1RouteOld from "./routers/v1RouteOld";
+ import bodyParser from "body-parser";
+@@ -188,6 +189,8 @@
+     /* Invite links for new people (own controller: AuthController stays untouched). */
+     app.use("/api/invite", inviteRoute);
+     app.use("/api/person", personStateRoute);
++    /* Who each administrator may act on (helpers/adminScope.ts). */
++    app.use("/api/person", adminScopeRoute);
+ 
+     app.use("/api/site", siteRoute);
+ 
+diff -ruN a/src/helpers/permissionTree.ts b/src/helpers/permissionTree.ts
+--- a/src/helpers/permissionTree.ts	2026-09-03 11:44:59.055397762 +0000
++++ b/src/helpers/permissionTree.ts	2026-09-03 11:44:59.092397944 +0000
+@@ -242,8 +242,14 @@
+     | { pass: true; log: true } /* report mode: let it through, write the line */
+     | { pass: false; status: 403; body: { success: false; message: string; permission: string } };
+ 
+-/** What the middleware does with a decision under a mode. */
+-export function applyMode(decision: PermissionDecision, mode: PermissionMode, key: string): ModeOutcome {
++/** What the middleware does with a decision under a mode. Takes any decision
++    of the {ok, message} shape, so the scope decision (helpers/adminScope.ts)
++    goes through the same switch. */
++export function applyMode(
++    decision: { ok: true } | { ok: false; message: string },
++    mode: PermissionMode,
++    key: string,
++): ModeOutcome {
+     if (decision.ok) return { pass: true, log: false };
+     if (mode === "enforce") {
+         return { pass: false, status: 403, body: { success: false, message: decision.message, permission: key } };
+diff -ruN a/src/middlewares/PermissionGuard.ts b/src/middlewares/PermissionGuard.ts
+--- a/src/middlewares/PermissionGuard.ts	2026-09-03 11:44:59.053397752 +0000
++++ b/src/middlewares/PermissionGuard.ts	2026-09-03 11:44:59.090397934 +0000
+@@ -12,6 +12,16 @@
+  * services/PermissionTreeService.ts. The account owner (ADMIN) passes
+  * everything. A caller whose role cannot be resolved is refused.
+  *
++ * SCOPE - the third question, asked after the tree passes and only on routes
++ * that act on a target person: "is that person inside the caller's admin
++ * scope?" (helpers/adminScope.ts, services/AdminScopeService.ts). A location
++ * admin reaches the people at their locations; a group admin the members of
++ * their groups; everybody else, and the owner, the whole company. It uses the
++ * same mode switch and the same log line, with `reason: "scope"`, so the
++ * report-mode log answers both questions at once. RequireInScope() is the
++ * scope check alone, for routes that have no tree key (restore, suspend,
++ * reactivate).
++ *
+  * MODES - the same switch shape as CompanyPolicyLock:
+  *   PERMISSION_ENFORCE unset / "report"  log "would have refused", let it through
+  *   PERMISSION_ENFORCE=enforce           answer 403 { message, permission }
+@@ -30,19 +40,71 @@
+ import { NextFunction, Response } from "express";
+ import { IAuth, IRequest } from "@/interfaces/IRequest";
+ import PermissionTreeService from "@/services/PermissionTreeService";
+-import { applyMode, permissionMode } from "@/helpers/permissionTree";
++import AdminScopeService from "@/services/AdminScopeService";
++import { applyMode, permissionMode, PermissionMode } from "@/helpers/permissionTree";
+ 
+ export interface RequirePermissionOptions {
+     /**
+      * For routes that act on one person: return the target's uuid. When it is
+      * the caller's own uuid the "self" rule applies (an explicit `...self` key
+-     * in the tree decides; otherwise acting on yourself is allowed).
++     * in the tree decides; otherwise acting on yourself is allowed). May return
++     * an array for a bulk route; every uuid is then scope-checked.
+      */
+     target?: (req: IRequest) => unknown;
+     /** The key that governs "on myself"; defaults to the sibling `self` key. */
+     selfKey?: string;
+     /** Only check when this is true (e.g. a media route, only for recordings). */
+     when?: (req: IRequest) => boolean;
++    /** Skip the scope question even though a target is given. */
++    skipScope?: boolean;
++}
++
++const targetUuids = (raw: unknown): string[] => {
++    const list = Array.isArray(raw) ? raw : [raw];
++    return list.map((item) => String(item ?? "").trim()).filter(Boolean);
++};
++
++const routeOf = (req: IRequest): string => `${req.method} ${(req.originalUrl || "").split("?")[0]}`;
++
++/**
++ * The scope question for every target uuid. Returns null when all pass;
++ * otherwise the express answer (403 in enforce mode) or, in report mode, null
++ * after writing the log line. Throws on a lookup failure - the caller decides
++ * what a failure means under the mode.
++ */
++async function checkScope(
++    req: IRequest,
++    res: Response,
++    auth: IAuth,
++    key: string,
++    mode: PermissionMode,
++    targets: string[],
++): Promise<Response | null> {
++    for (const targetUuid of targets) {
++        if (targetUuid === String(auth.uuid).trim()) continue;
++        const { decision, context } = await AdminScopeService.decide(auth, targetUuid);
++        if (decision.ok) continue;
++
++        const outcome = applyMode(decision, mode, key);
++        if (!outcome.pass) return res.status(outcome.status).json(outcome.body);
++        console.warn(
++            "permissionGuard: report mode, would have refused",
++            JSON.stringify({
++                user: auth.uuid,
++                company: auth.company_uuid,
++                role: context.callerRole,
++                key,
++                reason: "scope",
++                scope_reason: decision.reason,
++                scope_level: context.scope?.level ?? null,
++                target: targetUuid,
++                target_site: context.target?.site_uuid ?? null,
++                target_groups: context.target?.group_uuids ?? [],
++                route: routeOf(req),
++            }),
++        );
++    }
++    return null;
+ }
+ 
+ export const RequirePermission = (key: string, options: RequirePermissionOptions = {}) => {
+@@ -55,9 +117,11 @@
+         if (options.when && !options.when(req)) return next();
+ 
+         const mode = permissionMode(process.env.PERMISSION_ENFORCE);
+-        const rawTarget = options.target ? options.target(req) : "";
+-        const targetUuid = String((Array.isArray(rawTarget) ? rawTarget[0] : rawTarget) ?? "").trim();
+-        const isSelf = !!targetUuid && targetUuid === String(auth.uuid).trim();
++        const rawTarget = options.target ? options.target(req) : undefined;
++        const targets = targetUuids(rawTarget);
++        /* "Self" is a single-person route acting on the caller. A bulk route
++           whose list happens to hold only the caller is not a self-edit. */
++        const isSelf = !Array.isArray(rawTarget) && targets.length === 1 && targets[0] === String(auth.uuid).trim();
+ 
+         try {
+             const { decision, context } = await PermissionTreeService.decide(auth, key, {
+@@ -82,10 +146,18 @@
+                         key,
+                         reason: decision.reason,
+                         self: isSelf,
+-                        route: `${req.method} ${(req.originalUrl || "").split("?")[0]}`,
++                        route: routeOf(req),
+                     }),
+                 );
+             }
++
++            /* The tree said yes (or report mode let it through). Now: is the
++               target inside the caller's scope? The owner and self never are
++               looked up (AdminScopeService.decide answers those without a query). */
++            if (targets.length && !options.skipScope) {
++                const refused = await checkScope(req, res, auth, key, mode, targets);
++                if (refused) return refused;
++            }
+             return next();
+         } catch (error: any) {
+             console.error("permissionGuard: check failed:", error?.message || error);
+@@ -96,6 +168,38 @@
+                     permission: key,
+                 });
+             }
++            return next();
++        }
++    };
++};
++
++/**
++ * The scope question alone, for routes that act on a person but have no
++ * tree key (restore, suspend, reactivate - see ../../backend-patches/permissions/README.md
++ * for why those got no key). `key` is only a label for the log and the 403.
++ */
++export const RequireInScope = (key: string, target: (req: IRequest) => unknown) => {
++    return async (req: IRequest, res: Response, next: NextFunction): Promise<any> => {
++        const auth = req.auth as IAuth | undefined;
++        if (!auth?.uuid || !auth?.company_uuid) {
++            return res.status(401).json({ success: false, message: "Un-authenticate or deleted User" });
++        }
++        const mode = permissionMode(process.env.PERMISSION_ENFORCE);
++        const targets = targetUuids(target(req));
++        if (!targets.length) return next();
++        try {
++            const refused = await checkScope(req, res, auth, key, mode, targets);
++            if (refused) return refused;
++            return next();
++        } catch (error: any) {
++            console.error("permissionGuard: scope check failed:", error?.message || error);
++            if (mode === "enforce") {
++                return res.status(403).json({
++                    success: false,
++                    message: "Your admin scope could not be checked, so this was not allowed. Please try again.",
++                    permission: key,
++                });
++            }
+             return next();
+         }
+     };
+diff -ruN a/src/routers/personStateRoute.ts b/src/routers/personStateRoute.ts
+--- a/src/routers/personStateRoute.ts	2026-09-03 11:44:59.057397772 +0000
++++ b/src/routers/personStateRoute.ts	2026-09-03 11:44:59.095397959 +0000
+@@ -2,16 +2,21 @@
+ import { catchErrors } from "../helpers/responseHelper";
+ import auth from "../middlewares/AuthMiddleware";
+ import { RequireAdminRole } from "@/middlewares/RoleGuard";
++import { IRequest } from "@/interfaces/IRequest";
+ import PersonStateController from "@/controllers/PersonStateController";
++import { RequireInScope } from "@/middlewares/PermissionGuard";
+ 
+ /* Mounted at /api/person (app.ts). Suspend and reactivate carry the same
+    route-level gate as delete / list-deleted / restore; the per-target rules
+-   (never yourself, never the owner) run inside the service. */
++   (never yourself, never the owner) run inside the service. Neither has a
++   tree key (there is no "suspend" box), so only the scope question is asked:
++   is that person inside the caller's admin scope? */
+ const personStateRoute = express.Router();
+ const Main = new PersonStateController();
+ 
+-personStateRoute.post("/suspend/:uuid", auth, RequireAdminRole, catchErrors(Main.suspend));
+-personStateRoute.post("/reactivate/:uuid", auth, RequireAdminRole, catchErrors(Main.reactivate));
++const SCOPE_TARGET = (req: IRequest) => req.params?.uuid;
++personStateRoute.post("/suspend/:uuid", auth, RequireAdminRole, RequireInScope("person.suspend", SCOPE_TARGET), catchErrors(Main.suspend));
++personStateRoute.post("/reactivate/:uuid", auth, RequireAdminRole, RequireInScope("person.reactivate", SCOPE_TARGET), catchErrors(Main.reactivate));
+ personStateRoute.post("/state/:uuid", auth, catchErrors(Main.state));
+ personStateRoute.post("/state", auth, catchErrors(Main.states));
+ 
+diff -ruN a/src/routers/userRoute.ts b/src/routers/userRoute.ts
+--- a/src/routers/userRoute.ts	2026-09-03 11:44:59.051397742 +0000
++++ b/src/routers/userRoute.ts	2026-09-03 11:44:59.088397924 +0000
+@@ -16,7 +16,7 @@
+ import { PrivateCallAuth } from "@/middlewares/PrivateCallAuth";
+ import { CompanyPolicyLock } from "@/middlewares/CompanyPolicyLock";
+ import { RequireAdminRole } from "@/middlewares/RoleGuard";
+-import { RequirePermission } from "@/middlewares/PermissionGuard";
++import { RequirePermission, RequireInScope } from "@/middlewares/PermissionGuard";
+ 
+ /* The role's own permission tree (Roles > Add role), read on the server for
+    the first time. Keys under account_setting.access.USER.action.* are the
+@@ -44,11 +44,25 @@
+ userRoute.post("/list", auth, RequirePermission(`${PEOPLE}.view`), catchErrors(Main.list));
+ userRoute.post("/list/chat", PrivateCallAuth, catchErrors(Main.listChat));
+ /* Administrators only (helpers/roleGuard.ts). The handler adds the per-target
+-   rules: not yourself, not the account owner. */
+-userRoute.delete("/delete/:uuid", auth, RequireAdminRole, RequirePermission(`${PEOPLE}.delete`), catchErrors(Main.delete));
+-/* Removed in the last 72 hours, and bringing one back. */
++   rules: not yourself, not the account owner. `target` adds the scope question:
++   is that person at one of my locations / in one of my groups? */
++userRoute.delete(
++    "/delete/:uuid",
++    auth,
++    RequireAdminRole,
++    RequirePermission(`${PEOPLE}.delete`, { target: (req) => req.params?.uuid }),
++    catchErrors(Main.delete),
++);
++/* Removed in the last 72 hours, and bringing one back. Restore has no tree key
++   (see backend-patches/permissions/README.md); the scope question still applies. */
+ userRoute.post("/list-deleted", auth, RequireAdminRole, catchErrors(Main.listDeleted));
+-userRoute.post("/restore/:uuid", auth, RequireAdminRole, catchErrors(Main.restore));
++userRoute.post(
++    "/restore/:uuid",
++    auth,
++    RequireAdminRole,
++    RequireInScope(`${PEOPLE}.restore`, (req) => req.params?.uuid),
++    catchErrors(Main.restore),
++);
+ userRoute.get("/cards", auth, catchErrors(Main.cardListing));
+ 
+ userRoute.post("/add-member", auth, RequireAdminRole, RequirePermission(`${PEOPLE}.add`), catchErrors(Main.addMember));
+@@ -72,8 +86,9 @@
+     "/assign-role-bulk-users",
+     auth,
+     RequireAdminRole,
+-    /* The tree has no "assign role" box; changing a person's role is an edit. */
+-    RequirePermission(`${PEOPLE}.edit`),
++    /* The tree has no "assign role" box; changing a person's role is an edit.
++       Every uuid in the body is scope-checked. */
++    RequirePermission(`${PEOPLE}.edit`, { target: (req) => req.body?.users }),
+     validate(assignBulkRoleByRoleId),
+     catchErrors(Main.assignBulkRoleToUser),
+ );

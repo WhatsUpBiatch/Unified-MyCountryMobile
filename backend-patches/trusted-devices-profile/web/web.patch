@@ -1,0 +1,921 @@
+diff --git a/src/pages/settings/basic-info/index.tsx b/src/pages/settings/basic-info/index.tsx
+index e87fa09..28defe9 100644
+--- a/src/pages/settings/basic-info/index.tsx
++++ b/src/pages/settings/basic-info/index.tsx
+@@ -1,13 +1,12 @@
+ import FileCropper from '@/components/custom/file-cropper';
+ import Loader from '@/components/custom/loader';
+ import { Button } from '@/components/ui/button';
+-import { useCompanyFeatures } from '@/hooks/rbac';
+ import { requiredString } from '@/lib/schema';
+ import { Icon } from '@/assets/icons/icon';
+ import { handleAlert, MAX_FILE_SIZE, validateFileSize } from '@/lib/utils';
+ import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
+ import { basicInitialState } from '@/pages/admin-settings/constants';
+-import BasicInformation from '@/pages/admin-settings/people/update-forwarding/basic-information';
++import ProfileForm, { JOB_TITLE_MAX } from './profile-form';
+ import '@/components/mcm/mcm-page.css';
+ import { getUserDetails, mediaUploadUrl, userProfileUpdate } from '@/services/api';
+ import { yupResolver } from '@hookform/resolvers/yup';
+@@ -19,11 +18,31 @@ import CustomAvatar from '@/components/custom/custom-avatar';
+ import HowCallsReachYou from './how-calls-reach-you';
+ import CallSetupGuide from './call-setup-guide';
+ import { buildProfileUpdatePayload } from './profile-update-payload';
++import {
++  SELF_PROFILE_QUERY_KEY,
++  fetchSelfProfile,
++  getSelfProfileStore,
++  updateSelfProfile,
++} from './profile-self-api';
++import { DEFAULT_INTERFACE_LANGUAGE, PRONOUNS_MAX, cleanPronouns } from './interface-languages';
+ 
+ export const BasicInfoSettingSchema = yup.object().shape({
+   basic: yup.object().shape({
+     first_name: requiredString('First name', 2, 50),
+     last_name: requiredString('Last name', 2, 50),
++    /* The column is varchar(30) and the database is strict: one character
++       over and the whole save fails, name and photo with it. The field stops
++       typing at the limit; this catches a pasted value. */
++    job_title: yup
++      .string()
++      .nullable()
++      .max(JOB_TITLE_MAX, `Job title can be at most ${JOB_TITLE_MAX} characters`),
++    /* users.pronouns is varchar(40); same strict-database reasoning. */
++    pronouns: yup
++      .string()
++      .nullable()
++      .max(PRONOUNS_MAX, `Pronouns can be at most ${PRONOUNS_MAX} characters`),
++    interface_language: yup.string().nullable(),
+   }),
+ });
+ 
+@@ -36,10 +55,6 @@ const BasicInfoSettings = () => {
+   const [isImageRemoved, setIsImageRemoved] = useState(false);
+   const cropperUploadRef = useRef<any>(null);
+   const queryClient: any = useQueryClient();
+-  const { features } = useCompanyFeatures();
+-  const basicInfoAccess =
+-    features?.plan_features?.account_setting?.USER?.action ||
+-    features?.plan_features?.account_setting?.access?.USER?.action;
+ 
+   const methods = useForm<any>({
+     mode: 'all',
+@@ -55,19 +70,35 @@ const BasicInfoSettings = () => {
+     select: (data) => data?.data?.data?.result,
+   });
+ 
+-  const { mutate: mutateProfileUpdate, isPending: PendingProfileUpdate } = useMutation({
++  /* Pronouns and interface language live on the new five-field endpoint;
++     /api/user/info does not return them. `null` here means the server has no
++     such endpoint, and the form is told so. Quiet probe: a missing endpoint
++     is a state, not an error. */
++  const { data: selfProfile, isPending: PendingSelfProfile } = useQuery({
++    queryKey: SELF_PROFILE_QUERY_KEY,
++    queryFn: fetchSelfProfile,
++    retry: false,
++  });
++  const selfProfileAvailable: boolean | null = PendingSelfProfile ? null : selfProfile !== null;
++
++  const afterSave = (message: string) => {
++    handleAlert({ text: message, type: 'success' });
++    queryClient.invalidateQueries(['getUsersDetails', 'getUserDetailsQueryFn'], {
++      exact: true,
++    });
++    queryClient.invalidateQueries({ queryKey: SELF_PROFILE_QUERY_KEY });
++    invalidateGlobalUsersDirectory(queryClient);
++    setLoader(false);
++  };
++
++  /* The old whole-record write. Still the only way to save the photo, and the
++     only way to save anything on a server without the five-field endpoint. */
++  const { mutateAsync: mutateProfileUpdate, isPending: PendingProfileUpdate } = useMutation({
+     mutationFn: userProfileUpdate,
+-    onSuccess: (data: any) => {
+-      handleAlert({
+-        text: data?.data?.message || 'Profile updated successfully!',
+-        type: 'success',
+-      });
+-      queryClient.invalidateQueries(['getUsersDetails', 'getUserDetailsQueryFn'], {
+-        exact: true,
+-      });
+-      invalidateGlobalUsersDirectory(queryClient);
+-      setLoader(false);
+-    },
++  });
++
++  const { mutateAsync: mutateSelfUpdate, isPending: PendingSelfUpdate } = useMutation({
++    mutationFn: updateSelfProfile,
+   });
+ 
+   const handleChangeFile = (e: any) => {
+@@ -133,19 +164,62 @@ const BasicInfoSettings = () => {
+     }
+   };
+ 
+-  const onSubmit = () => {
+-    mutateProfileUpdate(
+-      buildProfileUpdatePayload({
+-        userInfoData,
+-        basic: {
+-          first_name: watch('basic.first_name'),
+-          last_name: watch('basic.last_name'),
+-          job_title: watch('basic.job_title'),
+-        },
+-        uploadedProfile: watch('profile'),
+-        isImageRemoved,
+-      }),
+-    );
++  /* Two saves, chosen by what the server offers and what changed.
++
++     Server with /api/profile/update-self: the five fields go there (own row,
++     no role, no email, nothing else touched). The photo is not one of the
++     five, so a changed photo still goes through the old whole-record write -
++     only when it changed, because that write resends the entire record.
++
++     Server without it: the old write carries name and job title as before,
++     and the page says pronouns and language were not saved rather than
++     letting them vanish quietly. */
++  const onSubmit = async () => {
++    const basic = {
++      first_name: watch('basic.first_name'),
++      last_name: watch('basic.last_name'),
++      job_title: watch('basic.job_title'),
++    };
++    const pronouns = cleanPronouns(watch('basic.pronouns'));
++    const interfaceLanguage = String(watch('basic.interface_language') || DEFAULT_INTERFACE_LANGUAGE);
++    const uploadedProfile = watch('profile');
++    const photoChanged = !!uploadedProfile || isImageRemoved;
++
++    const legacyPayload = buildProfileUpdatePayload({
++      userInfoData,
++      basic,
++      uploadedProfile,
++      isImageRemoved,
++    });
++
++    try {
++      const outcome =
++        getSelfProfileStore() === 'absent'
++          ? ({ kind: 'absent' } as const)
++          : await mutateSelfUpdate({
++              ...basic,
++              pronouns: pronouns || null,
++              interface_language: interfaceLanguage,
++            });
++
++      if (outcome.kind === 'saved') {
++        if (photoChanged) await mutateProfileUpdate(legacyPayload);
++        afterSave(outcome.message);
++        return;
++      }
++
++      const legacy: any = await mutateProfileUpdate(legacyPayload);
++      afterSave(legacy?.data?.message || 'Profile updated successfully!');
++      if (pronouns || interfaceLanguage !== DEFAULT_INTERFACE_LANGUAGE) {
++        handleAlert({
++          text: 'Name and job title saved. Pronouns and language are not saved on this server yet.',
++          type: 'warning',
++        });
++      }
++    } catch {
++      /* The request layer has already shown the server's message. */
++      setLoader(false);
++    }
+   };
+ 
+   useEffect(() => {
+@@ -164,11 +238,13 @@ const BasicInfoSettings = () => {
+         first_name: user.first_name,
+         last_name: user.last_name,
+         profile: user.profile,
++        pronouns: selfProfile?.pronouns || '',
++        interface_language: selfProfile?.interface_language || DEFAULT_INTERFACE_LANGUAGE,
+       });
+ 
+       setIsImageRemoved(false);
+     }
+-  }, [userInfoData]);
++  }, [userInfoData, selfProfile]);
+ 
+   return (
+     <>
+@@ -190,15 +266,9 @@ const BasicInfoSettings = () => {
+         ) : (
+           <div className="w-full flex-1 overflow-y-auto p-4">
+             <div className="mx-auto mb-4 w-full md:max-w-[80%]">
+-              {/* Only the name/extension/location fields live under
+-                  `user_info`; the call rules, settings and greetings are its
+-                  siblings at the response root, so they are passed from there. */}
+-              <HowCallsReachYou
+-                userInfo={userInfoData?.user_info}
+-                callForwarding={userInfoData?.call_forwarding}
+-                settings={userInfoData?.settings}
+-                greetings={userInfoData?.greetings}
+-              />
++              {/* Reads the extension and location off `user_info` and fetches
++                  the person's own assigned numbers itself. */}
++              <HowCallsReachYou userInfo={userInfoData?.user_info} />
+             </div>
+             <div className="mx-auto flex w-full flex-col gap-4 rounded-xl bg-white p-6 shadow-xs md:max-w-[80%]">
+               <label htmlFor="file-upload" className="w-16 h-16 cursor-pointer mb-6">
+@@ -300,18 +370,22 @@ const BasicInfoSettings = () => {
+               >
+                 <FormProvider {...methods}>
+                   <form onSubmit={handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
+-                    <BasicInformation
+-                      isChooseTemplate={false}
+-                      isSiteDisabled={true}
+-                      customClass=""
+-                    />
+-                    {basicInfoAccess?.edit && (
+-                      <div className="flex justify-end border-t border-gray-200 pt-4 mcm-stickyfoot">
+-                        <Button variant={'primary'} type="submit" disabled={PendingProfileUpdate}>
+-                          {PendingProfileUpdate ? 'Submiting...' : 'Submit'}
+-                        </Button>
+-                      </div>
+-                    )}
++                    <ProfileForm selfProfile={selfProfileAvailable} />
++                    {/* Always shown. This is the person's own name, title and
++                        photo, and saving those is theirs to do. The button used
++                        to hide behind the People-admin permission
++                        (account_setting.USER.action.edit), which is the key that
++                        gates editing OTHER people - so anyone without it saw a
++                        form with no way to save it. */}
++                    <div className="flex justify-end border-t border-gray-200 pt-4 mcm-stickyfoot">
++                      <Button
++                        variant={'primary'}
++                        type="submit"
++                        disabled={PendingProfileUpdate || PendingSelfUpdate}
++                      >
++                        {PendingProfileUpdate || PendingSelfUpdate ? 'Saving...' : 'Save profile'}
++                      </Button>
++                    </div>
+                   </form>
+                 </FormProvider>
+ 
+diff --git a/src/pages/settings/security/index.tsx b/src/pages/settings/security/index.tsx
+index f69cb51..43fc073 100644
+--- a/src/pages/settings/security/index.tsx
++++ b/src/pages/settings/security/index.tsx
+@@ -12,6 +12,7 @@ import { useState, useMemo } from 'react';
+ import useDebounce from '@/hooks/use-debounce';
+ import ChangePassword from '@/pages/change-password';
+ import { KeyRound } from 'lucide-react';
++import TrustedDevices from './trusted-devices';
+ 
+ const Security = () => {
+   const { user } = useUser();
+@@ -116,22 +117,30 @@ const Security = () => {
+               <KeyRound className="h-4 w-4 text-primary" />
+               Password
+             </p>
++            {/* The server signs out every session, this one included, the moment
++                the password changes (changePassword calls logOutUser with
++                type "all"), and the same password is what the phone app
++                registers with. Both are said here so nobody is surprised by a
++                sign-in screen or a phone that stops ringing. */}
+             <p className="text-gray-500 text-xs">
+-              Change the password you sign in with. You will need your current one. Everything
+-              already signed in stays signed in — use the device list below to end those.
++              Change the password you sign in with. You will need your current one. Saving a new
++              password signs you out everywhere, including this device, and your phone app will
++              need the new password too.
+             </p>
+           </div>
+           <Button variant="outline" onClick={() => setIsChangePasswordOpen(true)}>
+             Change password
+           </Button>
+         </div>
++        {/* Two-step sign-in status and the devices allowed to skip the code.
++            Own account only; reads and revokes through /api/security/devices. */}
++        <TrustedDevices />
+         <div className="flex sm:flex-row flex-col items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
+               <div className="flex flex-col gap-1 sm:w-1/2 w-full">
+                 <p className="text-gray-900 font-semibold text-sm">Sign out everywhere</p>
+                 <p className="text-gray-500 text-xs">
+                   Ends every session signed in as you &mdash; useful if you have lost a phone or
+-                  used a shared computer. To sign someone else out, an administrator does that
+-                  from Users.
++                  used a shared computer.
+                 </p>
+               </div>
+               <div className="flex items-center gap-3 sm:flex-row flex-col sm:w-auto w-full">
+diff --git a/src/pages/settings/security/trusted-devices-logic.ts b/src/pages/settings/security/trusted-devices-logic.ts
+new file mode 100644
+index 0000000..1b35d06
+--- /dev/null
++++ b/src/pages/settings/security/trusted-devices-logic.ts
+@@ -0,0 +1,124 @@
++/* The decisions behind the "Trusted devices" and "Two-step sign-in" cards,
++ * kept free of React and of imports so they can be unit-tested with node:test
++ * (backend-patches/trusted-devices-profile/tests).
++ *
++ * What the server sends (POST /api/security/devices/list) is one row per
++ * device: whether it is signed in, whether it is trusted (it passed a code
++ * inside the trust window, so the next sign-in skips the code), and whether it
++ * is the session asking. "This device" is decided here from two things the
++ * browser already holds: the device id it sends on every sign-in
++ * (localStorage `ucaas-device-id`) and the session uuid the API returns as
++ * `device_token` on /api/user/info. Either match is enough; the server's own
++ * `is_current` is honoured too.
++ */
++
++export interface TrustedDeviceRow {
++  id: string;
++  device_id: string | null;
++  session_uuid: string | null;
++  label: string;
++  device_type: string | null;
++  ip_address: string | null;
++  user_agent: string | null;
++  app_version: string | null;
++  first_seen: string | null;
++  last_seen: string | null;
++  signed_in: boolean;
++  trusted: boolean;
++  trusted_since: string | null;
++  trusted_until: string | null;
++  is_current: boolean;
++}
++
++export interface TwoStepStatus {
++  enforced: boolean;
++  method?: string;
++  trust_days?: number;
++  reason?: string;
++}
++
++export interface TrustedDeviceList {
++  two_step: TwoStepStatus | null;
++  current_session_uuid: string | null;
++  devices: TrustedDeviceRow[];
++}
++
++export interface ThisDeviceContext {
++  localDeviceId?: string | null;
++  sessionUuid?: string | null;
++}
++
++const clean = (v: unknown): string => String(v ?? '').trim();
++
++export const isThisDevice = (row: TrustedDeviceRow, ctx: ThisDeviceContext): boolean => {
++  if (row.is_current) return true;
++  const local = clean(ctx.localDeviceId);
++  if (local && clean(row.device_id) === local) return true;
++  const session = clean(ctx.sessionUuid);
++  if (session && clean(row.session_uuid) === session) return true;
++  return false;
++};
++
++/* This device first, then most recently seen first. */
++export const sortDevices = (rows: TrustedDeviceRow[], ctx: ThisDeviceContext): TrustedDeviceRow[] =>
++  [...rows].sort((a, b) => {
++    const ta = isThisDevice(a, ctx);
++    const tb = isThisDevice(b, ctx);
++    if (ta !== tb) return ta ? -1 : 1;
++    return clean(b.last_seen).localeCompare(clean(a.last_seen));
++  });
++
++export const daysLeft = (untilIso: string | null | undefined, now: Date = new Date()): number | null => {
++  if (!untilIso) return null;
++  const t = Date.parse(untilIso);
++  if (!Number.isFinite(t)) return null;
++  return Math.max(0, Math.ceil((t - now.getTime()) / 86_400_000));
++};
++
++/* One short line per row: what happens at the next sign-in from it. */
++export const describeTrust = (row: TrustedDeviceRow, now: Date = new Date()): string => {
++  if (row.trusted) {
++    const d = daysLeft(row.trusted_until, now);
++    if (d === null) return 'Trusted: skips the code at sign-in.';
++    if (d <= 0) return 'Trust has run out: asks for a code at sign-in.';
++    if (d === 1) return 'Trusted for 1 more day: skips the code at sign-in.';
++    return `Trusted for ${d} more days: skips the code at sign-in.`;
++  }
++  return 'Not trusted: asks for a code at sign-in.';
++};
++
++export const twoStepLabel = (status: TwoStepStatus | null | undefined): 'Active' | 'Off' =>
++  status?.enforced ? 'Active' : 'Off';
++
++/* The API wraps results as { data: { message, result } }. Accepts the raw
++   axios response, its body, or the result itself, and always hands back the
++   three fields the cards read. */
++export const normaliseDeviceList = (body: unknown): TrustedDeviceList => {
++  const any = body as any;
++  const result = any?.data?.data?.result ?? any?.data?.result ?? any?.result ?? any ?? {};
++  const devices: TrustedDeviceRow[] = Array.isArray(result?.devices) ? result.devices : [];
++  const twoStep = result?.two_step && typeof result.two_step === 'object' ? result.two_step : null;
++  return {
++    two_step: twoStep,
++    current_session_uuid: result?.current_session_uuid ? String(result.current_session_uuid) : null,
++    devices,
++  };
++};
++
++/* The rows the "Sign out of all other devices" button will act on, so the
++   confirmation can say a number rather than "some". */
++export const countOtherDevices = (rows: TrustedDeviceRow[], ctx: ThisDeviceContext): number =>
++  rows.filter((r) => !isThisDevice(r, ctx)).length;
++
++export const formatWhen = (iso: string | null | undefined): string => {
++  if (!iso) return '';
++  const t = Date.parse(iso);
++  if (!Number.isFinite(t)) return '';
++  return new Date(t).toLocaleString(undefined, {
++    year: 'numeric',
++    month: 'short',
++    day: 'numeric',
++    hour: '2-digit',
++    minute: '2-digit',
++  });
++};
+diff --git a/src/pages/settings/security/trusted-devices-api.ts b/src/pages/settings/security/trusted-devices-api.ts
+new file mode 100644
+index 0000000..cee47ce
+--- /dev/null
++++ b/src/pages/settings/security/trusted-devices-api.ts
+@@ -0,0 +1,50 @@
++/* The three calls behind the trusted-devices card.
++ *
++ * Kept beside the screen rather than in services/api because the endpoints
++ * are new (default-api: routers/trustedDeviceRoute.ts) and not every server
++ * has them yet. The list call is a quiet probe: a 404 means "this server does
++ * not offer it" and the card says so, instead of the interceptor's generic
++ * red toast. Anything else is a real failure and is shown as one. */
++
++import { apiClient, type CustomAxiosRequestConfig } from '@/services/api/axios';
++import { isEndpointAbsent } from '@/lib/company-settings-api';
++import { normaliseDeviceList, type TrustedDeviceList } from './trusted-devices-logic';
++
++export const TRUSTED_DEVICES_QUERY_KEY = ['security', 'trusted-devices'];
++
++const LIST_URL = '/api/security/devices/list';
++const REVOKE_URL = '/api/security/devices/revoke';
++const REVOKE_ALL_URL = '/api/security/devices/revoke-all';
++
++export type TrustedDevicesOutcome = { kind: 'ok'; list: TrustedDeviceList } | { kind: 'absent' };
++
++export const listTrustedDevices = async (): Promise<TrustedDevicesOutcome> => {
++  try {
++    const response = await apiClient({
++      method: 'POST',
++      url: LIST_URL,
++      data: {},
++      hideToastOnError: true,
++    } as CustomAxiosRequestConfig);
++    return { kind: 'ok', list: normaliseDeviceList(response) };
++  } catch (error: any) {
++    if (isEndpointAbsent(error)) return { kind: 'absent' };
++    throw error;
++  }
++};
++
++export const revokeTrustedDevice = (id: string) =>
++  apiClient({ method: 'POST', url: REVOKE_URL, data: { id } });
++
++export const revokeAllTrustedDevices = () =>
++  apiClient({ method: 'POST', url: REVOKE_ALL_URL, data: {} });
++
++/* What a failed list should say. The interceptor was told to stay quiet, so
++   the card carries the words itself. */
++export const describeListError = (error: any): string => {
++  const status = Number(error?.response?.status);
++  const serverMessage = error?.response?.data?.message;
++  if (typeof serverMessage === 'string' && serverMessage.trim()) return serverMessage;
++  if (!Number.isFinite(status)) return 'Could not reach the server. Check your connection and try again.';
++  return `Could not load your devices (${status}). Try again in a moment.`;
++};
+diff --git a/src/pages/settings/security/trusted-devices.tsx b/src/pages/settings/security/trusted-devices.tsx
+new file mode 100644
+index 0000000..31c593a
+--- /dev/null
++++ b/src/pages/settings/security/trusted-devices.tsx
+@@ -0,0 +1,281 @@
++/* Two cards for Security & Privacy: "Two-step sign-in" and "Trusted devices".
++ *
++ * Two-step sign-in on this platform is a code emailed at sign-in, and the
++ * server has no switch for it - it is on for everyone. The card says Active
++ * and repeats the server's own one-line reason, so the screen and the login
++ * path can never disagree about the rule.
++ *
++ * A trusted device is one that passed a code recently and was told to skip
++ * it next time (the "Skip the code on this device" box on the sign-in form).
++ * Trust lives in the server's OTP rows, not in the session list, which is why
++ * these rows are not the same as the "signed in as you" sessions further down
++ * the page. Revoke deletes the trust, so the next sign-in from that device
++ * asks for a code again; for any device other than this one it also ends the
++ * session.
++ *
++ * Three honest states while loading: "Checking..." until the server answers,
++ * then the list, "No trusted devices", or - on a server without the endpoint -
++ * a Coming soon note. Zero rows are never shown as a fact before the answer
++ * arrives. */
++
++import { useMemo, useState } from 'react';
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
++import { LucideMonitor, LucideShieldCheck, LucideSmartphone, LogOut, ShieldCheck } from 'lucide-react';
++
++import { Button } from '@/components/ui/button';
++import Loader from '@/components/custom/loader';
++import { useUser } from '@/hooks/use-user';
++import { getDeviceId, handleAlert } from '@/lib/utils';
++import { NotAppliedFlag, LiveFlag } from '@/pages/settings/not-applied-note';
++import '@/components/mcm/mcm-page.css';
++
++import {
++  TRUSTED_DEVICES_QUERY_KEY,
++  describeListError,
++  listTrustedDevices,
++  revokeAllTrustedDevices,
++  revokeTrustedDevice,
++} from './trusted-devices-api';
++import {
++  countOtherDevices,
++  describeTrust,
++  formatWhen,
++  isThisDevice,
++  sortDevices,
++  twoStepLabel,
++  type TrustedDeviceRow,
++} from './trusted-devices-logic';
++
++const Card = ({
++  title,
++  badge,
++  intro,
++  aside,
++  children,
++}: {
++  title: string;
++  badge?: React.ReactNode;
++  intro: React.ReactNode;
++  aside?: React.ReactNode;
++  children?: React.ReactNode;
++}) => (
++  <div className="flex flex-col gap-3 bg-white p-4 rounded-lg border border-gray-200">
++    <div className="flex sm:flex-row flex-col sm:items-center justify-between gap-4">
++      <div className="flex flex-col gap-1 sm:w-2/3 w-full">
++        <p className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
++          <ShieldCheck className="h-4 w-4 text-primary" />
++          {title}
++          {badge}
++        </p>
++        <p className="text-gray-500 text-xs">{intro}</p>
++      </div>
++      {aside}
++    </div>
++    {children}
++  </div>
++);
++
++const DeviceRow = ({
++  row,
++  thisDevice,
++  onRevoke,
++  busy,
++}: {
++  row: TrustedDeviceRow;
++  thisDevice: boolean;
++  onRevoke: (row: TrustedDeviceRow) => void;
++  busy: boolean;
++}) => {
++  const isPhone = row.device_type === 'A' || row.device_type === 'I';
++  return (
++    <div className="border p-3 flex sm:flex-row flex-col gap-2 rounded-lg sm:justify-between bg-white">
++      <div className="flex items-start gap-3 w-full">
++        <span className="w-8 min-w-8 h-8 rounded-sm bg-ucass-primary-200 text-primary p-1.5 flex items-center justify-center">
++          {isPhone ? <LucideSmartphone className="w-4 h-4" /> : <LucideMonitor className="w-4 h-4" />}
++        </span>
++        <div className="flex flex-col gap-0.5 w-full">
++          <p className="text-gray-900 font-medium text-sm flex items-center gap-2 flex-wrap">
++            {row.label}
++            {thisDevice ? (
++              <span className="inline-flex items-center gap-1 text-green-700 text-xs font-medium">
++                <LucideShieldCheck className="w-3.5 h-3.5" /> This device
++              </span>
++            ) : null}
++            {row.trusted ? (
++              <span className="mcm-setcard-badge is-on">Trusted</span>
++            ) : (
++              <span className="mcm-setcard-badge is-off">Not trusted</span>
++            )}
++            {row.signed_in ? null : <span className="mcm-setcard-badge is-off">Signed out</span>}
++          </p>
++          <p className="text-gray-600 text-xs">{describeTrust(row)}</p>
++          {row.ip_address ? <p className="text-gray-600 text-xs">IP address: {row.ip_address}</p> : null}
++          {row.user_agent ? <p className="text-gray-500 text-xs break-all">Browser: {row.user_agent}</p> : null}
++          <p className="text-gray-500 text-xs">
++            {row.first_seen ? `First seen ${formatWhen(row.first_seen)}` : ''}
++            {row.first_seen && row.last_seen ? ' · ' : ''}
++            {row.last_seen ? `Last seen ${formatWhen(row.last_seen)}` : ''}
++            {row.trusted && row.trusted_until ? ` · Trusted until ${formatWhen(row.trusted_until)}` : ''}
++          </p>
++        </div>
++      </div>
++      <div className="flex items-center">
++        <Button
++          variant="outline"
++          disabled={busy}
++          onClick={() => onRevoke(row)}
++          className="flex items-center justify-center whitespace-nowrap"
++          title={
++            thisDevice
++              ? 'You stay signed in here, but the next sign-in from this device asks for a code.'
++              : 'Signs this device out and asks it for a code next time.'
++          }
++        >
++          Revoke
++        </Button>
++      </div>
++    </div>
++  );
++};
++
++const TrustedDevices = () => {
++  const { user } = useUser();
++  const queryClient = useQueryClient();
++  const [pendingId, setPendingId] = useState<string | null>(null);
++
++  const ctx = useMemo(
++    () => ({
++      localDeviceId: getDeviceId(),
++      sessionUuid: user?.device_token ? String(user.device_token) : null,
++    }),
++    [user?.device_token],
++  );
++
++  const { data, isLoading, isError, error, refetch } = useQuery({
++    queryKey: TRUSTED_DEVICES_QUERY_KEY,
++    queryFn: listTrustedDevices,
++    retry: false,
++  });
++
++  const rows = useMemo(
++    () => (data?.kind === 'ok' ? sortDevices(data.list.devices, ctx) : []),
++    [data, ctx],
++  );
++
++  const refresh = () => {
++    queryClient.invalidateQueries({ queryKey: TRUSTED_DEVICES_QUERY_KEY });
++    /* The sessions list further down the page shares the rows this touches. */
++    queryClient.invalidateQueries({ queryKey: ['deviceSecurityList'] });
++  };
++
++  const { mutate: revokeOne, isPending: revoking } = useMutation({
++    mutationFn: (row: TrustedDeviceRow) => revokeTrustedDevice(row.id),
++    onMutate: (row) => setPendingId(row.id),
++    onSuccess: (res) => {
++      handleAlert({ text: res?.data?.data?.message || 'Device revoked.', type: 'success' });
++    },
++    onSettled: () => {
++      setPendingId(null);
++      refresh();
++    },
++  });
++
++  const { mutate: revokeAll, isPending: revokingAll } = useMutation({
++    mutationFn: revokeAllTrustedDevices,
++    onSuccess: (res) => {
++      handleAlert({ text: res?.data?.data?.message || 'Other devices signed out.', type: 'success' });
++    },
++    onSettled: refresh,
++  });
++
++  const others = countOtherDevices(rows, ctx);
++  const twoStep = data?.kind === 'ok' ? data.list.two_step : null;
++  const absent = data?.kind === 'absent';
++
++  const twoStepBadge = isLoading ? null : absent ? (
++    <NotAppliedFlag>Coming soon</NotAppliedFlag>
++  ) : twoStepLabel(twoStep) === 'Active' ? (
++    <LiveFlag>Active</LiveFlag>
++  ) : (
++    <span className="mcm-setcard-badge is-off">Off</span>
++  );
++
++  return (
++    <>
++      <Card
++        title="Two-step sign-in"
++        badge={twoStepBadge}
++        intro={
++          isLoading
++            ? 'Checking…'
++            : absent
++              ? 'This server does not report the rule yet. Sign-in still asks for a code emailed to you.'
++              : isError
++                ? describeListError(error)
++                : twoStep?.reason ||
++                  'Every sign-in needs your password and a code emailed to you, unless the device is trusted.'
++        }
++      />
++
++      <Card
++        title="Trusted devices"
++        intro={
++          <>
++            A trusted device passed a code recently and was told to skip it next time. Revoke one and
++            its next sign-in asks for a code again. The sessions list further down shows who is
++            signed in right now; this shows who can sign in without a code.
++          </>
++        }
++        aside={
++          <Button
++            variant="destructiveOutline"
++            className="whitespace-nowrap"
++            disabled={isLoading || absent || isError || revokingAll || others === 0}
++            onClick={() => revokeAll()}
++            title={others === 0 ? 'No other devices to sign out.' : `Signs out ${others} other device(s).`}
++          >
++            <LogOut className="w-4 h-4" />
++            {revokingAll ? 'Signing out…' : 'Sign out of all other devices'}
++          </Button>
++        }
++      >
++        {isLoading ? (
++          <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
++            <Loader variant="blue" size="sm" /> Checking…
++          </div>
++        ) : absent ? (
++          <p className="mcm-notsaved" role="status">
++            <strong>Coming soon</strong>
++            <span>
++              This server cannot list trusted devices yet. Until it can, use the sessions list below to
++              sign a device out.
++            </span>
++          </p>
++        ) : isError ? (
++          <div className="flex items-center justify-between gap-3 text-xs text-red-700">
++            <span>{describeListError(error)}</span>
++            <Button variant="outline" size="sm" onClick={() => refetch()}>
++              Try again
++            </Button>
++          </div>
++        ) : rows.length === 0 ? (
++          <p className="text-gray-500 text-xs py-1">No trusted devices.</p>
++        ) : (
++          <div className="flex flex-col gap-2">
++            {rows.map((row) => (
++              <DeviceRow
++                key={row.id}
++                row={row}
++                thisDevice={isThisDevice(row, ctx)}
++                onRevoke={revokeOne}
++                busy={revoking && pendingId === row.id}
++              />
++            ))}
++          </div>
++        )}
++      </Card>
++    </>
++  );
++};
++
++export default TrustedDevices;
+diff --git a/src/pages/settings/basic-info/interface-languages.ts b/src/pages/settings/basic-info/interface-languages.ts
+new file mode 100644
+index 0000000..e3707ba
+--- /dev/null
++++ b/src/pages/settings/basic-info/interface-languages.ts
+@@ -0,0 +1,49 @@
++/* Pronouns and interface language: the small rules the Profile page follows.
++ * No imports, so the unit tests can load it straight from source.
++ *
++ * Interface language
++ * ------------------
++ * This console has no translation layer - no i18next, react-intl or lingui
++ * anywhere in src, and every string is written in English in place. So the
++ * only language it can honestly offer today is English. The choice is still
++ * saved (users.interface_language) so it is there the day translations
++ * arrive, and the field says so with a Coming soon flag. Add a language here
++ * ONLY when its translations exist; a list of languages the app cannot show
++ * is a promise the app breaks the moment somebody picks one.
++ */
++
++export interface InterfaceLanguage {
++  value: string;
++  label: string;
++}
++
++export const INTERFACE_LANGUAGES: ReadonlyArray<InterfaceLanguage> = [{ value: 'en', label: 'English' }];
++
++export const DEFAULT_INTERFACE_LANGUAGE = 'en';
++
++/* True once more than one language can actually be shown. Drives the Coming
++   soon flag and the note under the select. */
++export const HAS_TRANSLATIONS = INTERFACE_LANGUAGES.length > 1;
++
++export const isSupportedLanguage = (code: unknown): boolean =>
++  INTERFACE_LANGUAGES.some((l) => l.value === String(code ?? '').trim());
++
++/* The option the select should show for a stored code. An unknown or empty
++   code shows English rather than a blank, because English is what the person
++   is looking at. */
++export const languageOption = (code: unknown): InterfaceLanguage => {
++  const wanted = String(code ?? '').trim();
++  return INTERFACE_LANGUAGES.find((l) => l.value === wanted) || INTERFACE_LANGUAGES[0];
++};
++
++/* Pronouns: free text, the same 40-character ceiling as users.pronouns. The
++   placeholder shows the common forms; nothing is enforced beyond length. */
++export const PRONOUNS_MAX = 40;
++export const PRONOUN_SUGGESTIONS: ReadonlyArray<string> = ['she/her', 'he/him', 'they/them'];
++export const PRONOUNS_PLACEHOLDER = `e.g. ${PRONOUN_SUGGESTIONS.join(', ')}`;
++
++export const cleanPronouns = (value: unknown): string =>
++  String(value ?? '')
++    .replace(/\s+/g, ' ')
++    .trim()
++    .slice(0, PRONOUNS_MAX);
+diff --git a/src/pages/settings/basic-info/profile-self-api.ts b/src/pages/settings/basic-info/profile-self-api.ts
+new file mode 100644
+index 0000000..b89685c
+--- /dev/null
++++ b/src/pages/settings/basic-info/profile-self-api.ts
+@@ -0,0 +1,85 @@
++/* The person's own five profile fields, on a server that may not have the
++ * endpoint yet.
++ *
++ *   POST /api/profile/self          read
++ *   POST /api/profile/update-self   write (first_name, last_name, job_title,
++ *                                   pronouns, interface_language)
++ *
++ * Same feature-detection shape as src/lib/company-defaults.ts: the first call
++ * of the session probes quietly, a 404 marks the endpoint absent for the rest
++ * of the session and the Profile page falls back to the old whole-record
++ * save (which cannot carry pronouns or language - the page says so). Any
++ * other failure is a real one and is thrown. */
++
++import { apiClient, type CustomAxiosRequestConfig } from '@/services/api/axios';
++import { isEndpointAbsent } from '@/lib/company-settings-api';
++
++export const SELF_PROFILE_QUERY_KEY = ['profile', 'self'];
++
++const SELF_URL = '/api/profile/self';
++const UPDATE_SELF_URL = '/api/profile/update-self';
++
++export interface SelfProfile {
++  uuid?: string;
++  first_name?: string;
++  last_name?: string;
++  job_title?: string | null;
++  pronouns?: string | null;
++  interface_language?: string | null;
++}
++
++export type SelfProfileStore = 'unknown' | 'present' | 'absent';
++
++let store: SelfProfileStore = 'unknown';
++
++export const getSelfProfileStore = (): SelfProfileStore => store;
++
++/* For tests. */
++export const resetSelfProfileDetection = (): void => {
++  store = 'unknown';
++};
++
++const unwrap = (response: any): SelfProfile | null => {
++  const result = response?.data?.data?.result ?? response?.data?.result ?? null;
++  return result && typeof result === 'object' ? (result as SelfProfile) : null;
++};
++
++/* null means "this server has no such endpoint"; an empty profile is never
++   null, it is an object with empty fields. */
++export const fetchSelfProfile = async (): Promise<SelfProfile | null> => {
++  if (store === 'absent') return null;
++  try {
++    const response = await apiClient({
++      method: 'POST',
++      url: SELF_URL,
++      data: {},
++      hideToastOnError: true,
++    } as CustomAxiosRequestConfig);
++    store = 'present';
++    return unwrap(response) || {};
++  } catch (error: any) {
++    if (store === 'unknown' && isEndpointAbsent(error)) {
++      store = 'absent';
++      return null;
++    }
++    throw error;
++  }
++};
++
++export type UpdateSelfOutcome = { kind: 'saved'; profile: SelfProfile; message: string } | { kind: 'absent' };
++
++export const updateSelfProfile = async (values: SelfProfile): Promise<UpdateSelfOutcome> => {
++  if (store === 'unknown') {
++    /* A save before any read: decide the store the way a read would, so the
++       save never goes to an endpoint that is not there. */
++    if ((await fetchSelfProfile()) === null) return { kind: 'absent' };
++  }
++  if (store === 'absent') return { kind: 'absent' };
++
++  const response = await apiClient({ method: 'POST', url: UPDATE_SELF_URL, data: values });
++  return {
++    kind: 'saved',
++    profile: unwrap(response) || {},
++    message: response?.data?.data?.message || 'Profile saved.',
++  };
++};

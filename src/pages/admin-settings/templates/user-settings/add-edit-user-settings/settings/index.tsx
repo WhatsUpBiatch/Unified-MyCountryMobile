@@ -13,6 +13,13 @@ import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
 import { Input } from '@/components/ui/input';
 import RegionalModal from '@/components/common-settings/regional-dialog';
 import { describeRecording } from '@/lib/recording-description';
+import {
+  readPath,
+  readRuleFlags,
+  ruleNodePath,
+  writeRuleFlags,
+  type RuleFlags,
+} from '@/lib/company-rule-flags';
 
 interface DaySchedule {
   open: boolean;
@@ -30,7 +37,7 @@ const getWeeklyScheduleName = (obj: WeeklySchedule = {}): string =>
    passed as a sibling of this component lands outside that box and stays put
    while the settings move under it. Optional, and unused by the other screens
    that render this. */
-const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
+const SettingPermission: FC<any> = ({ data, intro, footer, containerClass }) => {
   const { features } = useCompanyFeatures();
   const [bussinessHourError, setBussinessHourEror] = useState<string | null>('');
   const [initialRegionalSettings, setInitialRegionalSettings] = useState<any>(null);
@@ -73,24 +80,58 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
     }
   }, [modalState?.regionalModal]);
 
-  /* One row per company rule. Each says what it decides, shows what it is set to
-     now, and carries its own "may people change this" switch.
+  /* Two switches per company rule, one for each thing a rule can say about a
+     person: whether they GET the company value, and whether they may CHANGE it.
 
-     `override` is the stored key and reads as jargon on a screen a customer uses.
-     What it actually decides is whether a person may change that one setting on
-     their own phone, so that is what each row says instead. */
-  const OverrideRow = ({ path, what }: { path: string; what: string }) => (
-    <SettingRow
-      label="Let people change this themselves"
-      description={`Off, everybody keeps the company ${what}. On, a person may change it on their own phone.`}
-      control={
-        <Switch
-          checked={!!watch(path)}
-          onCheckedChange={(checked: boolean) => setValue(path, checked)}
+     There used to be one switch here, "Let people change this themselves", writing
+     the single `override` flag — which was also, elsewhere, the instruction to copy
+     the company value onto people. One switch could not say "everyone gets this
+     and nobody may change it", the thing an admin most often means. The two
+     halves are stored as `apply` and `locked` beside the old flag, through
+     `writeRuleFlags`, which also keeps `override` filled in for the readers that
+     still only understand that one. `node` is the rule's node in the settings
+     object ('recording', 'operational_hours.regional'); the flags sit on it. */
+  const RuleRows = ({ node, what }: { node: string; what: string }) => {
+    const settings = watch('settings');
+    const flags = readRuleFlags(settings, node);
+
+    const write = (change: Partial<RuleFlags>) => {
+      const next = writeRuleFlags(settings, node, {
+        apply: flags.apply,
+        locked: flags.locked,
+        ...change,
+      });
+      const nodePath = ruleNodePath(node);
+      /* Only the one node is set, not the whole settings object: the other cards'
+         values are left exactly as the form holds them. */
+      setValue(`settings.${nodePath}`, readPath(next, nodePath), { shouldDirty: true });
+    };
+
+    return (
+      <>
+        <SettingRow
+          label="Give this to everyone"
+          description={`On, the company ${what} is copied onto everyone. Off, people keep what they have.`}
+          control={
+            <Switch
+              checked={flags.apply}
+              onCheckedChange={(checked: boolean) => write({ apply: checked })}
+            />
+          }
         />
-      }
-    />
-  );
+        <SettingRow
+          label="Lock it"
+          description={`On, nobody can change the ${what} on their own phone. Off, a person may change it.`}
+          control={
+            <Switch
+              checked={flags.locked}
+              onCheckedChange={(checked: boolean) => write({ locked: checked })}
+            />
+          }
+        />
+      </>
+    );
+  };
 
   return (
     <>
@@ -105,6 +146,7 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
           'user-settings-template-settings flex h-[calc(100vh_-_15rem)] flex-col gap-4 overflow-auto'
         }
       >
+        {intro}
         <div className="user-settings-template-settings-name-wrap mt-2 w-full max-w-sm">
           <Input
             label="Name"
@@ -139,16 +181,13 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
               ) : null
             }
           />
-          <OverrideRow
-            path="settings.operational_hours.regional.override"
-            what="country and time zone"
-          />
+          <RuleRows node="operational_hours.regional" what="country and time zone" />
         </SettingCard>
 
         <SettingCard
           title="When you are open"
           status="active"
-          note="Outside these hours, a number that rings a person goes to their voicemail instead of ringing an empty desk. Numbers pointed at a menu or a queue are not diverted yet — those still ring through at any hour."
+          note="Live on the switch. Outside these hours a call goes to the closed-hours destination set on the number it dialled; a number that rings a person and has no destination goes to that person's voicemail. A number, a menu or a queue can also keep its own hours, and closes on its own even while the company is open. Checked against the running switch on 3 Sep 2026."
           description="Calls outside these hours are handled differently - that is what the closed-hours action on your numbers and queues points at."
           aside={
             <Button
@@ -171,13 +210,13 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
                   : getWeeklyScheduleName(operational_hours?.value) || 'Set per weekday.'
             }
           />
-          <OverrideRow path="settings.operational_hours.override" what="opening hours" />
+          <RuleRows node="operational_hours" what="opening hours" />
         </SettingCard>
 
         <SettingCard
           title="Call recording"
-          status="app-only"
-          note="Recording is live for calls to a person, in whichever direction you choose above, and each one appears against its call in your call logs. Still missing, and worth knowing before you switch this on for real customers: the announcement is NOT played, so nobody is told the call is being recorded, and calls arriving at a menu or a queue are not recorded. Most countries require the caller to be told, so this is ready to test rather than ready to use."
+          status="active"
+          note="Live on the switch. Calls to a person, a menu, a queue or a forwarded outside number are recorded in whichever direction you choose, the caller hears the recording notice before the call connects (and the person called hears it on an outbound call), and each recording appears against its call in your call logs. Checked against the running switch on 3 Sep 2026."
           description="Whether calls are recorded automatically, or only when somebody chooses to start recording."
           aside={
             <Button
@@ -198,7 +237,7 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
               direction: recording?.automatic?.value,
             })}
           />
-          <OverrideRow path="settings.recording.override" what="recording setting" />
+          <RuleRows node="recording" what="recording setting" />
         </SettingCard>
 
         {features?.plan_features?.advance_call_management?.access?.TRANSCRIPTION && (
@@ -224,7 +263,7 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
                   />
                 }
               />
-              <OverrideRow path="settings.transcription.override" what="transcription setting" />
+              <RuleRows node="transcription" what="transcription setting" />
             </SettingCard>
 
             <SettingCard
@@ -246,18 +285,15 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
                   />
                 }
               />
-              <OverrideRow
-                path="settings.ai_call_monitoring.override"
-                what="call monitoring setting"
-              />
+              <RuleRows node="ai_call_monitoring" what="call monitoring setting" />
             </SettingCard>
           </>
         )}
 
         <SettingCard
           title="The number people see"
-          status="active"
-          note="This one does reach the call: it is the number shown on the other person's phone."
+          status="coming-soon"
+          note="Saved, and not used on calls yet. The switch takes the outgoing number from each person's own record under People, and never reads this rule. Checked against the running call switch on 3 Sep 2026."
           description="What shows on the other person's phone when somebody here calls out."
           aside={
             <Button type="button" variant="outline" className="cs-btn-soft" onClick={() => openModal('displayNumberModal')}>
@@ -280,7 +316,7 @@ const SettingPermission: FC<any> = ({ data, footer, containerClass }) => {
               ) : null
             }
           />
-          <OverrideRow path="settings.display_number.override" what="caller ID" />
+          <RuleRows node="display_number" what="caller ID" />
         </SettingCard>
 
         {footer}

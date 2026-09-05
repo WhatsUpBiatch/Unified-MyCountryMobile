@@ -12,6 +12,7 @@ import { useState, useMemo } from 'react';
 import useDebounce from '@/hooks/use-debounce';
 import ChangePassword from '@/pages/change-password';
 import { KeyRound } from 'lucide-react';
+import TrustedDevices from './trusted-devices';
 
 const Security = () => {
   const { user } = useUser();
@@ -69,7 +70,6 @@ const Security = () => {
     [loggedInUsers, currentUserUuid],
   );
 
-
   const { mutate: logoutMutate } = useMutation({
     mutationFn: logout,
     onSuccess: (data) => {
@@ -100,7 +100,13 @@ const Security = () => {
   };
 
   return (
-    <section className="w-full bg-gray-200/15 flex flex-col overflow-x-auto overflow-y-hidden">
+    <section
+      /* The page scrolls here. It used to be `overflow-y-hidden`, which clipped
+        everything below the fold with no way to reach it. The sticky footer is
+        `position: sticky; bottom: 0`, so it pins to this container rather than
+        scrolling away with the content. */
+      className="flex h-full min-h-0 w-full flex-col overflow-x-auto overflow-y-auto bg-gray-200/15"
+    >
       <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
         <div>
           <p className="text-gray-900 font-semibold text-lg">Security & Privacy</p>
@@ -109,51 +115,59 @@ const Security = () => {
           </p>
         </div>
       </div>
-      <div className="gap-3 flex flex-col w-full h-full p-3">
+      <div className="gap-3 flex flex-col w-full min-h-full p-3">
         <div className="flex sm:flex-row flex-col sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex flex-col gap-1 sm:w-1/2 w-full">
             <p className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
               <KeyRound className="h-4 w-4 text-primary" />
               Password
             </p>
+            {/* The server signs out every session, this one included, the moment
+                the password changes (changePassword calls logOutUser with
+                type "all"), and the same password is what the phone app
+                registers with. Both are said here so nobody is surprised by a
+                sign-in screen or a phone that stops ringing. */}
             <p className="text-gray-500 text-xs">
-              Change the password you sign in with. You will need your current one. Everything
-              already signed in stays signed in — use the device list below to end those.
+              Change the password you sign in with. You will need your current one. Saving a new
+              password signs you out everywhere, including this device, and your phone app will need
+              the new password too.
             </p>
           </div>
           <Button variant="outline" onClick={() => setIsChangePasswordOpen(true)}>
             Change password
           </Button>
         </div>
+        {/* Two-step sign-in status and the devices allowed to skip the code.
+            Own account only; reads and revokes through /api/security/devices. */}
+        <TrustedDevices />
         <div className="flex sm:flex-row flex-col items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-              <div className="flex flex-col gap-1 sm:w-1/2 w-full">
-                <p className="text-gray-900 font-semibold text-sm">Sign out everywhere</p>
-                <p className="text-gray-500 text-xs">
-                  Ends every session signed in as you &mdash; useful if you have lost a phone or
-                  used a shared computer. To sign someone else out, an administrator does that
-                  from Users.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 sm:flex-row flex-col sm:w-auto w-full">
-                <Button
-                  variant="destructiveOutline"
-                  onClick={handleLogoutExcept}
-                  disabled={!currentUserUuid}
-                  className="whitespace-nowrap transition-all duration-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign out my other devices
-                </Button>
-                <Button
-                  variant="destructiveOutline"
-                  onClick={handleLogoutAll}
-                  disabled={!currentUserUuid}
-                  className="whitespace-nowrap transition-all duration-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign out everywhere
-                </Button>
-              </div>
+          <div className="flex flex-col gap-1 sm:w-1/2 w-full">
+            <p className="text-gray-900 font-semibold text-sm">Sign out everywhere</p>
+            <p className="text-gray-500 text-xs">
+              Ends every session signed in as you &mdash; useful if you have lost a phone or used a
+              shared computer.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 sm:flex-row flex-col sm:w-auto w-full">
+            <Button
+              variant="destructiveOutline"
+              onClick={handleLogoutExcept}
+              disabled={!currentUserUuid}
+              className="whitespace-nowrap transition-all duration-200"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out my other devices
+            </Button>
+            <Button
+              variant="destructiveOutline"
+              onClick={handleLogoutAll}
+              disabled={!currentUserUuid}
+              className="whitespace-nowrap transition-all duration-200"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out everywhere
+            </Button>
+          </div>
         </div>
         <div className="w-full flex sm:flex-row flex-col items-center justify-between gap-5">
           <p className="text-gray-800 text-sm">
@@ -176,7 +190,7 @@ const Security = () => {
             />
           </div>
         </div>
-        <div className="gap-3 flex flex-col w-full md:h-[calc(100vh-18.5rem)]  overflow-y-auto pr-1">
+        <div className="gap-3 flex flex-col w-full pr-1">
           {isLoading ? (
             <div className="flex justify-center h-full items-center">
               <Loader variant="blue" />

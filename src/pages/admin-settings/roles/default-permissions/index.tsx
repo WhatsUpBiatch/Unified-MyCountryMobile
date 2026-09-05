@@ -214,7 +214,7 @@ const DefaultPermissionsPage = () => {
     <AdminPage
       section="People"
       title="Default permissions"
-      description="Step 4 of four. What each kind of person should be able to do on their first day, and why. Write a recommendation down as a role, then pick it when adding people."
+      description="Step 3 of three. What each kind of person should be able to do on their first day, and why. Write a recommendation down as a role, then pick it when adding people."
       actions={<AreaNav current="/admin-settings/default-permissions" />}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">

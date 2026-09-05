@@ -30,6 +30,8 @@ export interface ITaxCalculationResult {
 
 const SignUpPayment = () => {
   const { state } = useLocation();
+  const googleCredential = (state as any)?.googleCredential;
+  const credHeader = (state as any)?.credHeader || 'x-google-credential';
   const {
     planDuration,
     isTrailPlan,
@@ -118,7 +120,7 @@ const SignUpPayment = () => {
   };
 
   const { mutate: mutateSignUp, isPending: signUpPending } = useMutation({
-    mutationFn: signup,
+    mutationFn: (payload: any) => signup(payload, googleCredential ? { headers: { [credHeader]: googleCredential } } : {}),
     onSuccess: ({ data }) => {
       if (data?.data?.result?.stripe_message) {
         handleAlert({ text: data?.data?.result?.stripe_message, type: 'error' });
@@ -139,7 +141,7 @@ const SignUpPayment = () => {
   });
 
   const { mutate: mutateSignupOnTrial, isPending: PendingSignupTrial } = useMutation({
-    mutationFn: signupOnTrial,
+    mutationFn: (payload: any) => signupOnTrial(payload, googleCredential ? { headers: { [credHeader]: googleCredential } } : {}),
     onSuccess: ({ data }) => {
       if (data?.data?.result?.stripe_message) {
         handleAlert({ text: data?.data?.result?.stripe_message, type: 'error' });

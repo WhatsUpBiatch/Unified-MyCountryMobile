@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Flag, Globe, Headphones, Mic, PhoneOutgoing, Voicemail, Archive } from 'lucide-react';
+import { Archive, Flag, Globe, Headphones, Mic, PhoneOutgoing, ScrollText, Voicemail } from 'lucide-react';
 
 import CustomSelect from '@/components/custom/custom-select';
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -367,6 +368,7 @@ const CompanyPolicies = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [POLICIES_KEY],
     });
   };
 
@@ -433,11 +435,11 @@ const CompanyPolicies = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Policies</p>
-        <p className="text-xs text-gray-500">
-          One set of rules for the whole company — prompt language, voicemail, call recording, how
-          long we keep files and who may dial abroad.
-        </p>
+        <SectionHeading
+          icon={<ScrollText className="h-[18px] w-[18px]" />}
+          title="Policies"
+          description="One set of rules for the whole company — prompt language, voicemail, call recording, how long we keep files and who may dial abroad."
+        />
       </div>
 
       <div className="w-full">

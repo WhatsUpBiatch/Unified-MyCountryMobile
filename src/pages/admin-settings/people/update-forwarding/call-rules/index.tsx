@@ -212,7 +212,7 @@ const CallRules: FC<CallRulesProps> = ({
     : forwardingAll
       ? `Every call is set to go to ${describeTarget(summaryRules?.forwardCall)}.`
       : activeDevices
-        ? `${activeDevices} ${activeDevices === 1 ? 'device is' : 'devices are'} switched on, with ${describeTarget(summaryRules?.failureAction)} as the fallback.`
+        ? `${activeDevices} ${activeDevices === 1 ? 'way to be reached is' : 'ways to be reached are'} switched on, with ${describeTarget(summaryRules?.failureAction)} as the fallback.`
         : `No device is switched on, and your fallback is ${describeTarget(summaryRules?.failureAction)}.`;
 
   const summary = `${savedIntent} This is saved, but the call path does not read it yet — your devices ring as normal whatever is set here.`;
@@ -245,8 +245,11 @@ const CallRules: FC<CallRulesProps> = ({
             "checked first" without this reads as a working precedence order.
             Delete this in the same change that makes the rules real. */}
         <p className="mcm-setrow-note is-info mb-3">
-          Coming soon — these rules are saved, but calls are not routed by them yet. The order below
-          is how they will apply once they are switched on.
+          Live for calls straight to this person since 3 September 2026: forward all calls, do not
+          disturb, ring time, and what happens after ringing when it is voicemail, an extension or
+          hang up. An outside number, a queue or a menu after the ring, and which devices ring in
+          what order, are saved but not followed yet. Calls through a queue or a menu follow that
+          queue's or menu's own rules.
         </p>
         <div className="mcm-rule">
           <span className="block">

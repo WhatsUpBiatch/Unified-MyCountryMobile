@@ -377,10 +377,19 @@ const DialpadMaxiTabTranscript = ({ activeSession }: DialpadMaxiTabTranscriptPro
       shouldUseActiveCampaignSettings,
     ],
   );
+  /* The switch has never actually set X-Transcript/X-SentimentMonitor on an
+     inbound leg (checked the dialplan generator - it's nowhere), so gating
+     incoming calls on that header alone left auto-start permanently off for
+     every inbound call regardless of the agent's own setting. Fall back to
+     the same personal setting outgoing already uses whenever the header is
+     absent - the header (if the switch ever does send one, e.g. a
+     queue-level override) still wins when present. */
   const isAutomaticSentimentMonitoringEnabled = useMemo(() => {
     const enabledFromUserOrHeader = isOutgoingCall
       ? isTruthySettingValue(user?.settings?.ai_call_monitoring)
-      : isTruthyHeaderValue(sentimentHeaderValue);
+      : sentimentHeaderValue
+        ? isTruthyHeaderValue(sentimentHeaderValue)
+        : isTruthySettingValue(user?.settings?.ai_call_monitoring);
 
     return enabledFromUserOrHeader || isCampaignSentimentMonitoringEnabled;
   }, [
@@ -392,7 +401,9 @@ const DialpadMaxiTabTranscript = ({ activeSession }: DialpadMaxiTabTranscriptPro
   const isAutomaticTranscriptionEnabled = useMemo(() => {
     const enabledFromUserOrHeader = isOutgoingCall
       ? isTruthySettingValue(user?.settings?.transcription)
-      : isTruthyHeaderValue(transcriptHeaderValue);
+      : transcriptHeaderValue
+        ? isTruthyHeaderValue(transcriptHeaderValue)
+        : isTruthySettingValue(user?.settings?.transcription);
 
     return enabledFromUserOrHeader || isCampaignTranscriptionEnabled;
   }, [
@@ -424,13 +435,23 @@ const DialpadMaxiTabTranscript = ({ activeSession }: DialpadMaxiTabTranscriptPro
       const isExtensionCallSession = isExtensionDialTarget(sessionDialTarget);
       if (isExtensionCallSession) return false;
 
+      /* session.id IS the SIP Call-ID already - see dialpad-transcript-manager's
+         getSessionSipCallId for why it's the reliable fallback here. */
       const sipCallId = String(
         activeSession?.liveCallData?.sip_call_id ||
           getHeaderFirstValue(activeSession?.headers, 'x-cid') ||
           getHeaderFirstValue(activeSession?.headers, 'call-id') ||
+          activeSession?.id ||
           '',
       ).trim();
-      if (!sipCallId) return false;
+      if (!sipCallId) {
+        // eslint-disable-next-line no-console
+        console.warn('[transcript] manual action skipped: no sipCallId resolvable', {
+          sessionId: activeSession?.id,
+          eventName,
+        });
+        return false;
+      }
 
       const firstName = user?.user_info?.first_name || '';
       const lastName = user?.user_info?.last_name || '';
@@ -451,6 +472,8 @@ const DialpadMaxiTabTranscript = ({ activeSession }: DialpadMaxiTabTranscriptPro
         },
       };
 
+      // eslint-disable-next-line no-console
+      console.log('[transcript] manual action emitting', { sessionId: activeSession.id, sipCallId, eventName });
       socketEventsManager.emit(eventName, payload);
       handleTranscription(activeSession, transcriptionType);
       return true;

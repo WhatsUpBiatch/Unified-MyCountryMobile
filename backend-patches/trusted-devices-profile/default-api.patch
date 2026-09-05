@@ -1,0 +1,847 @@
+diff --git a/src/controllers/TrustedDeviceController.ts b/src/controllers/TrustedDeviceController.ts
+new file mode 100644
+index 0000000..56faa18
+--- /dev/null
++++ b/src/controllers/TrustedDeviceController.ts
+@@ -0,0 +1,80 @@
++/* Your own trusted devices and the two-step sign-in status.
++ *
++ *   POST /api/security/devices/list
++ *   POST /api/security/devices/revoke      { id }
++ *   POST /api/security/devices/revoke-all
++ *
++ * Own rows only. The user and email come from the session (req.auth), never
++ * from the body, so there is no way to list or revoke somebody else's devices
++ * through here; an administrator ending another person's session is a
++ * different act and lives on the People screens.
++ *
++ * Why this is separate from /api/user/device-securities: that endpoint lists
++ * sessions. A trusted device is a different thing (see trustedDeviceLogic.ts)
++ * and revoking one has to reach the `otp` rows the login path reads, which
++ * the session endpoints never touch. */
++
++import { Response } from "express";
++import BaseController from "./BaseController";
++import { sendSuccess } from "../helpers/responseHelper";
++import { IAuth, IRequest } from "../interfaces/IRequest";
++import { describeTwoStep, parseRevokeId } from "../services/trustedDeviceLogic";
++import {
++    listTrustedDevices,
++    revokeAllDevices,
++    revokeDevice,
++    revokeSession,
++    trustDays,
++} from "../services/TrustedDeviceService";
++
++export default class TrustedDeviceController extends BaseController {
++    public async list(req: IRequest, res: Response) {
++        const { uuid, email, current_device_uuid } = req.auth as IAuth;
++        const devices = await listTrustedDevices({
++            userUuid: uuid,
++            email,
++            currentSessionUuid: current_device_uuid ?? null,
++        });
++        return sendSuccess(res, "Success", {
++            two_step: describeTwoStep(trustDays(), email),
++            current_session_uuid: current_device_uuid ?? null,
++            devices,
++        });
++    }
++
++    public async revoke(req: IRequest, res: Response) {
++        const { uuid, email, current_device_uuid } = req.auth as IAuth;
++        const target = parseRevokeId(req.body?.id);
++        if (target.kind === "invalid") {
++            return super.sendError(res, target.reason, null, 422);
++        }
++        const result =
++            target.kind === "device"
++                ? await revokeDevice({
++                      userUuid: uuid,
++                      email,
++                      deviceId: target.deviceId,
++                      currentSessionUuid: current_device_uuid ?? null,
++                  })
++                : await revokeSession({
++                      userUuid: uuid,
++                      sessionUuid: target.sessionUuid,
++                      currentSessionUuid: current_device_uuid ?? null,
++                  });
++        const message =
++            result.trust_removed || result.sessions_ended
++                ? "That device will be asked for a code next time."
++                : "Nothing to revoke for that device.";
++        return sendSuccess(res, message, { id: String(req.body?.id), ...result });
++    }
++
++    public async revokeAll(req: IRequest, res: Response) {
++        const { uuid, email, current_device_uuid } = req.auth as IAuth;
++        const result = await revokeAllDevices({
++            userUuid: uuid,
++            email,
++            currentSessionUuid: current_device_uuid ?? null,
++        });
++        return sendSuccess(res, "Every other device is signed out and will be asked for a code next time.", result);
++    }
++}
+diff --git a/src/controllers/ProfileSelfController.ts b/src/controllers/ProfileSelfController.ts
+new file mode 100644
+index 0000000..0a70216
+--- /dev/null
++++ b/src/controllers/ProfileSelfController.ts
+@@ -0,0 +1,39 @@
++/* The signed-in person's own profile: five fields, their own row.
++ *
++ *   POST /api/profile/self          -> the five fields as stored
++ *   POST /api/profile/update-self   -> save any of them, get all five back
++ *
++ * The row is always the caller's (req.auth.uuid). No uuid in the body or the
++ * path is read, so this cannot edit a colleague. No role, email, extension or
++ * site is accepted, so it cannot be used to climb; compare `/api/user/update`,
++ * which takes a whole record.
++ *
++ * `/api/user/info` builds user_info from a fixed attributes list in
++ * UserController.info, which is off-limits to this change, so the two new
++ * fields are read through /self rather than expected on user_info. */
++
++import { Response } from "express";
++import BaseController from "./BaseController";
++import { sendSuccess } from "../helpers/responseHelper";
++import { IAuth, IRequest } from "../interfaces/IRequest";
++import { sanitiseSelfProfile } from "../services/profileSelfLogic";
++import { readSelfProfile, writeSelfProfile } from "../services/ProfileSelfService";
++
++export default class ProfileSelfController extends BaseController {
++    public async self(req: IRequest, res: Response) {
++        const { uuid } = req.auth as IAuth;
++        const row = await readSelfProfile(uuid);
++        if (!row) return super.sendError(res, "Your account could not be found.", null, 404);
++        return sendSuccess(res, "Success", row);
++    }
++
++    public async updateSelf(req: IRequest, res: Response) {
++        const { uuid } = req.auth as IAuth;
++        const checked = sanitiseSelfProfile(req.body);
++        if (!checked.ok) return super.sendError(res, checked.message, null, 422);
++
++        const row = await writeSelfProfile(uuid, checked.values);
++        if (!row) return super.sendError(res, "Your account could not be found.", null, 404);
++        return sendSuccess(res, "Profile saved.", { ...row, saved: Object.keys(checked.values) });
++    }
++}
+diff --git a/src/routers/trustedDeviceRoute.ts b/src/routers/trustedDeviceRoute.ts
+new file mode 100644
+index 0000000..d3a5921
+--- /dev/null
++++ b/src/routers/trustedDeviceRoute.ts
+@@ -0,0 +1,16 @@
++import express from "express";
++import { catchErrors } from "../helpers/responseHelper";
++import TrustedDeviceController from "../controllers/TrustedDeviceController";
++import auth from "../middlewares/AuthMiddleware";
++
++const { list, revoke, revokeAll } = new TrustedDeviceController();
++
++const trustedDeviceRoute = express.Router();
++
++trustedDeviceRoute.post("/list", auth, catchErrors(list));
++
++trustedDeviceRoute.post("/revoke", auth, catchErrors(revoke));
++
++trustedDeviceRoute.post("/revoke-all", auth, catchErrors(revokeAll));
++
++export default trustedDeviceRoute;
+diff --git a/src/routers/profileSelfRoute.ts b/src/routers/profileSelfRoute.ts
+new file mode 100644
+index 0000000..7526f3e
+--- /dev/null
++++ b/src/routers/profileSelfRoute.ts
+@@ -0,0 +1,14 @@
++import express from "express";
++import { catchErrors } from "../helpers/responseHelper";
++import ProfileSelfController from "../controllers/ProfileSelfController";
++import auth from "../middlewares/AuthMiddleware";
++
++const { self, updateSelf } = new ProfileSelfController();
++
++const profileSelfRoute = express.Router();
++
++profileSelfRoute.post("/self", auth, catchErrors(self));
++
++profileSelfRoute.post("/update-self", auth, catchErrors(updateSelf));
++
++export default profileSelfRoute;
+diff --git a/src/services/TrustedDeviceService.ts b/src/services/TrustedDeviceService.ts
+new file mode 100644
+index 0000000..340339e
+--- /dev/null
++++ b/src/services/TrustedDeviceService.ts
+@@ -0,0 +1,130 @@
++/* Database side of trusted devices. The decisions are in trustedDeviceLogic.ts;
++   this file only fetches and deletes rows, always scoped to the one signed-in
++   person. Nothing here can touch another user's rows: every query carries the
++   caller's user_uuid or email from req.auth, never from the body. */
++
++import { Op } from "sequelize";
++import DeviceSecurity from "@/models/DeviceSecurityModel";
++import Otp from "@/models/Otp";
++import {
++    SessionRow,
++    TrustRow,
++    TrustedDeviceEntry,
++    emailVariants,
++    mergeDevices,
++    readTrustDays,
++} from "./trustedDeviceLogic";
++
++export const trustDays = (): number => readTrustDays(process.env.TRUSTED_DEVICE_DAYS, 30);
++
++const otpSequelize = (): any => (Otp as any).sequelize;
++
++/* The Otp model declares no created_at (timestamps: false) although the table
++   has one, and sendOtp already reads it with raw SQL - the same is done here
++   so the two agree on what "trusted" means. */
++const verifiedDevicesFor = async (email: string, days: number): Promise<TrustRow[]> => {
++    const emails = emailVariants(email);
++    if (!emails.length) return [];
++    const placeholders = emails.map(() => "?").join(", ");
++    const [rows]: any = await otpSequelize().query(
++        `select device_id, max(created_at) as verified_at
++           from otp
++          where otp_receiver in (${placeholders})
++            and verified = 1
++            and created_at >= (now() - interval ? day)
++          group by device_id`,
++        { replacements: [...emails, days] },
++    );
++    return (rows || []).map((r: any) => ({ device_id: r.device_id, verified_at: r.verified_at }));
++};
++
++const sessionsFor = async (userUuid: string): Promise<SessionRow[]> => {
++    const rows = await DeviceSecurity.findAll({
++        where: { user_uuid: userUuid },
++        attributes: ["uuid", "device_id", "device_type", "ip_address", "user_agent", "version", "created_at", "updated_at"],
++        order: [["updated_at", "DESC"]],
++        raw: true,
++    });
++    return rows as unknown as SessionRow[];
++};
++
++export const listTrustedDevices = async (input: {
++    userUuid: string;
++    email: string;
++    currentSessionUuid?: string | null;
++}): Promise<TrustedDeviceEntry[]> => {
++    const days = trustDays();
++    const [sessions, trust] = await Promise.all([sessionsFor(input.userUuid), verifiedDevicesFor(input.email, days)]);
++    return mergeDevices(sessions, trust, { trustDays: days, currentSessionUuid: input.currentSessionUuid });
++};
++
++/* Forget the trust for one device id. Both readers of "is this device
++   trusted" - sendOtp's window query and login's verified-row lookup - read
++   `otp` rows for this email + device_id, so deleting those rows is what makes
++   the next sign-in ask for a code again. */
++const forgetTrust = async (email: string, deviceId?: string): Promise<number> => {
++    const emails = emailVariants(email);
++    if (!emails.length) return 0;
++    return Otp.destroy({
++        where: {
++            otp_receiver: { [Op.in]: emails },
++            ...(deviceId ? { device_id: deviceId } : {}),
++        },
++    });
++};
++
++export interface RevokeResult {
++    trust_removed: number;
++    sessions_ended: number;
++}
++
++export const revokeDevice = async (input: {
++    userUuid: string;
++    email: string;
++    deviceId: string;
++    currentSessionUuid?: string | null;
++}): Promise<RevokeResult> => {
++    const trust_removed = await forgetTrust(input.email, input.deviceId);
++    /* The current session stays signed in: the person is using it to press the
++       button. Its trust is gone all the same, so the next sign-in from it asks
++       for a code. */
++    const sessions_ended = await DeviceSecurity.destroy({
++        where: {
++            user_uuid: input.userUuid,
++            device_id: input.deviceId,
++            ...(input.currentSessionUuid ? { uuid: { [Op.ne]: input.currentSessionUuid } } : {}),
++        },
++    });
++    return { trust_removed, sessions_ended };
++};
++
++/* An old session row with no device id: nothing in `otp` can point at it, so
++   ending the session is all there is to do. */
++export const revokeSession = async (input: {
++    userUuid: string;
++    sessionUuid: string;
++    currentSessionUuid?: string | null;
++}): Promise<RevokeResult> => {
++    if (input.currentSessionUuid && input.sessionUuid === input.currentSessionUuid) {
++        return { trust_removed: 0, sessions_ended: 0 };
++    }
++    const sessions_ended = await DeviceSecurity.destroy({
++        where: { user_uuid: input.userUuid, uuid: input.sessionUuid },
++    });
++    return { trust_removed: 0, sessions_ended };
++};
++
++export const revokeAllDevices = async (input: {
++    userUuid: string;
++    email: string;
++    currentSessionUuid?: string | null;
++}): Promise<RevokeResult> => {
++    const trust_removed = await forgetTrust(input.email);
++    const sessions_ended = await DeviceSecurity.destroy({
++        where: {
++            user_uuid: input.userUuid,
++            ...(input.currentSessionUuid ? { uuid: { [Op.ne]: input.currentSessionUuid } } : {}),
++        },
++    });
++    return { trust_removed, sessions_ended };
++};
+diff --git a/src/services/trustedDeviceLogic.ts b/src/services/trustedDeviceLogic.ts
+new file mode 100644
+index 0000000..2578a88
+--- /dev/null
++++ b/src/services/trustedDeviceLogic.ts
+@@ -0,0 +1,280 @@
++/* The pure part of "trusted devices": no database, no Express, no imports.
++ *
++ * What a trusted device IS on this platform
++ * -----------------------------------------
++ * `/send-otp` (AuthController.sendOtp) skips the emailed code when the `otp`
++ * table holds a row for this email + this device_id with verified = 1 and a
++ * created_at inside the last TRUSTED_DEVICE_DAYS (default 30) - and the
++ * person ticked "remember this device". `/login` reads the same kind of row to
++ * decide whether it may hand out a token straight away. So trust lives in
++ * `otp`, keyed by device_id, and it is per email address.
++ *
++ * Sessions live somewhere else: `devices_securities` holds one row per signed-in
++ * device (also keyed by device_id, plus the session's own uuid). A device can
++ * be signed in without being trusted (it passed a code more than 30 days ago,
++ * or never ticked the box) and can be trusted without being signed in (the
++ * person signed out, but the verified row is still inside the window).
++ *
++ * The screen wants one list. `mergeDevices` folds both sources by device_id,
++ * and everything here is testable without a server (see
++ * backend-patches/trusted-devices-profile/tests).
++ */
++
++export interface SessionRow {
++    uuid: string;
++    device_id: string | null;
++    device_type?: string | null;
++    ip_address?: string | null;
++    user_agent?: string | null;
++    version?: string | null;
++    created_at?: Date | string | null;
++    updated_at?: Date | string | null;
++}
++
++export interface TrustRow {
++    device_id: string;
++    /* The newest verified row's created_at for that device. */
++    verified_at: Date | string;
++}
++
++export interface TrustedDeviceEntry {
++    /* What the revoke endpoint takes. The device_id where there is one, else
++       "session:<uuid>" for an old row that never recorded a device id. */
++    id: string;
++    device_id: string | null;
++    session_uuid: string | null;
++    label: string;
++    device_type: string | null;
++    ip_address: string | null;
++    user_agent: string | null;
++    app_version: string | null;
++    first_seen: string | null;
++    last_seen: string | null;
++    signed_in: boolean;
++    trusted: boolean;
++    trusted_since: string | null;
++    trusted_until: string | null;
++    is_current: boolean;
++}
++
++export const SESSION_ID_PREFIX = "session:";
++
++const toIso = (value: Date | string | null | undefined): string | null => {
++    if (value === null || value === undefined || value === "") return null;
++    const d = value instanceof Date ? value : new Date(value);
++    return Number.isNaN(d.getTime()) ? null : d.toISOString();
++};
++
++const earliest = (a: string | null, b: string | null): string | null => {
++    if (!a) return b;
++    if (!b) return a;
++    return a < b ? a : b;
++};
++
++const latest = (a: string | null, b: string | null): string | null => {
++    if (!a) return b;
++    if (!b) return a;
++    return a > b ? a : b;
++};
++
++export const addDays = (iso: string, days: number): string =>
++    new Date(new Date(iso).getTime() + days * 86_400_000).toISOString();
++
++/* A short human label from a browser user-agent string. Deliberately small:
++   the five browsers and five platforms people actually sign in from. Anything
++   else falls back to the device type, never to an empty string, so the row
++   always has a name. */
++export const describeUserAgent = (ua: string | null | undefined, deviceType?: string | null): string => {
++    const s = String(ua || "");
++    let browser = "";
++    if (/Edg\//.test(s)) browser = "Edge";
++    else if (/OPR\/|Opera/.test(s)) browser = "Opera";
++    else if (/Firefox\//.test(s)) browser = "Firefox";
++    else if (/Chrome\//.test(s) && !/Chromium/.test(s)) browser = "Chrome";
++    else if (/Safari\//.test(s) && /Version\//.test(s)) browser = "Safari";
++
++    let platform = "";
++    if (/Windows/.test(s)) platform = "Windows";
++    else if (/iPhone|iPad|iPod/.test(s)) platform = "iPhone or iPad";
++    else if (/Mac OS X|Macintosh/.test(s)) platform = "Mac";
++    else if (/Android/.test(s)) platform = "Android";
++    else if (/Linux/.test(s)) platform = "Linux";
++
++    if (browser && platform) return `${browser} on ${platform}`;
++    if (browser) return browser;
++    if (platform) return platform;
++
++    switch (String(deviceType || "").toUpperCase()) {
++        case "A":
++            return "Android app";
++        case "I":
++            return "iPhone app";
++        case "D":
++            return "Desktop app";
++        case "W":
++            return "Web browser";
++        default:
++            return s.trim() ? s.trim().slice(0, 40) : "Unknown device";
++    }
++};
++
++export interface MergeOptions {
++    trustDays: number;
++    /* devices_securities.uuid of the session making the request. */
++    currentSessionUuid?: string | null;
++    /* `now` is a parameter so the tests are not clock-dependent. */
++    now?: Date;
++}
++
++/* One entry per device_id (plus one per id-less session), newest activity
++   first, the current device always at the top. */
++export const mergeDevices = (
++    sessions: SessionRow[],
++    trust: TrustRow[],
++    { trustDays, currentSessionUuid, now = new Date() }: MergeOptions,
++): TrustedDeviceEntry[] => {
++    const byId = new Map<string, TrustedDeviceEntry>();
++    const nowIso = now.toISOString();
++
++    for (const s of sessions) {
++        const deviceId = s.device_id ? String(s.device_id).trim() : "";
++        const key = deviceId || `${SESSION_ID_PREFIX}${s.uuid}`;
++        const created = toIso(s.created_at);
++        const updated = toIso(s.updated_at);
++        const isCurrent = !!currentSessionUuid && s.uuid === currentSessionUuid;
++
++        const existing = byId.get(key);
++        if (existing) {
++            /* Two sessions for one device id (saveDeviceSession keeps just one,
++               but old rows exist). Keep the newer session as the face of the
++               row and widen the seen window. */
++            existing.first_seen = earliest(existing.first_seen, created);
++            existing.last_seen = latest(existing.last_seen, updated || created);
++            existing.is_current = existing.is_current || isCurrent;
++            if (isCurrent || (updated || created || "") > (existing.last_seen || "")) {
++                existing.session_uuid = s.uuid;
++                existing.ip_address = s.ip_address ?? existing.ip_address;
++                existing.user_agent = s.user_agent ?? existing.user_agent;
++                existing.app_version = s.version ?? existing.app_version;
++            }
++            continue;
++        }
++
++        byId.set(key, {
++            id: key,
++            device_id: deviceId || null,
++            session_uuid: s.uuid,
++            label: describeUserAgent(s.user_agent, s.device_type),
++            device_type: s.device_type ?? null,
++            ip_address: s.ip_address ?? null,
++            user_agent: s.user_agent ?? null,
++            app_version: s.version ?? null,
++            first_seen: created,
++            last_seen: updated || created,
++            signed_in: true,
++            trusted: false,
++            trusted_since: null,
++            trusted_until: null,
++            is_current: isCurrent,
++        });
++    }
++
++    for (const t of trust) {
++        const deviceId = String(t.device_id || "").trim();
++        if (!deviceId) continue;
++        const since = toIso(t.verified_at);
++        if (!since) continue;
++        const until = addDays(since, trustDays);
++        /* The SQL already limits to the window, but the boundary is re-checked
++           here so a row that slipped through (clock skew, a wider query) is
++           never shown as trusted when the login path would not honour it. */
++        if (until <= nowIso) continue;
++
++        const existing = byId.get(deviceId);
++        if (existing) {
++            existing.trusted = true;
++            existing.trusted_since = since;
++            existing.trusted_until = until;
++            existing.first_seen = earliest(existing.first_seen, since);
++            continue;
++        }
++        byId.set(deviceId, {
++            id: deviceId,
++            device_id: deviceId,
++            session_uuid: null,
++            label: "Device that passed a code",
++            device_type: null,
++            ip_address: null,
++            user_agent: null,
++            app_version: null,
++            first_seen: since,
++            last_seen: since,
++            signed_in: false,
++            trusted: true,
++            trusted_since: since,
++            trusted_until: until,
++            is_current: false,
++        });
++    }
++
++    return Array.from(byId.values()).sort((a, b) => {
++        if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
++        return (b.last_seen || "").localeCompare(a.last_seen || "");
++    });
++};
++
++/* Which rows a revoke id points at. Pure, so the controller's branching is
++   tested rather than trusted. */
++export type RevokeTarget =
++    | { kind: "device"; deviceId: string }
++    | { kind: "session"; sessionUuid: string }
++    | { kind: "invalid"; reason: string };
++
++export const parseRevokeId = (raw: unknown): RevokeTarget => {
++    const id = String(raw ?? "").trim();
++    if (!id) return { kind: "invalid", reason: "Say which device to revoke." };
++    if (id.length > 200) return { kind: "invalid", reason: "That device id is too long." };
++    if (id.startsWith(SESSION_ID_PREFIX)) {
++        const uuid = id.slice(SESSION_ID_PREFIX.length).trim();
++        if (!/^[0-9a-f-]{36}$/i.test(uuid)) return { kind: "invalid", reason: "That session id is not valid." };
++        return { kind: "session", sessionUuid: uuid };
++    }
++    return { kind: "device", deviceId: id };
++};
++
++/* The rule the login path applies today, in one sentence, with the number it
++   uses. There is no per-company or per-person switch for the second factor
++   anywhere in AuthController: a code is always required unless the device is
++   trusted. If that ever changes, this is the one place the screen's wording
++   comes from. */
++export interface TwoStepStatus {
++    enforced: boolean;
++    method: "email_code";
++    trust_days: number;
++    reason: string;
++}
++
++export const describeTwoStep = (trustDays: number, email?: string | null): TwoStepStatus => {
++    const where = email ? ` to ${email}` : "";
++    return {
++        enforced: true,
++        method: "email_code",
++        trust_days: trustDays,
++        reason: `Every sign-in needs your password and a code emailed${where}, unless the device is trusted. Trust lasts ${trustDays} days.`,
++    };
++};
++
++export const readTrustDays = (raw: string | undefined, fallback = 30): number => {
++    const n = parseInt(String(raw ?? "").trim(), 10);
++    return Number.isFinite(n) && n > 0 ? n : fallback;
++};
++
++/* The address forms the otp rows may have been written under. sendOtp lower-
++   cases and trims; the older login path used the address as typed. Both are
++   deleted so a row written either way cannot survive a revoke. */
++export const emailVariants = (email: string | null | undefined): string[] => {
++    const raw = String(email ?? "").trim();
++    if (!raw) return [];
++    const lower = raw.toLowerCase();
++    return lower === raw ? [raw] : [raw, lower];
++};
+diff --git a/src/services/ProfileSelfService.ts b/src/services/ProfileSelfService.ts
+new file mode 100644
+index 0000000..1106ce2
+--- /dev/null
++++ b/src/services/ProfileSelfService.ts
+@@ -0,0 +1,101 @@
++/* Reads and writes the signed-in person's own five profile fields.
++ *
++ * Why raw SQL and not the User model
++ * ----------------------------------
++ * `pronouns` and `interface_language` are new columns. Declaring them on the
++ * User model would make Sequelize SELECT them in every `User.findOne` that has
++ * no attributes list - and if a server ran that build before the migration,
++ * every one of those queries, login included, would fail with "unknown
++ * column". Keeping the two columns out of the model means the rest of the API
++ * cannot notice them, and this service is the only code that reads them, after
++ * a guard has made sure they exist.
++ *
++ * The guard
++ * ---------
++ * The first call on each process looks at `users` and adds whichever of the two
++ * columns is missing (the migration does the same and is the proper way; the
++ * guard covers a server where the migration was not run). The check is cached
++ * as a promise so two requests arriving together share one ALTER. If the
++ * columns still cannot be found afterwards - no ALTER privilege, say - the
++ * request fails with a clear message rather than saving three fields and
++ * silently dropping two. */
++
++import { QueryTypes } from "sequelize";
++import { sequelize } from "@/config/database";
++import { SELF_PROFILE_NEW_COLUMNS, SelfProfileInput, missingColumns } from "./profileSelfLogic";
++
++let ensured: Promise<void> | null = null;
++
++const columnsOfUsers = async (): Promise<string[]> => {
++    const described: any = await sequelize.getQueryInterface().describeTable("users");
++    return Object.keys(described || {});
++};
++
++export const ensureSelfProfileColumns = (): Promise<void> => {
++    if (!ensured) {
++        ensured = (async () => {
++            const missing = missingColumns(await columnsOfUsers());
++            for (const name of missing) {
++                const def = SELF_PROFILE_NEW_COLUMNS.find((c) => c.name === name);
++                if (!def) continue;
++                try {
++                    await sequelize.query(`ALTER TABLE \`users\` ADD COLUMN \`${def.name}\` ${def.sql}`);
++                    console.warn(`[profile-self] added users.${def.name} (the migration had not been run)`);
++                } catch (err: any) {
++                    /* A parallel process may have added it a moment ago. */
++                    if (!/duplicate column/i.test(String(err?.message || err))) throw err;
++                }
++            }
++            const still = missingColumns(await columnsOfUsers());
++            if (still.length) {
++                throw new Error(`users.${still.join(", users.")} missing and could not be added; run the migration.`);
++            }
++        })().catch((err) => {
++            /* Do not cache a failure: the next request tries again. */
++            ensured = null;
++            throw err;
++        });
++    }
++    return ensured;
++};
++
++/* For tests and for a process that knows the migration just ran. */
++export const resetSelfProfileColumnsCheck = (): void => {
++    ensured = null;
++};
++
++export interface SelfProfileRow {
++    uuid: string;
++    first_name: string;
++    last_name: string;
++    job_title: string | null;
++    pronouns: string | null;
++    interface_language: string | null;
++}
++
++export const readSelfProfile = async (userUuid: string): Promise<SelfProfileRow | null> => {
++    await ensureSelfProfileColumns();
++    const rows: any[] = await sequelize.query(
++        "select uuid, first_name, last_name, job_title, pronouns, interface_language from users where uuid = ? and deleted_at is null limit 1",
++        { replacements: [userUuid], type: QueryTypes.SELECT },
++    );
++    return (rows[0] as SelfProfileRow) || null;
++};
++
++export const writeSelfProfile = async (userUuid: string, values: Partial<SelfProfileInput>): Promise<SelfProfileRow | null> => {
++    await ensureSelfProfileColumns();
++    const sets: string[] = [];
++    const params: any[] = [];
++    for (const [key, value] of Object.entries(values)) {
++        sets.push(`\`${key}\` = ?`);
++        params.push(value ?? null);
++    }
++    if (sets.length) {
++        sets.push("`updated_at` = now()");
++        params.push(userUuid);
++        await sequelize.query(`update users set ${sets.join(", ")} where uuid = ? and deleted_at is null`, {
++            replacements: params,
++        });
++    }
++    return readSelfProfile(userUuid);
++};
+diff --git a/src/services/profileSelfLogic.ts b/src/services/profileSelfLogic.ts
+new file mode 100644
+index 0000000..974f038
+--- /dev/null
++++ b/src/services/profileSelfLogic.ts
+@@ -0,0 +1,88 @@
++/* The rules for what a person may change about themselves, with no database
++   and no imports so they can be unit-tested and shared word for word with the
++   screen.
++
++   Five fields, nothing else. Role, email, extension, site: not here, on
++   purpose. `/api/user/update` takes a whole record and lets a body carry a
++   role; this endpoint takes five named strings and drops everything else on
++   the floor. */
++
++export const FIRST_NAME_MAX = 50;
++export const LAST_NAME_MAX = 50;
++/* users.job_title is varchar(30) and the database is strict. */
++export const JOB_TITLE_MAX = 30;
++export const PRONOUNS_MAX = 40;
++export const INTERFACE_LANGUAGE_MAX = 10;
++
++export const SELF_PROFILE_FIELDS = ["first_name", "last_name", "job_title", "pronouns", "interface_language"] as const;
++export type SelfProfileField = (typeof SELF_PROFILE_FIELDS)[number];
++
++export interface SelfProfileInput {
++    first_name?: string;
++    last_name?: string;
++    job_title?: string | null;
++    pronouns?: string | null;
++    interface_language?: string | null;
++}
++
++export type SanitiseResult = { ok: true; values: Partial<SelfProfileInput> } | { ok: false; message: string };
++
++/* Language tags like "en", "en-US", "pt-BR": letters, an optional region. */
++const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$/;
++
++const cleanText = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
++
++/* Only the keys that were sent are returned, so a screen that saves two fields
++   does not blank the other three. `null` (or an empty string) on an optional
++   field means "clear it". */
++export const sanitiseSelfProfile = (body: unknown): SanitiseResult => {
++    const raw = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
++    const values: Partial<SelfProfileInput> = {};
++
++    if ("first_name" in raw) {
++        const v = cleanText(raw.first_name);
++        if (v.length < 2) return { ok: false, message: "First name needs at least 2 characters." };
++        if (v.length > FIRST_NAME_MAX) return { ok: false, message: `First name can be at most ${FIRST_NAME_MAX} characters.` };
++        values.first_name = v;
++    }
++    if ("last_name" in raw) {
++        const v = cleanText(raw.last_name);
++        if (v.length < 2) return { ok: false, message: "Last name needs at least 2 characters." };
++        if (v.length > LAST_NAME_MAX) return { ok: false, message: `Last name can be at most ${LAST_NAME_MAX} characters.` };
++        values.last_name = v;
++    }
++    if ("job_title" in raw) {
++        const v = cleanText(raw.job_title);
++        if (v.length > JOB_TITLE_MAX) return { ok: false, message: `Job title can be at most ${JOB_TITLE_MAX} characters.` };
++        values.job_title = v || null;
++    }
++    if ("pronouns" in raw) {
++        const v = cleanText(raw.pronouns);
++        if (v.length > PRONOUNS_MAX) return { ok: false, message: `Pronouns can be at most ${PRONOUNS_MAX} characters.` };
++        values.pronouns = v || null;
++    }
++    if ("interface_language" in raw) {
++        const v = cleanText(raw.interface_language);
++        if (v && (v.length > INTERFACE_LANGUAGE_MAX || !LANGUAGE_TAG.test(v))) {
++            return { ok: false, message: "Interface language must be a short code like en or en-US." };
++        }
++        values.interface_language = v || null;
++    }
++
++    if (!Object.keys(values).length) {
++        return { ok: false, message: "Nothing to save. Send at least one of: " + SELF_PROFILE_FIELDS.join(", ") + "." };
++    }
++    return { ok: true, values };
++};
++
++/* The two new columns, as the guard and the migration both need them. One
++   definition so they cannot drift. */
++export const SELF_PROFILE_NEW_COLUMNS: ReadonlyArray<{ name: "pronouns" | "interface_language"; sql: string }> = [
++    { name: "pronouns", sql: "VARCHAR(40) NULL" },
++    { name: "interface_language", sql: "VARCHAR(10) NULL" },
++];
++
++export const missingColumns = (present: Iterable<string>): string[] => {
++    const have = new Set(Array.from(present, (c) => String(c).toLowerCase()));
++    return SELF_PROFILE_NEW_COLUMNS.filter((c) => !have.has(c.name)).map((c) => c.name);
++};
+diff --git a/migrations/20260903151500-add-users-pronouns-interface-language.js b/migrations/20260903151500-add-users-pronouns-interface-language.js
+new file mode 100644
+index 0000000..bdb6cfb
+--- /dev/null
++++ b/migrations/20260903151500-add-users-pronouns-interface-language.js
+@@ -0,0 +1,45 @@
++"use strict";
++
++/* users.pronouns VARCHAR(40) NULL and users.interface_language VARCHAR(10) NULL.
++ *
++ * Both are read and written only by /api/profile/self and /update-self
++ * (src/services/ProfileSelfService.ts). They are deliberately NOT on the User
++ * model, so nothing else in the API selects them and a build can run before
++ * this migration without breaking login (see that file for why).
++ *
++ * Safe to run twice: each column is added only if `users` does not have it.
++ * `down` removes only the columns this migration added, and only if present.
++ */
++
++const COLUMNS = [
++  { name: "pronouns", type: "VARCHAR(40)" },
++  { name: "interface_language", type: "VARCHAR(10)" },
++];
++
++async function presentColumns(queryInterface) {
++  const described = await queryInterface.describeTable("users");
++  return new Set(Object.keys(described || {}).map((c) => c.toLowerCase()));
++}
++
++async function up(queryInterface) {
++  const have = await presentColumns(queryInterface);
++  for (const col of COLUMNS) {
++    if (have.has(col.name)) {
++      console.log(`[users-pronouns-language] users.${col.name} already present, skipped`);
++      continue;
++    }
++    await queryInterface.sequelize.query(`ALTER TABLE \`users\` ADD COLUMN \`${col.name}\` ${col.type} NULL`);
++    console.log(`[users-pronouns-language] added users.${col.name}`);
++  }
++}
++
++async function down(queryInterface) {
++  const have = await presentColumns(queryInterface);
++  for (const col of COLUMNS) {
++    if (!have.has(col.name)) continue;
++    await queryInterface.sequelize.query(`ALTER TABLE \`users\` DROP COLUMN \`${col.name}\``);
++    console.log(`[users-pronouns-language] dropped users.${col.name}`);
++  }
++}
++
++module.exports = { up, down, COLUMNS };

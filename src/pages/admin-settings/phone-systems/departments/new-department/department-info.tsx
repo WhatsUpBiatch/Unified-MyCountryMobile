@@ -48,7 +48,7 @@ const DepartmentInfo = ({
                 <Input
                   {...register(`name`)}
                   label="Name"
-                  placeholder="Enter department name"
+                  placeholder="Enter group name"
                   error={errors?.name?.message}
                   maxLength={50}
                 />
@@ -64,7 +64,7 @@ const DepartmentInfo = ({
                     setValue('site', value, { shouldValidate: true });
                   }}
                   value={watch('site')}
-                  placeholder={'Select site'}
+                  placeholder={'Select location'}
                   error={
                     errors.site &&
                     'value' in errors.site &&
@@ -120,7 +120,7 @@ const DepartmentInfo = ({
               <div className="flex w-full gap-1">
                 <div className="relative flex w-full gap-1 sm:max-w-[320px]">
                   <CustomSelect
-                    label="Member Ring Timeout (Sec)"
+                    label="Ring time per person (sec)"
                     options={getDepartmentTimeoutOptions(
                       companyDefaults?.settings,
                       watch('timeout'),

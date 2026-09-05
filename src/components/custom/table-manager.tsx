@@ -81,6 +81,7 @@ function TableManager({
   handleReset = defaultHandleReset,
   filterRef,
   handleFilterSelect = defaultHandleFilterSelect,
+  onRowClick,
   customClass = '',
   descriptionEmptyTable = '',
   imageSize = 'min-w-44  max-w-44',
@@ -129,6 +130,8 @@ function TableManager({
   imageSize?: string;
   clientSideSearch?: boolean;
   renderSubComponent?: (rowOriginal: any) => React.ReactNode;
+  /** Opens the record a row stands for. Interactive cells stop propagation. */
+  onRowClick?: (rowOriginal: any) => void;
 }>) {
   const [rowSelection, setRowSelection] = useState(initiallySelectedRows);
   const [maxPageNumberListLimit, setMaxPageNumberListLimit] = useState(5);
@@ -413,6 +416,7 @@ function TableManager({
                       getRowClassName={getRowClassName}
                       showMoreData={showMoreData}
                       renderSubComponent={renderSubComponent}
+                      onRowClick={onRowClick}
                     />
                   );
                 })

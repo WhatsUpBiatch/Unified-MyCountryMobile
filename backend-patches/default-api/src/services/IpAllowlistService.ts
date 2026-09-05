@@ -56,6 +56,19 @@ const parseMaybeJson = (value: any): any => {
 export const getAllowlistSettings = async (
     dbName: string,
     companyUuid: string,
+    /* tenant-api's TenantAuthMiddleware rejects, with 400 "Tenant and User
+     * headers are required", any request missing ANY of x-db-name,
+     * x-user-uuid, x-user-company_uuid or x-user-role. `callTenantApi` builds
+     * those from this object (`uuid`, `company_uuid`, `role`). The first
+     * version passed only the company, so every call was rejected before it
+     * reached the database, and the catch below turned that into "no allowlist
+     * configured" - indistinguishable from a company that never set one up.
+     * The result was that the feature read as deployed and enabled while
+     * enforcing nothing at all, for anybody. Both callers have these to hand:
+     * `findUser` in AuthController.login selects uuid+role, and
+     * AuthMiddleware's `user` carries both. */
+    userUuid?: string | null,
+    userRole?: string | null,
 ): Promise<AllowlistSettings> => {
     const cached = settingsCache.get(dbName);
     if (cached && Date.now() - cached.at < SETTINGS_CACHE_MS) {
@@ -73,7 +86,11 @@ export const getAllowlistSettings = async (
             "user/template/listing",
             "POST",
             { page: 1, limit: 200, filters: [], search: COMPANY_DEFAULT_TEMPLATE_NAME },
-            { company_uuid: companyUuid },
+            {
+                uuid: userUuid ?? undefined,
+                company_uuid: companyUuid,
+                role: userRole ?? undefined,
+            },
         );
         const rows: any[] = response?.data?.data?.result?.rows || [];
         const exact = rows.find((row) => row?.name === COMPANY_DEFAULT_TEMPLATE_NAME);
@@ -116,11 +133,19 @@ export const checkIpAllowlist = async (params: {
     companyUuid: string;
     clientIp: string;
     userUuid?: string | null;
+    userRole?: string | null;
     emailAttempted?: string | null;
 }): Promise<{ allowed: boolean; decision: AllowlistDecision }> => {
-    const { dbName, companyUuid, clientIp, userUuid = null, emailAttempted = null } = params;
+    const {
+        dbName,
+        companyUuid,
+        clientIp,
+        userUuid = null,
+        userRole = null,
+        emailAttempted = null,
+    } = params;
 
-    const settings = await getAllowlistSettings(dbName, companyUuid);
+    const settings = await getAllowlistSettings(dbName, companyUuid, userUuid, userRole);
     const decision = evaluateIpAllowlist(settings, clientIp, new Date());
 
     const event = eventFor(decision.outcome);

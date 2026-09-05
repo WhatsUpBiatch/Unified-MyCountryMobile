@@ -3,7 +3,7 @@ import { useSearchParamManager } from '@/hooks/use-search-params';
 import Loader from '@/components/custom/loader';
 import People from './people';
 import Groups from './groups';
-import External from './external';
+import Contacts from '../new-contact';
 import Locations from './locations';
 import Roles from './roles';
 import Favourites from './favourites';
@@ -21,7 +21,12 @@ import '@/components/mcm/mcm-page.css';
  *   People     -> the organisation roster (users / extensions)
  *   Groups     -> departments
  *   Locations  -> sites
- *   External   -> the contact book
+ *   External   -> the contact book — the platform's own Contacts page. There
+ *                 used to be a second, read-only list of the same records
+ *                 here, and its "New contact" button simply navigated to the
+ *                 other one; two pages of the same contacts is one page too
+ *                 many, so the one that can actually create, import, group and
+ *                 export them is the one that stayed.
  *   Favourites -> no platform equivalent; pinned locally, see
  *                 `use-directory-favourites`
  *   Blocked    -> the contact book's Blocked tag, which had no list of its own
@@ -43,7 +48,7 @@ const Directory = () => {
         {view === 'people' && <People />}
         {view === 'groups' && <Groups />}
         {view === 'roles' && <Roles />}
-        {view === 'external' && <External />}
+        {view === 'external' && <Contacts />}
         {view === 'locations' && <Locations />}
         {view === 'favourites' && <Favourites />}
         {view === 'blocked' && <Blocked />}

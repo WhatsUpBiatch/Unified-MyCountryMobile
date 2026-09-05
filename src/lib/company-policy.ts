@@ -14,8 +14,12 @@
  *     shared editor is an admin configuring a number, department, IVR or queue, and
  *     locking those would be nonsense.
  *   - With no company record saved, it defers entirely to the old behaviour. A
- *     tenant that has never opened the company page sees no change at all, rather
- *     than every field silently locking because absent flags read as false.
+ *     tenant that has never opened the company page sees no change at all.
+ *   - Once a record exists, a rule the company has never set is open. An absent
+ *     flag used to read as a lock, so the record coming into being for any reason
+ *     (a holiday saved, say) locked every governed field on every person's phone.
+ *     Now only a flag an admin actually stored as "locked" locks anything; see the
+ *     table in src/lib/company-rule-flags.ts.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -75,7 +79,8 @@ export const useCompanyPolicy = ({ enabled }: { enabled: boolean }): CompanyPoli
        when provisioning a new person it meant "copy this value onto them". One
        bit could not say both, so "everyone gets this and nobody may change it"
        — the thing admins actually want — was unsayable. The flags are separate
-       now; a record holding only the old flag still reads exactly as it did. */
+       now. A record holding only the old flag reads as it did for `true` and for a
+       stored `false`; a flag that was never stored reads as open, not locked. */
     allows: (field: PolicyField) => {
       if (!isActive) return true;
       return !readRuleFlags(settings, field).locked;

@@ -6,6 +6,7 @@ import { Mail, ScrollText, Voicemail } from 'lucide-react';
 import Loader from '@/components/custom/loader';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Switch } from '@/components/ui/switch';
 import { handleAlert } from '@/lib/utils';
@@ -294,6 +295,7 @@ const CompanyVoicemail = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [VOICEMAIL_KEY, NOTIFY_KEY],
     });
   };
 
@@ -308,11 +310,11 @@ const CompanyVoicemail = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Voicemail</p>
-        <p className="text-xs text-gray-500">
-          The voicemail settings the company starts people on, and whether a person may change them
-          on their own phone.
-        </p>
+        <SectionHeading
+          icon={<Voicemail className="h-[18px] w-[18px]" />}
+          title="Voicemail"
+          description="The voicemail settings the company starts people on, and whether a person may change them on their own phone."
+        />
       </div>
 
       <div className="w-full">

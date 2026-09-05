@@ -332,7 +332,7 @@ export const explainTakenEmail = (
   if (here) {
     return `${nameOfPerson(here)} already signs in with ${wanted}${placeOf(here)}. A person belongs to one location, so they cannot be added a second time — open them on the People page and change their location instead.`;
   }
-  return `${wanted} is already in use, but not by anybody in your company — the platform checks the address against every organisation it hosts. This person will need a different address here.`;
+  return `${wanted} cannot be used for a new person here. If it is their address, they may already sign in somewhere else; otherwise use a different address.`;
 };
 
 export default findInviteClashes;

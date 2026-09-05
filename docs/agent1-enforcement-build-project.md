@@ -95,6 +95,15 @@ settings into real behaviour, in the order that unblocks the most.
 
 SAML (security plan C3) is deliberately **deferred** — biggest lift, lowest current demand. Recorded here so nobody "discovers" it.
 
+## Phase 5 — appended 2 Sep (handoffs from outside the Company loop)
+
+| ID | Today | Build | Files | Test |
+|---|---|---|---|---|
+| E22 | Contact saves silently drop social fields — validation refuses what the model can't store anyway | **Three changes, all together** (partial application re-breaks it): widen social + `.unknown(true)` in `createContactValidation` AND in `bulkContactItemSchema` (both `src/schemas/Contact.ts`), plus the three fields added to `contactSocialSchema` in `src/models/tenant/ContactModel.ts` | contact-api on the .215 box | **Save-and-reopen, not status codes**: create a contact with the social fields, re-fetch, read the stored document directly (contacts live in per-tenant Mongo DBs); include the bulk route as its own case |
+| E22b | `Validator.ts` returns only the first refusal, hiding the other two | Deliberately DEFERRED — returning all details changes the error shape the website parses. Own item, never folded into E22 | contact-api `Validator.ts` + website error parsing | n/a until scheduled |
+| E23 | `/var/www/prod/contact-api/.env` has unquoted values — `DB_CONNECTION_STR` splits on its `&` when sourced, and the Mongo URI (with credentials) leaked into a session transcript once already | Quote the values. (Rotating that DB password stays the user's call — previously deferred by the user, not re-raised here) | contact-api `.env` on .215 | Sourcing the file yields the full unsplit URI; service restarts clean |
+| E24 | campaign-api pacing deploy still outstanding | Separate bundle with its own prompt — **do not merge with E22** | campaign-api | Per its own bundle's verification |
+
 ## Do not rebuild (verified working — leave alone)
 
 Sites CRUD; plans/billing alignment; AI reply/minute metering and renewal reset

@@ -27,7 +27,8 @@ export const formInitialState: IADDUSER = {
   users: [userInitialState],
   password: '',
   confirm_password: '',
-  password_type: 'common',
+  /* Default: an invite link. The person chooses their own password. */
+  password_type: 'email',
 };
 
 export const TAB_CONSTANT = {
@@ -73,22 +74,18 @@ const callHandlingInitialState = {
 export const greetingsInitialState = {
   welcome_greeting: {
     enabled: false,
-    override: false,
     value: { label: '', value: '' },
   },
   voicemail: {
     enabled: false,
-    override: false,
     value: { label: '', value: '' },
   },
   ring_tone: {
     enabled: false,
-    override: false,
     value: { label: '', value: '' },
   },
   on_hold_music: {
     enabled: false,
-    override: false,
     value: { label: '', value: '' },
   },
 };
@@ -118,7 +115,6 @@ export const MEMBER_RING_STRATEGY_OPTIONS = [
 
 export const settingsInitialState = {
   role: {
-    override: false,
     label: '',
     value: '',
   },
@@ -126,7 +122,6 @@ export const settingsInitialState = {
     value: '',
     users: [],
     voicemail_to_text: 'YES',
-    override: false,
   },
   ...SETTINGS.settings,
 };

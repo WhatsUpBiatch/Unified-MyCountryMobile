@@ -15,12 +15,34 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FC, useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
+import { COMPANY_RULES_PATH } from '@/pages/admin-settings/company/company-sections';
+import {
+  DIRECT_CALLS_ONLY_WORDING,
+  LiveNote,
+  NOT_APPLIED_WORDING,
+  NotAppliedNote,
+} from '../not-applied-note';
 
 interface GeneralProps {
   heading?: string;
 }
 
-export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
+/* The record arrives parsed or as JSON text, depending on the caller. */
+const parseSettings = (value: unknown): Record<string, any> => {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, any>;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+/* Named for what the sidebar calls it. "General" was the old tab name and no
+   longer matches the menu item that opens this page. */
+export const General: FC<GeneralProps> = ({ heading = 'Preferences' }) => {
   // const breadcrumbData = [{ label: 'Settings' }, { label: 'General' }];
   const queryClient: any = useQueryClient();
   const [schemaContext, setSchemaContext] = useState<any>(null);
@@ -81,7 +103,18 @@ export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
       operational_hours = {},
       ...restSettings
     }: any = watch('settings');
+
+    /* The save endpoint replaces the whole `settings` column with what it is
+       sent, and this form only ever hydrates the keys it shows. So any key
+       another screen wrote to the person's record was deleted the first time
+       Submit was pressed here. The one that matters most is
+       `international_calling` - the admin's per-person rule on calling abroad,
+       and the only per-person key the switch actually reads. Starting from the
+       stored record and laying the form's keys over it keeps everything this
+       page does not know about, now and for keys added later. */
+    const storedSettings = parseSettings(userInfoData?.settings);
     const tempSettings = {
+      ...storedSettings,
       ...restSettings,
       display_number: {
         incoming,
@@ -145,10 +178,7 @@ export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
 
   useEffect(() => {
     if (userInfoData) {
-      const settingInfo: any =
-        typeof userInfoData?.settings === 'string'
-          ? JSON.parse(userInfoData?.settings)
-          : userInfoData?.settings;
+      const settingInfo: any = parseSettings(userInfoData?.settings);
       setValue(
         'settings.operational_hours.regional.timezone',
         settingInfo?.operational_hours?.regional?.timezone || {},
@@ -224,7 +254,11 @@ export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
             <p className="text-gray-900 font-semibold text-lg">{heading}</p>
             <p className="text-gray-500 text-xs">
               Your own regional settings, business hours and call handling. Company-wide rules live
-              under Phone System → Preferences.
+              under{' '}
+              <Link to={COMPANY_RULES_PATH} className="font-medium text-primary hover:underline">
+                Company → Company Rules
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -235,6 +269,32 @@ export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
               className="flex h-full min-h-0 w-full flex-col gap-3"
             >
               <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                {/* The cards below are a shared editor with no badge of its own
+                    on a personal page, so the honest notes sit above them.
+                    Since the switch patch of 3 Sep 2026 the person's own
+                    Business Hours (with the closed-hours destination, else
+                    voicemail) ARE read for a call dialled straight to their
+                    extension - proven by offline tests and by reading the
+                    running switch, not yet by a real call. Recording,
+                    transcription, AI monitoring and display number are still
+                    the company's rule; the personal copies saved here are
+                    not read. */}
+                <div className="mb-3 flex flex-col gap-2">
+                  <LiveNote title="Business Hours: Active">
+                    Your own hours are followed. Outside them, a caller goes where your closed-hours
+                    setting says, or to your voicemail if you have not chosen anything.{' '}
+                    {DIRECT_CALLS_ONLY_WORDING}
+                  </LiveNote>
+                  <NotAppliedNote title={NOT_APPLIED_WORDING}>
+                    This covers Call Recording, Automatic Transcription, AI Call Monitoring and
+                    Display Number on this page. Recording in particular is decided by your
+                    company&rsquo;s rule under{' '}
+                    <Link to={COMPANY_RULES_PATH} className="font-semibold underline">
+                      Company → Company Rules
+                    </Link>
+                    , not by the switch here.
+                  </NotAppliedNote>
+                </div>
                 <CommonSettingPermission
                   type={'GENERAL_SETTING'}
                   data={{ user_info: userInfoData?.user_info, settings: userInfoData?.settings }}
@@ -264,7 +324,7 @@ export const General: FC<GeneralProps> = ({ heading = 'General' }) => {
                   type="submit"
                   disabled={PendingGeneralSettings || companyPolicy.isLoading}
                 >
-                  {PendingGeneralSettings ? 'Submiting...' : 'Submit'}
+                  {PendingGeneralSettings ? 'Submiting...' : 'Save preferences'}
                 </Button>
               </div>
             </form>

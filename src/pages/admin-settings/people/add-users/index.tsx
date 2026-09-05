@@ -32,7 +32,8 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
   const [isPaymentRequired, setIspaymentRequired] = useState<any>(false);
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [typeOfPassword, setTypeOfPassword] = useState('common');
+  /* Default: an invite link; the person chooses their own password. */
+  const [typeOfPassword, setTypeOfPassword] = useState('email');
   const [isUserValidatorError, setIsUserValidatorError] = useState(false);
   const [alertAssignNumber, setAlertAssignNumber] = useState(false);
   const [showAssignNumber, setShowAssignNumber] = useState(false);
@@ -98,12 +99,17 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
     setStatus('');
     setPaymentCalculation(null);
     queryClient.invalidateQueries(['fetchUsersList'], { exact: true });
+    queryClient.invalidateQueries({ queryKey: ['pendingInvites'] });
     queryClient.invalidateQueries(['getMyPlanDetails'], { exact: true });
     invalidateGlobalUsersDirectory(queryClient);
 
     refetchUserApi();
+    /* The server says what happened to the invite e-mails; this is the
+       fallback wording when it does not. No password is ever e-mailed. */
     handleAlert({
-      text: data?.data?.message || 'Member created successfully',
+      text:
+        data?.data?.message ||
+        'People added. We sent them a link to choose a password. It works for 3 days.',
       type: 'success',
     });
 
@@ -149,7 +155,7 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
   const StepContent = [
     {
       number: 1,
-      title: 'Add User Info',
+      title: 'Add people',
     },
     {
       number: 2,
@@ -292,8 +298,17 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
             onSubmit={handleSubmit(onSubmit)}
             className="h-full min-h-0 w-full flex flex-1 flex-col justify-between gap-4 overflow-hidden"
           >
-            <div className="min-h-0 flex-1 overflow-y-auto">{stepLookUp?.[currentStep]}</div>
-            <div className="mt-2 shrink-0 border-t border-gray-200 bg-white pt-4 lg:mt-0 lg:border-t-0 lg:bg-transparent lg:pt-0">
+            {/* The buttons live INSIDE the scrolling area, at the end of the
+                form — not pinned to the bottom of the drawer.
+ 
+                Held outside it they were always on screen, sitting over
+                whatever the form was showing, and on a wide screen with no
+                border or surface behind them they landed on top of the text.
+                At the end of the form they are where somebody who has filled it
+                in arrives, and nothing is covered on the way down. */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {stepLookUp?.[currentStep]}
+              <div className="mt-4 border-t border-gray-200 bg-white px-1 py-3">
               <div className="flex min-w-max flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden sm:justify-end lg:min-w-0 lg:justify-end lg:overflow-visible">
                 <button
                   onClick={() => {
@@ -327,6 +342,7 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
                     )}
                   </button>
                 )}
+                </div>
               </div>
             </div>
           </form>
@@ -354,7 +370,7 @@ const AddUsers: FC<AddUsersProps> = ({ setDrawerState }) => {
               },
               descriptionTextComp: (
                 <div className=" text-md">
-                  Member created successfully. Please go to Extensions to assign the DID number.
+                  Person added. Give them a phone number now, or later from the People list.
                 </div>
               ),
               closeBtnText: 'Assign Later',

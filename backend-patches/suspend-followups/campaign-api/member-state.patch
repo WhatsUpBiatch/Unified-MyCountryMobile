@@ -1,0 +1,203 @@
+diff --git a/src/controllers/QueueController.ts b/src/controllers/QueueController.ts
+index 9ae4242..2ca0a2c 100644
+--- a/src/controllers/QueueController.ts
++++ b/src/controllers/QueueController.ts
+@@ -211,6 +211,20 @@ export class QueueController extends BaseController {
+         }
+     };
+ 
++    /** default-api calls this when a person is suspended, reactivated, removed, restored or purged. */
++    public memberState = async (request: Request, response: Response): Promise<Response> => {
++        try {
++            const result = await QueueRepository.setMemberState(request?.body, request?.user);
++            return response.status(200).send(new ResponseModel({ success: true, data: result }));
++        } catch (error: any) {
++            if (super.isNull(error.status)) {
++                return super.handleError(ApiErrors.ServerError, error, response);
++            } else {
++                return super.handleError(error, error, response);
++            }
++        }
++    };
++
+     public queueAgentStatus = async (request: Request, response: Response): Promise<Response | void | Object> => {
+         try {
+             return await QueueRepository.queueAgentStatus(request.body);
+diff --git a/src/interfaces/IQueueRequest.ts b/src/interfaces/IQueueRequest.ts
+index 75d481c..86d1519 100644
+--- a/src/interfaces/IQueueRequest.ts
++++ b/src/interfaces/IQueueRequest.ts
+@@ -152,6 +152,14 @@ export interface IQueueUuId {
+     uuid: string;
+ }
+ 
++/** POST queue/member/state - a person's seat in every queue of the company. */
++export interface IMemberState {
++    user_uuid: string;
++    extension?: string;
++    action: "suspend" | "restore" | "remove";
++    reason?: string;
++}
++
+ export interface IQueueAgentStatus {
+     campaign_uuid: string;
+     queue_uuid: string;
+diff --git a/src/repositories/QueueRepository.ts b/src/repositories/QueueRepository.ts
+index 1f3f2f1..76bdcbe 100644
+--- a/src/repositories/QueueRepository.ts
++++ b/src/repositories/QueueRepository.ts
+@@ -3,6 +3,8 @@ import { HttpException } from "@/exceptions/HttpException";
+ import CommonHelper from "@/helpers/CommonHelper";
+ import { ICallQueueList, ICreateQueue, IPaginatedQueueList, IQueueAgentStatus, IQueueList, IQueueUuId, IRoleBasedQueue } from "@/interfaces/IQueueRequest";
+ import { NatsController } from "@/nats/NatsController";
++import { IMemberState } from "@/interfaces/IQueueRequest";
++import { MEMBERSHIP_ACTIONS, agentName, agentStatusForMember, agentUpdateFor, applyToMembers, carryMarkers, tierUpdateFor } from "@/services/queueMembership";
+ import { IUser } from "@/RequestWithUser";
+ import mongoose, { PipelineStage, Types } from "mongoose";
+ 
+@@ -158,6 +160,15 @@ export class QueueRepository {
+ 
+             // Only add _id to the filter if we are performing an UPDATE
+ 
++            /* A person suspended (or removed, within their restore window) keeps
++               their seat with a suspended_member marker. The website sends the
++               roster back without it, so carry it over; otherwise a routine
++               re-save of the queue would put them back on the ring. */
++            if (requestData?.uuid) {
++                const existing: any = await QueueModel.findOne({ _id: requestData.uuid, company_uuid: companyId }).select("members").lean();
++                members = carryMarkers(existing?.members, members);
++            }
++
+ 
+             // Upsert Queue (Handles both Create & Update)
+             const queueDetail = await QueueModel.findOneAndUpdate(
+@@ -223,8 +234,10 @@ export class QueueRepository {
+                     type: 'callback',
+                     name: `${member?.extension}@${domain}`,
+                     contact: `user/${member?.extension}_web@${domain}`, // Standardized format
+-                    status: 'On Break',
+-                    state: 'Idle'
++                    /* On Break / Idle, or Logged Out for a member carrying a
++                       suspended_member marker: the agent service must not ring them. */
++                    ...agentStatusForMember(member),
++                    ...(member?.suspended_member ? { suspended_member: member.suspended_member } : {})
+                 }));
+ 
+                 // Bulk Insert
+@@ -723,6 +736,71 @@ export class QueueRepository {
+         }
+     }
+ 
++    /**
++     * A person's seat in every queue of the company: mark it suspended, restore
++     * it exactly, or remove it. Called by default-api when a person is
++     * suspended / reactivated / removed / restored / purged. See
++     * services/queueMembership.ts for what each action does to the queue
++     * record, the agent row and the tier row. Queues are read one by one and
++     * each one is finished before the next, so a failure part-way leaves
++     * whole queues either done or untouched.
++     */
++    public static async setMemberState(request: IMemberState, userData: IUser): Promise<object> {
++        const { QueueModel, QueueAgentModel, QueueTierModel } = await this.getMainQueueModels();
++        const user_uuid = String(request?.user_uuid ?? "").trim();
++        const action = String(request?.action ?? "").trim() as any;
++        const reason = String(request?.reason ?? action);
++        if (!user_uuid) throw new HttpException(422, "user_uuid is required");
++        if (!MEMBERSHIP_ACTIONS.includes(action)) throw new HttpException(422, `action must be one of ${MEMBERSHIP_ACTIONS.join(", ")}`);
++        const companyId = String(userData?.company_uuid ?? "");
++        if (!companyId) throw new HttpException(401, "company is required");
++        const now = new Date();
++
++        const queues: any[] = await QueueModel.find({
++            company_uuid: companyId,
++            $or: [{ "members.user_uuid": user_uuid }, { "members.value": user_uuid }],
++        }).select("_id extension domain members").lean();
++
++        const summary = { action, user_uuid, queues_touched: 0, members_changed: 0, agents_changed: 0, tiers_changed: 0, queues: [] as string[] };
++        for (const queue of queues) {
++            const result = applyToMembers(queue.members, user_uuid, action, now, reason);
++            if (result.changed) {
++                await QueueModel.updateOne({ _id: queue._id, company_uuid: companyId }, { $set: { members: result.members } });
++                summary.members_changed += result.changed;
++            }
++
++            const domain = queue.domain || userData?.domain;
++            const extensions = Array.from(new Set(
++                result.matched.map((m: any) => String(m?.extension ?? "").trim()).concat(String(request?.extension ?? "").trim()).filter(Boolean),
++            ));
++            const agentFilter: Record<string, any> = { queue_uuid: queue._id, "user_detail.user_uuid": user_uuid };
++            const tierFilter: Record<string, any> = {
++                queue: agentName(queue.extension, domain),
++                agent: { $in: extensions.map((ext) => agentName(ext, domain)) },
++            };
++
++            const agentUpdate = agentUpdateFor(action, now, reason);
++            const agents = agentUpdate
++                ? await QueueAgentModel.updateMany(agentFilter, agentUpdate)
++                : await QueueAgentModel.deleteMany(agentFilter);
++            summary.agents_changed += Number(agents?.modifiedCount ?? agents?.deletedCount ?? 0);
++
++            if (extensions.length) {
++                const tierUpdate = tierUpdateFor(action, now, reason);
++                const tiers = tierUpdate
++                    ? await QueueTierModel.updateMany(tierFilter, tierUpdate)
++                    : await QueueTierModel.deleteMany(tierFilter);
++                summary.tiers_changed += Number(tiers?.modifiedCount ?? tiers?.deletedCount ?? 0);
++            }
++
++            summary.queues_touched++;
++            summary.queues.push(String(queue._id));
++        }
++
++        console.log(`QueueRepository.setMemberState ${action} ${user_uuid} (${reason}) company=${companyId}: ${summary.queues_touched} queue(s), ${summary.members_changed} member(s), ${summary.agents_changed} agent row(s), ${summary.tiers_changed} tier row(s)`);
++        return summary;
++    }
++
+     public static async queueAgentStatus(request: { user_uuid?: unknown; webOnline?: unknown; }): Promise<object> {
+         const normalizedUserUuid = String(request?.user_uuid ?? "").trim();
+ 
+diff --git a/src/routes/api.ts b/src/routes/api.ts
+index d32c066..d602fe8 100644
+--- a/src/routes/api.ts
++++ b/src/routes/api.ts
+@@ -18,7 +18,7 @@ import { deleteLeadValidation, leadGroupByIdValidation, leadGroupDeleteValidatio
+ import { notesDispositionSaveValidation, notesListValidation } from "@/schemas/note";
+ import { RequestHandler, Router } from "express";
+ import { Routes } from "./interfaces/IRoutesInterface";
+-import { agentStatusValidation, createQueueValidation, publicQueueInfoValidation, queueUuIdValidation } from "@/schemas/queue";
++import { agentStatusValidation, createQueueValidation, memberStateValidation, publicQueueInfoValidation, queueUuIdValidation } from "@/schemas/queue";
+ import { QueueController } from "@/controllers/QueueController";
+ 
+ 
+@@ -122,6 +122,8 @@ export class ApiRoute implements Routes {
+         this.router.post(`${this.path}queue/role-based-queue`, Auth, this.queue.getRoleBasedQueue);
+         this.router.post(`${this.path}queue/queue-involvement`, Auth, this.queue.getQueueInvolvement);
+         this.router.post(`${this.path}queue/agent/status`, Validator(agentStatusValidation, "body"), Auth, this.queue.setAgentQueueStatus);
++        /* A person's seat in every queue: suspend / restore / remove. Called by default-api. */
++        this.router.post(`${this.path}queue/member/state`, Validator(memberStateValidation, "body"), Auth, RequireAdmin, this.queue.memberState);
+         /**Queue Template Routes**/
+         this.router.post(`${this.path}template/queue/upsert`, Validator(createQueueValidation, "body"), Auth, this.queue.templateUpsert);
+         this.router.post(`${this.path}template/queue/list`, Auth, this.queue.templateList);
+diff --git a/src/schemas/queue.ts b/src/schemas/queue.ts
+index 025e1af..55a0b22 100644
+--- a/src/schemas/queue.ts
++++ b/src/schemas/queue.ts
+@@ -261,7 +261,17 @@ const userSchema = Joi.object({
+        both were refused here, so a queue save failed the moment either was
+        touched. Bounds match MEMBER_TIERS and the rating input there. */
+     tier: Joi.number().integer().min(1).max(3).optional(),
+-    rating: Joi.number().min(0).max(100).optional()
++    rating: Joi.number().min(0).max(100).optional(),
++    /* Set by queue/member/state when the person is suspended or removed; a
++       website that sends the roster back unchanged must not be refused. */
++    suspended_member: Joi.any().optional()
++});
++
++export const memberStateValidation = Joi.object().options({ abortEarly: false }).keys({
++    user_uuid: Joi.string().trim().min(1).required(),
++    extension: Joi.string().trim().allow("", null).optional(),
++    action: Joi.string().valid("suspend", "restore", "remove").required(),
++    reason: Joi.string().trim().max(64).allow("", null).optional()
+ });
+ 
+ export const createQueueValidation = Joi.object().options({ abortEarly: false }).keys({

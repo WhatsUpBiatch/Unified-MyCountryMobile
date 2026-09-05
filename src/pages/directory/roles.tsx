@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { deleteCustomRole, userRolesList } from '@/services/api';
+import { deleteCustomRole, getUserList, userRolesList } from '@/services/api';
 import { handleAlert } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
 import { Ic } from '@/components/mcm/icons';
@@ -8,16 +9,31 @@ import SideDrawer from '@/components/custom/side-drawer';
 import AlertConfirm from '@/components/custom/alert-confirm';
 import AddNewRole from '@/pages/admin-settings/roles/add-new-role';
 import AssignUsersModal from '@/pages/admin-settings/roles/assign-users-modal';
+import { AreaNav } from '@/pages/admin-settings/roles/area-nav';
+import {
+  OWNER_ROLE_KEY,
+  isOwnerRole,
+  roleDisplayDescription,
+  roleDisplayName,
+} from '@/pages/admin-settings/roles/role-names';
 import { DirectoryPage, EmptyRow, SearchChip } from './page-shell';
-import { roleDisplayName, roleDisplayDescription } from '@/lib/role-display-names';
 
 /**
  * Directory ▸ Roles — what people are allowed to do.
  *
  * The console version of the Admin roles list, reading the same
  * `userRolesList` and reusing the platform's own create/edit and assign-users
- * flows. Admin ▸ Users ▸ Role renders this too, so there is one screen rather
+ * flows. Admin ▸ People ▸ Roles renders this too, so there is one screen rather
  * than two that drift apart.
+ *
+ * THE OWNER ROW
+ *
+ * The list endpoint builds its "system" rows from the plan's role_features
+ * table, and the platform only ever writes role_features for AGENT, SUB-ADMIN
+ * and MANAGER — so the owner role (stored as ADMIN) never comes back, and the
+ * one role that the server actually enforces was the one role this screen did
+ * not show. When it is missing it is added here, read-only, with a head count
+ * from the user list. If a future build does return it, the server's row wins.
  */
 
 type Role = {
@@ -26,6 +42,7 @@ type Role = {
   name?: string;
   description?: string;
   company_uuid?: string;
+  type?: string;
   user_count?: number;
   users_count?: number;
   total_users?: number;
@@ -48,7 +65,11 @@ const isSystemRole = (role: Role) => role?.company_uuid === 'PREDEFINED';
 const Roles = () => {
   const queryClient = useQueryClient();
   const { user } = useUser();
+  const { pathname } = useLocation();
   const isAdmin = user?.user_info?.role === 'ADMIN';
+  /* The same component serves /directory?view=roles. The access-control step
+     strip belongs to the Admin area, where the other steps live. */
+  const inAdminArea = pathname.startsWith('/admin-settings');
 
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Role | null>(null);
@@ -56,11 +77,40 @@ const Roles = () => {
   const [assigning, setAssigning] = useState<Role | null>(null);
   const [deleting, setDeleting] = useState<Role | null>(null);
 
-  const { data: roles = [], isPending } = useQuery({
+  const { data: listed = [], isPending } = useQuery({
     queryKey: ['rolesList', 'directoryRoles'],
     queryFn: () => userRolesList({ page: 1, limit: 200 }),
     select: (res: any) => res?.data?.data?.result?.rows || [],
   });
+
+  const serverHasOwner = useMemo(
+    () => (listed as Role[]).some((role) => isOwnerRole(role?.name)),
+    [listed],
+  );
+
+  /* How many people hold the owner role: one request for one row, reading the
+     total the list endpoint already returns. Only made when the row has to be
+     built here. */
+  const { data: ownerCount } = useQuery({
+    queryKey: ['directoryPeople', 'ownerCount'],
+    queryFn: () =>
+      getUserList({ page: 1, limit: 1, filter: [{ key: 'role', value: OWNER_ROLE_KEY }] }),
+    select: (res: any) => Number(res?.data?.data?.result?.total),
+    enabled: !isPending && !serverHasOwner,
+  });
+
+  const roles: Role[] = useMemo(() => {
+    if (isPending || serverHasOwner) return listed;
+    const owner: Role = {
+      uuid: 'owner-role',
+      name: OWNER_ROLE_KEY,
+      description: '',
+      company_uuid: 'PREDEFINED',
+      type: 'system',
+      user_count: Number.isFinite(ownerCount) ? ownerCount : undefined,
+    };
+    return [owner, ...listed];
+  }, [listed, isPending, serverHasOwner, ownerCount]);
 
   const { mutate: removeRole, isPending: isDeleting } = useMutation({
     mutationFn: deleteCustomRole,
@@ -75,7 +125,7 @@ const Roles = () => {
     const needle = search.trim().toLowerCase();
     if (!needle) return roles;
     return roles.filter((role: Role) =>
-      [role?.name, role?.description]
+      [role?.name, roleDisplayName(role?.name), role?.description]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle)),
     );
@@ -92,13 +142,29 @@ const Roles = () => {
       <DirectoryPage
         title="Roles"
         description="What each person sees in this app — and how many people hold each role."
+        /* Honest about where the gate is. The tick boxes decide what this app
+           shows and hides; the server checks only whether somebody is the
+           Account owner. Saying "enforced" here would be untrue. */
+        note={
+          <>
+            A role decides what a person can see and open <b>in this app</b>. The server itself
+            checks only whether someone is the <b>Account owner</b>; the owner role is built in
+            and cannot be changed here.
+          </>
+        }
         actions={
-          isAdmin ? (
-            <button type="button" className="btn primary" onClick={() => setCreating(true)}>
-              <Ic n="plus" />
-              New role
-            </button>
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Step 2 of the access-control tour. Steps 1 and 3 and the
+                reference table are not in the sidebar, so without this strip
+                the tour dead-ended here. */}
+            {inAdminArea && isAdmin ? <AreaNav current="/admin-settings/roles" /> : null}
+            {isAdmin ? (
+              <button type="button" className="btn primary" onClick={() => setCreating(true)}>
+                <Ic n="plus" />
+                New role
+              </button>
+            ) : null}
+          </div>
         }
         filters={
           <>
@@ -124,6 +190,7 @@ const Roles = () => {
             ) : visible.length ? (
               visible.map((role: Role) => {
                 const system = isSystemRole(role);
+                const owner = isOwnerRole(role?.name);
                 return (
                   <tr key={role?.uuid || role?.role_uuid || role?.name}>
                     <td>
@@ -137,13 +204,21 @@ const Roles = () => {
                     </td>
                     <td>
                       <span className={system ? 'tag neu' : 'tag acc'}>
-                        {system ? 'System' : 'Custom'}
+                        {owner ? 'Built in · owner' : system ? 'Built in' : 'Custom'}
                       </span>
                     </td>
-                    <td className="num">{usersOn(role)}</td>
+                    <td className="num">
+                      {owner && role?.user_count === undefined ? '—' : usersOn(role)}
+                    </td>
                     <td>
                       <span className="flex items-center gap-1">
-                        {isAdmin ? (
+                        {/* The owner role is read-only on purpose: the server
+                            decides what ADMIN can do, and assigning it from
+                            here is refused by the assign dialog anyway. */}
+                        {owner ? (
+                          <span className="list-row-sub">Cannot be changed</span>
+                        ) : null}
+                        {isAdmin && !owner ? (
                           <button
                             type="button"
                             className="mini"
@@ -162,7 +237,7 @@ const Roles = () => {
                             copes: it hides its Save button for a platform role,
                             so opening one is read-only without any extra work.
                             It simply had nothing to open it. */}
-                        {isAdmin && system ? (
+                        {isAdmin && system && !owner ? (
                           <button
                             type="button"
                             className="mini"
@@ -188,7 +263,7 @@ const Roles = () => {
                             a copy rather than an edit: the form sends a uuid
                             only when it has one. Leaving the company off is what
                             brings the Save button back. */}
-                        {isAdmin ? (
+                        {isAdmin && !owner ? (
                           <button
                             type="button"
                             className="mini"
@@ -204,10 +279,9 @@ const Roles = () => {
                                    of Manager opened as "MANAGER (copy)" carrying
                                    "Default features for MANAGER (Ultimate)" --
                                    the platform's own wording for a role this
-                                   company never named that. The list has said
-                                   Account admin for a while; the copy has to
-                                   agree with it or the rename only went half
-                                   way. */
+                                   company never named that. The list shows the
+                                   friendly name; the copy has to agree with it
+                                   or the rename only went half way. */
                                 name: `${roleDisplayName(role?.name)} (copy)`,
                                 description: roleDisplayDescription(
                                   role?.name,
@@ -315,7 +389,8 @@ const Roles = () => {
           closeBtnText: 'Cancel',
           descriptionTextComp: (
             <div className="text-md">
-              Delete <strong>{deleting?.name}</strong>? People holding it will need another role.
+              Delete <strong>{roleDisplayName(deleting?.name)}</strong>? People holding it will
+              need another role.
             </div>
           ),
         }}

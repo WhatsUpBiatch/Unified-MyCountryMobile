@@ -2,49 +2,37 @@
  *
  * The page had grown into a name, a job title and a photo, which told somebody
  * what colleagues see but nothing about the thing they actually came to check:
- * which number rings them, and what happens when they miss it. Mature calling
- * platforms put that on the personal page rather than leaving it to be
- * assembled from three admin screens.
+ * which number rings them, and what happens when they miss it.
  *
- * Everything here is read from the person's own record. Nothing is assumed: a
- * field that is not set says so, because "—" against Direct number is the answer
- * to "why do outside callers never reach me".
+ * Everything here is what is true on the switch today, and nothing else.
  *
- * A note on levels, because getting this wrong is silent. `getUserDetails`
- * returns `{ user_info, call_forwarding, settings, greetings, ... }`. Only the
- * name, extension, phone and location live under `user_info`; the call rules,
- * the regional settings and the greetings are its siblings at the root. Reading
- * `user_info.call_forwarding` yields `undefined`, which does not throw — it just
- * makes every judgement below come out as "nothing is set".
+ *   - Extension: read by the switch. Live.
+ *   - Direct number: the numbers actually assigned to this person, from the
+ *     same list the dialler's caller-ID picker uses. This used to show the
+ *     sign-up mobile number (`user_info.phone`) under the words "outside
+ *     callers reach you on this number", which is not what that number is.
+ *   - Voicemail: live for a call dialled straight to the person, since the
+ *     switch patch of 3 Sep 2026. An unanswered direct call goes to their
+ *     voicemail unless their after-ring rule says otherwise, and their own
+ *     voicemail greeting plays before the caller records. Proven by offline
+ *     tests and by reading the running switch, not yet by a real call. It
+ *     wore "Coming soon" before that; the badge moved in the same change.
+ *     Missed-call email alerts are still not sent, so the line says so.
+ *   - The timezone line is gone: the person's own hours are now read, but
+ *     the hours editor on Preferences already shows the timezone with them.
+ *
+ * A number that is not set says so, because "—" against Direct number is the
+ * answer to "why do outside callers never reach me".
  */
 
-import { useMemo } from 'react';
-import { AlertTriangle, Building2, CheckCircle2, Hash, PhoneIncoming, Voicemail } from 'lucide-react';
-import { evaluateUser } from '@/lib/call-standard';
+import { Building2, Clock, Hash, PhoneIncoming } from 'lucide-react';
+import { useGetAssignedDIDNumbers } from '@/hooks/common';
+import { LiveFlag } from '../not-applied-note';
 
 interface HowCallsReachYouProps {
-  /** The `user_info` object: extension, phone, site_detail. */
+  /** The `user_info` object: extension, site_detail. */
   userInfo?: any;
-  /** `call_forwarding` from the response root — a sibling of `user_info`, not a field on it. */
-  callForwarding?: unknown;
-  /** `settings` from the response root. Arrives as an object or as a JSON string. */
-  settings?: unknown;
-  /** `greetings` from the response root. Arrives as an object or as a JSON string. */
-  greetings?: unknown;
 }
-
-/* The API returns these blocks either parsed or as JSON text, so every screen
-   that reads them normalises first — see the same helper on the setup guide
-   beside this one, and the inline parses on My Phone and General Settings. */
-const asObject = (value: unknown): any => {
-  if (!value) return {};
-  if (typeof value === 'object') return value;
-  try {
-    return JSON.parse(String(value) || '{}');
-  } catch {
-    return {};
-  }
-};
 
 const Fact = ({
   icon,
@@ -67,36 +55,35 @@ const Fact = ({
   </div>
 );
 
-const HowCallsReachYou = ({
-  userInfo,
-  callForwarding,
-  settings,
-  greetings,
-}: HowCallsReachYouProps) => {
-  /* evaluateUser reads the saved call rules rather than what a dropdown would
-     display, which is the distinction that matters: the My Phone screen shows
-     "Send to Voicemail" by default even when nothing was ever saved. It takes
-     the record with `call_forwarding` at the top level, which is the shape the
-     admin coverage screen passes it. */
-  const coverage = useMemo(
-    () => evaluateUser({ call_forwarding: callForwarding }),
-    [callForwarding],
-  );
+const withPlus = (number: string) => (number.startsWith('+') ? number : `+${number}`);
 
+const HowCallsReachYou = ({ userInfo }: HowCallsReachYouProps) => {
   const site = userInfo?.site_detail || {};
-  const settingsData = asObject(settings);
-  const greetingsData = asObject(greetings);
 
-  const timezone =
-    settingsData?.operational_hours?.regional?.timezone?.value || site?.timezone || '';
+  /* No uuid: the hook then asks for the signed-in person's own numbers, which
+     is the same call the dialler makes for its caller-ID list. Read-only here. */
+  const { data: assignedNumbers, isPending, isError } = useGetAssignedDIDNumbers();
 
-  /* A greeting that is stored but switched off is not what callers hear, so it
-     is not claimed here — the checklist below applies the same test. */
-  const voicemail = greetingsData?.voicemail;
-  const greetingSet = Boolean(voicemail?.value) && voicemail?.enabled !== false;
-  const voicemailGreeting = greetingSet ? String(voicemail?.label || '').trim() : '';
+  const numbers = ((assignedNumbers as any[]) || [])
+    .map((row: any) => String(row?.did_number || '').trim())
+    .filter(Boolean)
+    .map(withPlus);
 
-  const covered = coverage.state === 'covered';
+  /* Three states, and none of them shows a bare "—" for "we do not know yet":
+     still loading, could not load, and genuinely none. */
+  const directNumber = isPending
+    ? 'Checking…'
+    : isError
+      ? ''
+      : numbers.slice(0, 2).join(', ') + (numbers.length > 2 ? ` and ${numbers.length - 2} more` : '');
+
+  const directHint = isPending
+    ? 'Looking up the numbers assigned to you.'
+    : isError
+      ? 'Could not load your numbers just now. Try again in a moment.'
+      : numbers.length
+        ? 'Outside callers reach you on this number.'
+        : 'No number is assigned to you, so outside callers cannot dial you straight.';
 
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
@@ -109,52 +96,39 @@ const HowCallsReachYou = ({
         <Fact
           icon={<Hash className="h-4 w-4" />}
           label="Extension"
-          value={userInfo?.extension}
+          value={userInfo?.extension ? String(userInfo.extension) : ''}
           hint="Colleagues dial this from inside the company."
         />
         <Fact
           icon={<PhoneIncoming className="h-4 w-4" />}
           label="Direct number"
-          value={userInfo?.phone}
-          hint={
-            userInfo?.phone
-              ? 'Outside callers reach you on this number.'
-              : 'No direct number, so outside callers cannot dial you straight.'
-          }
+          value={directNumber}
+          hint={directHint}
         />
         <Fact
           icon={<Building2 className="h-4 w-4" />}
           label="Location"
           value={site?.name}
-          hint={timezone ? `Your hours run on ${timezone}.` : 'No timezone set for your location.'}
+          hint="Set by an administrator under People."
         />
       </div>
 
-      {/* The consequence of missing a call is the part people are actually
-          unsure about, so it gets its own row rather than a fourth tile. The
-          heading covers every answer this can give, including the one where
-          forwarding means the phone never rings at all. */}
-      <div
-        className={`mt-2 flex items-start gap-2 rounded-lg border p-3 ${
-          covered ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'
-        }`}
-      >
-        {covered ? (
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-        ) : (
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-        )}
+      {/* What happens to a missed call is the part people are unsure about.
+          For a call straight to the person, voicemail is live; the two limits
+          (queue and menu calls, and the missing email alert) are said here
+          rather than left for somebody to find out. */}
+      <div className="mt-2 flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3">
+        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-gray-900">When someone calls you</p>
-          <p className="text-xs text-gray-700">{coverage.detail}</p>
-          {covered && voicemailGreeting && (
-            <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-600">
-              <Voicemail className="h-3.5 w-3.5" />
-              Callers hear: {voicemailGreeting}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-gray-500">
-            Change this under <span className="font-medium">My Account → My Phone</span>.
+          <p className="flex items-center gap-2 text-xs font-semibold text-gray-900">
+            Voicemail
+            <LiveFlag>Active</LiveFlag>
+          </p>
+          <p className="text-xs text-gray-700">
+            A call straight to you that you do not answer goes to your voicemail, unless you chose
+            something else under My Phone. Your own voicemail greeting plays first. Calls through a
+            queue or a menu follow that queue&rsquo;s or menu&rsquo;s own rules. Email alerts for a
+            missed call are not sent yet.
           </p>
         </div>
       </div>

@@ -113,6 +113,35 @@ const AddGreeting: FC<IAddgreetings> = ({
     return new File([blob], 'audio.mp3', { type: 'audio/mpeg' });
   };
 
+  /* "Female - United States accent", from whichever voice is selected on the
+     Text-to-speech tab.
+   *
+   * The voice option carries `gender` and a `locale` like "en-GB"; the region
+   * half of that is turned into a country name by the browser's own
+   * Intl.DisplayNames, so this needs no table of locales to fall out of date.
+   * Returns '' for an upload or a microphone recording — there is no voice to
+   * describe — and the caller keeps whatever name was typed in that case. */
+  const describeSelectedVoice = (): string => {
+    if (activeTab !== TAB_CONSTANT.TEXT_TO_SPEECH) return '';
+
+    const voice = watch('textToSpeechVoice');
+    const locale = String(voice?.locale || watch('textToSpeechLocale')?.value || '');
+    const region = locale.split('-')[1];
+
+    let accent = '';
+    if (region) {
+      try {
+        accent = new Intl.DisplayNames(['en'], { type: 'region' }).of(region) || region;
+      } catch {
+        accent = region;
+      }
+    }
+
+    const gender = String(voice?.gender || '').trim();
+    const parts = [gender, accent ? `${accent} accent` : ''].filter(Boolean);
+    return parts.join(' - ');
+  };
+
   const handleCreateGreeting = async () => {
     if (showLoader) return;
     try {
@@ -174,7 +203,12 @@ const AddGreeting: FC<IAddgreetings> = ({
         }
 
         const greetingPayload = {
-          name: sanitizePlainTextInput(watch('greeting'), 50),
+          /* Falls back to a description of the voice when the name is left
+             blank — "Female - United States accent" rather than an empty
+             entry in every picker that offers this recording. Only ever a
+             fallback: anything typed wins, because a name someone chose says
+             more than one derived from the voice. */
+          name: sanitizePlainTextInput(watch('greeting'), 50) || describeSelectedVoice(),
           filename: file_name,
           size: fileToUpload.size || 0,
           duration: duration,

@@ -1,0 +1,365 @@
+diff --git a/src/templates/ucaas/addMemberNotification.html b/src/templates/ucaas/addMemberNotification.html
+index 3823c21..071116e 100644
+--- a/src/templates/ucaas/addMemberNotification.html
++++ b/src/templates/ucaas/addMemberNotification.html
+@@ -115,7 +115,7 @@
+                     <tr>
+                         <td class="pad-x"
+                             style="padding:0 34px 18px 34px; font-family:Poppins, sans-serif; font-size:14px; line-height:25px; color:#4b5d73;">
+-                            Welcome! Your account has been successfully created. Below are your login credentials:
++                            Welcome! Your account has been successfully created. Here are your account details:
+                         </td>
+                     </tr>
+ 
+@@ -131,7 +131,7 @@
+                                             Account Details:
+                                         </div>
+                                         <strong style="font-weight:600; font-size:14px; color:#31445a;">Email: </strong>{{email}}<br />
+-                                        <strong style="font-weight:600; font-size:14px; color:#31445a;">Password: </strong>{{password}}<br />
++                                        <strong style="font-weight:600; font-size:14px; color:#31445a;">Password: </strong>To get started, choose your own password using the invite link we sent you.<br />
+                                     </td>
+                                 </tr>
+                             </table>
+@@ -141,7 +141,7 @@
+                     <tr>
+                         <td class="pad-x"
+                             style="padding:0 34px 18px 34px; font-family:Poppins, sans-serif; font-size:14px; line-height:24px; color:#4b5d73;">
+-                            You can now log in and start using your account. For security reasons, we strongly recommend changing your password after your first login.
++                            Once you have chosen your password you can log in and start using your account.
+                         </td>
+                     </tr>
+ 
+diff --git a/src/templates/ucaas/inviteLink.html b/src/templates/ucaas/inviteLink.html
+new file mode 100644
+index 0000000..eea9da4
+--- /dev/null
++++ b/src/templates/ucaas/inviteLink.html
+@@ -0,0 +1,328 @@
++<!DOCTYPE html>
++<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
++
++<head>
++    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <meta name="x-apple-disable-message-reformatting" />
++    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
++    <link
++        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
++        rel="stylesheet">
++    <title>Choose your password - {{project_name}}</title>
++    <style type="text/css">
++        body {
++            margin: 0;
++            padding: 0;
++            background-color: #dff0ff;
++            font-family: "Poppins", sans-serif;
++        }
++
++        table {
++            border-collapse: collapse;
++        }
++
++        img {
++            border: 0;
++            display: block;
++            line-height: 100%;
++            outline: none;
++            text-decoration: none;
++            -ms-interpolation-mode: bicubic;
++        }
++
++        @media only screen and (max-width: 620px) {
++            .shell {
++                width: 100% !important;
++            }
++
++            .pad-x {
++                padding-left: 20px !important;
++                padding-right: 20px !important;
++            }
++
++            .store-cell {
++                display: block !important;
++                width: 100% !important;
++                padding-right: 0 !important;
++                padding-bottom: 12px !important;
++            }
++
++            .hero-title {
++                font-size: 26px !important;
++                line-height: 34px !important;
++            }
++        }
++    </style>
++</head>
++
++<body>
++    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"
++        style="width:100%; background-color:#dff0ff;">
++        <tr>
++            <td align="center" style="padding:28px 12px;">
++                <table role="presentation" class="shell" width="100%" border="0" cellspacing="0" cellpadding="0"
++                    style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #cfe3f6; border-radius:22px; overflow:hidden; box-shadow:0 4px 18px rgba(66, 107, 145, 0.18);">
++                    <tr>
++                        <td align="center" style="padding:28px 20px 24px 20px;">
++                            <img src="{{logo_url}}" alt="{{project_name}}" width="170"
++                                style="width:140px; max-width:100%; height:auto;" />
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td style="height:1px; background-color:#d9ebfb; font-size:0; line-height:0;">&nbsp;</td>
++                    </tr>
++
++                    <tr>
++                        <td align="center" style="padding:18px 20px 10px 20px;">
++                            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
++                                <tr>
++                                    <td align="center" valign="middle" width="44" height="44"
++                                        style="width:44px; height:44px; border-radius:22px; background-color:#eef7ff; color:#1d6fe8;">
++                                        <div style="display:block; margin-top:0;">
++                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
++                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
++                                                stroke-linecap="round" stroke-linejoin="round"
++                                                style="display:block; margin:0 auto;">
++                                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
++                                                <circle cx="9" cy="7" r="4"></circle>
++                                                <line x1="19" y1="8" x2="19" y2="14"></line>
++                                                <line x1="22" y1="11" x2="16" y2="11"></line>
++                                            </svg>
++                                        </div>
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x hero-title"
++                            style="padding:18px 34px 10px 34px; font-family:Poppins, sans-serif; font-size:18px; line-height:30px; font-weight:700; color:#111827;">
++                            You have been invited
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x"
++                            style="padding:8px 34px 8px 34px; font-family:Poppins, sans-serif; font-size:14px; line-height:24px; color:#24364a; font-weight:700;">
++                            Hello {{name}},
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x"
++                            style="padding:0 34px 18px 34px; font-family:Poppins, sans-serif; font-size:14px; line-height:25px; color:#4b5d73;">
++                            {{#if inviter_name}}{{inviter_name}} has added you to {{#if company_name}}{{company_name}}{{else}}{{project_name}}{{/if}}.{{else}}You have been added to {{#if company_name}}{{company_name}}{{else}}{{project_name}}{{/if}}.{{/if}}
++                            To get started, choose your own password.
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td align="center" style="padding:0 34px 16px 34px;">
++                            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
++                                <tr>
++                                    <td align="center" bgcolor="#29a3df"
++                                        style="border-radius:7px; background-color: {{primary_color}}; box-shadow:0 2px 0 rgba(18, 88, 187, 0.45);">
++                                        <a clicktracking="off" href="{{invite_link}}"
++                                            style="display:inline-block; padding:14px 18px; font-family:Poppins, sans-serif; font-size:16px; line-height:16px; font-weight:700; color: {{secondary_color}}; text-decoration:none;">
++                                            Choose your password
++                                        </a>
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x"
++                            style="padding:0 34px 18px 34px; font-family:Poppins, sans-serif; font-size:13px; line-height:22px; color:#66758b;">
++                            If the button does not work, copy this address into your browser:<br />
++                            <a clicktracking="off" href="{{invite_link}}"
++                                style="color: {{primary_color}}; text-decoration:none; word-break:break-all;">{{invite_link}}</a>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x" style="padding:0 34px 10px 34px;">
++                            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"
++                                style="width:100%; background-color:#eef6ff;  border-radius:12px;">
++                                <tr>
++                                    <td style="padding:12px 12px 8px 12px;">
++                                        <table role="presentation" width="100%" border="0" cellspacing="0"
++                                            cellpadding="0"
++                                            style="width:100%; background-color:#f3f8fe; border-radius:8px;">
++                                            <tr>
++                                                <td align="center"
++                                                    style="padding:10px 12px; font-family:Poppins, sans-serif; font-size:13px; line-height:20px; color:#66758b;">
++                                                    <span style="font-size:14px; color:#66758b;">&#9716;</span>
++                                                    This link works for
++                                                    <span style="color: {{primary_color}}; font-weight:700;">{{ttl_days}}
++                                                        days</span>
++                                                </td>
++                                            </tr>
++                                        </table>
++                                    </td>
++                                </tr>
++                                <tr>
++                                    <td
++                                        style="padding:0 12px 14px 12px; font-family:Poppins, sans-serif; font-size:13px; line-height:22px; color:#4d6076;">
++                                        After that, ask the person who added you to send a new one. If you were not
++                                        expecting this, you can ignore this e-mail. Nothing changes until you choose a
++                                        password.
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x" style="padding:0 34px 22px 34px;">
++                            <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"
++                                style="width:100%; background-color:#eef6ff;  border-radius:10px;">
++                                <tr>
++                                    <td align="center"
++                                        style="padding:14px 16px; font-family:Poppins, sans-serif; font-size:13px; line-height:22px; color:#4d6076;">
++                                        If you have questions, contact
++                                        <a href="mailto:{{support_email}}"
++                                            style="color:{{primary_color}}; text-decoration:none; font-weight:500;">{{support_email}}</a>.
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td class="pad-x"
++                            style="padding:0 34px 28px 34px; font-family:Poppins, sans-serif; font-size:14px; line-height:25px; color:#4b5d73;">
++                            Best regards,<br />
++                            <span style="color:{{primary_color}}; font-weight:600; font-size:14px;">{{project_name}}
++                                Team</span><br />
++                            {{location}}
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td style="height:1px; background-color:#e4edf6; font-size:0; line-height:0;">&nbsp;</td>
++                    </tr>
++
++                    <tr>
++                        <td align="center"
++                            style="padding:20px 20px 12px 20px; font-family:Poppins, sans-serif; font-size:15px; line-height:24px; font-weight:600; color:{{primary_color}};">
++                            Be part of our digital family!
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td align="center" style="padding:0 20px 14px 20px;">
++                            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
++                                <tr>
++                                    <td style="padding:0 5px;">
++                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0"
++                                            style="background-color:#6b7280; border-radius:18px;">
++                                            <tr>
++                                                <td width="36" height="36" align="center" valign="middle">
++                                                    <a href="{{facebook_link}}" target="_blank"
++                                                        style="text-decoration:none;">
++                                                        <img src="{{facebook_logo}}" alt="Facebook" width="10"
++                                                            style="width:13px; height:auto;" />
++                                                    </a>
++                                                </td>
++                                            </tr>
++                                        </table>
++                                    </td>
++                                    <td style="padding:0 5px;">
++                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0"
++                                            style="background-color:#6b7280; border-radius:18px;">
++                                            <tr>
++                                                <td width="36" height="36" align="center" valign="middle">
++                                                    <a href="{{linkedin_link}}" target="_blank"
++                                                        style="text-decoration:none;">
++                                                        <img src="{{linkedin_logo}}" alt="LinkedIn" width="14"
++                                                            style="width:14px; height:auto;" />
++                                                    </a>
++                                                </td>
++                                            </tr>
++                                        </table>
++                                    </td>
++                                    <td style="padding:0 5px;">
++                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0"
++                                            style="background-color:#6b7280; border-radius:18px;">
++                                            <tr>
++                                                <td width="36" height="36" align="center" valign="middle">
++                                                    <a href="{{twitter_link}}"
++                                                        style="font-family:Poppins, sans-serif; font-size:16px; line-height:36px; font-weight:700; color:#ffffff; text-decoration:none;">
++                                                        X
++                                                    </a>
++                                                </td>
++                                            </tr>
++                                        </table>
++                                    </td>
++                                    <td style="padding:0 5px;">
++                                        <table role="presentation" border="0" cellspacing="0" cellpadding="0"
++                                            style="background-color:#6b7280; border-radius:18px;">
++                                            <tr>
++                                                <td width="36" height="36" align="center" valign="middle">
++                                                    <a href="{{youtube_link}}" style="text-decoration:none;">
++                                                        <img src="{{youtube_logo}}" alt="YouTube" width="15"
++                                                            style="width:15px; height:auto;" />
++                                                    </a>
++                                                </td>
++                                            </tr>
++                                        </table>
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td align="center" style="padding:0 24px 16px 24px;">
++                            <table role="presentation" border="0" cellspacing="0" cellpadding="0">
++                                <tr>
++                                    <td class="store-cell" style="padding-right:10px;">
++                                        <a href="#" style="text-decoration:none;">
++                                            <a href="{{app_store_link}}" target="_blank" style="text-decoration:none;">
++                                                <img src="{{app_store_logo}}" alt="Download on the App Store" width="116"
++                                                    style="width:116px; max-width:100%; height:auto;" />
++                                            </a>
++                                        </a>
++                                    </td>
++                                    <td class="store-cell">
++                                        <a href="#" style="text-decoration:none;">
++                                            <a href="{{google_play_link}}" target="_blank"
++                                                style="text-decoration:none;">
++                                                <img src="{{google_play_logo}}" alt="Get it on Google Play" width="116"
++                                                    style="width:116px; max-width:100%; height:auto;" />
++                                            </a>
++                                        </a>
++                                    </td>
++                                </tr>
++                            </table>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td align="center"
++                            style="padding:0 20px 10px 20px; font-family:Poppins, sans-serif; font-size:12px; line-height:21px; color:#5f7084;">
++                            <a href="#" style="color:#5f7084; text-decoration:none;">Contact Sales</a> |
++                            <a href="#" style="color:#5f7084; text-decoration:none;">Privacy Policy</a> |
++                            <a href="#" style="color:#5f7084; text-decoration:none;">Terms &amp; Conditions</a> |
++                            <a href="#" style="color:#5f7084; text-decoration:none;">Read our blog</a>
++                        </td>
++                    </tr>
++
++                    <tr>
++                        <td align="center"
++                            style="padding:0 20px 30px 20px; font-family:Poppins, sans-serif; font-size:12px; line-height:20px; color:#94a3b8;">
++                            &copy; {{year}} {{project_name}}. All rights reserved.
++                        </td>
++                    </tr>
++                </table>
++            </td>
++        </tr>
++    </table>
++</body>
++
++</html>

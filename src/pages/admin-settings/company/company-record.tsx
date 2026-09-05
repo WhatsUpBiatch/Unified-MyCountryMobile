@@ -1,26 +1,34 @@
 /* The company itself, above the list of places it works from.
  *
- * Established business phone systems separate the organisation from its locations, and
- * both put the organisation first: name, address, and the ID that support asks
- * for. MCM stores all of that on the `companies` record and showed none of it —
- * the page opened straight into the location list, so an admin had no way to see
- * their own company details, or the ID to quote when raising a ticket.
+ * Established business phone systems separate the organisation from its
+ * locations, and put the organisation first: name, address, and the ID that
+ * support asks for. MCM stores all of that on the `companies` record and, for
+ * a long time, showed none of it and let none of it be changed.
  *
- * It is editable through `/api/admin/company/upsert`, which has existed all
- * along and which nothing in the app had ever called. That is why the company
- * name could be typed once at signup and never corrected afterwards.
+ * Two doors to that record
+ * ------------------------
+ * Newer servers have `/api/company/self` and `/api/company/self/update`. They
+ * return and change the caller's own `companies` row - the real one, that
+ * invoices and number purchases read - and the company is taken from the
+ * session on the server, so an admin can only ever reach their own. When the
+ * server has them, this card reads and writes the row directly and nothing
+ * else.
  *
- * Only the fields on this form are sent. The controller builds its update object
- * with `plan_features` and `allow_country` always present, so omitting them
- * leaves them `undefined` — and Sequelize's static update strips undefined
- * values before writing (verified against 6.37.8 on the server). Sending them
- * back instead would risk re-transforming `allow_country`, which the controller
- * expands when it arrives as an array.
+ * Older servers do not have them. There, the only endpoints that touch the
+ * row sit under /api/admin behind the platform-staff check: every customer
+ * admin gets a 401, and a 401 used to end the session. So on those servers
+ * the card keeps a copy of the name and address in the company settings row
+ * (`settings.company_identity`), and tries the admin route once as a
+ * best-effort extra. That path is only used when the new endpoint answers
+ * "no such route" - see lib/company-self.ts.
+ *
+ * Only the fields the admin actually edited are sent, on both paths. The
+ * server writes just those and leaves the rest alone.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Check, Copy } from 'lucide-react';
 import { City, State } from 'country-state-city';
 
@@ -29,19 +37,25 @@ import { Input } from '@/components/ui/input';
 import CustomSelect from '@/components/custom/custom-select';
 import countryList from '@/lib/countries.json';
 import { upsertCompany } from '@/services/api';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   COMPANY_DEFAULTS_QUERY_KEY,
   fetchCompanyDefaults,
   saveCompanyDefaults,
 } from '@/lib/company-defaults';
+import {
+  COMPANY_SELF_QUERY_KEY,
+  CompanySelfChanges,
+  CompanySelfOutcome,
+  fetchCompanySelfRecord,
+  saveCompanySelfRecord,
+} from '@/lib/company-self';
 import { handleAlert } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
 
-/* Signup stores ISO codes — `IN`, `MH` — so every existing company record holds
-   codes rather than names. The selects show the readable name and save the code,
-   which keeps this form consistent with the eighteen records already there and
-   with whatever reads them. Cities have no ISO code and are stored by name. */
+/* Signup stores ISO codes - `IN`, `MH` - so every company record holds codes
+   rather than names. The selects show the readable name and save the code,
+   which keeps this form consistent with the records already there and with
+   whatever reads them. Cities have no ISO code and are stored by name. */
 type Option = { label: string; value: string };
 
 const COUNTRY_OPTIONS: Option[] = (countryList || []).map((country: any) => ({
@@ -51,8 +65,8 @@ const COUNTRY_OPTIONS: Option[] = (countryList || []).map((country: any) => ({
 
 interface CompanyRecordProps {
   companyInfo?: any;
-  /* The default location, used only as a fallback source for the company name —
-     see below. */
+  /* The default location. Used only on older servers, as a fallback source
+     for the company name - see `name` below. */
   defaultSite?: any;
 }
 
@@ -63,59 +77,73 @@ const Field = ({ label, value }: { label: string; value?: string }) => (
   </div>
 );
 
+const text = (value: unknown): string => `${value ?? ''}`.trim();
+
 const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  /* Set once the server has actually refused a save. The explanation below is
-     shown only then — stating it up front would be guessing about a deployment
-     we cannot see from the browser, and on an install where the endpoint does
-     work the note would simply be wrong. */
+  /* Older servers only. Set once the admin route has actually refused a save,
+     so the explanation is shown only when it is true. */
   const [serverRefused, setServerRefused] = useState(false);
   const { refetch } = useUser();
   const queryClient: any = useQueryClient();
 
-  /* Company identity is kept on the same reserved record as the other
-     company-wide settings, because the console genuinely cannot read the
-     `companies` row: the endpoint that returns it is restricted to platform
-     staff. Until today the name on this card came from the MAIN LOCATION, which
-     signup happens to name after the company — an inherited guess that silently
-     changed if anyone renamed that location.
-     
-     So this is not a second source of truth competing with a first. It replaces
-     a worse proxy with one the customer actually controls. The `companies` row
-     is still what invoices are drawn from, and the card says so plainly rather
-     than implying this edit reaches billing. */
+  /* Which door. `self` means the real row came back; `absent` means the
+     server has no such endpoint and the settings-row copy is used instead.
+     No retries: a 404 is an answer, and a real failure should be shown at
+     once rather than after three quiet attempts. */
+  const {
+    data: selfOutcome,
+    isLoading: isProbing,
+  } = useQuery<CompanySelfOutcome>({
+    queryKey: COMPANY_SELF_QUERY_KEY,
+    queryFn: fetchCompanySelfRecord,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const usesSelf = selfOutcome?.source === 'self';
+  const usesFallback = selfOutcome?.source === 'absent';
+
+  /* The settings-row copy, asked for only when the server has no self
+     endpoint. On newer servers it is never read here. */
   const { data: companyDefaults } = useQuery({
     queryKey: COMPANY_DEFAULTS_QUERY_KEY,
     queryFn: fetchCompanyDefaults,
     staleTime: 5 * 60 * 1000,
+    enabled: usesFallback,
   });
-  const identity = companyDefaults?.settings?.company_identity || {};
+  /* Left `undefined` rather than `{}` when there is nothing, so the value is
+     stable between renders and the form is not re-seeded while typing. */
+  const identity: Record<string, any> | undefined = usesFallback
+    ? companyDefaults?.settings?.company_identity
+    : undefined;
 
   const uuid = companyInfo?.uuid || '';
 
-  /* DELIBERATELY NOT FETCHED.
-     `/api/admin/company/info/:uuid` and `/api/admin/company/upsert` both sit
-     behind AdminMiddleware, which resolves the token against the `admins` table.
-     That table holds platform staff — zero tenant users are in it — so every
-     customer admin gets a 401, and the axios interceptor turns any 401 into a
-     forced logout. Calling either endpoint from a customer-facing page ends the
-     session merely by visiting it. Until there is a tenant-scoped company
-     endpoint (deriving company_uuid from the token rather than the body), this
-     panel reads only what the session already carries. */
-  const record = companyInfo || {};
-  /* The session's company_info carries `address` but not `name`, and the endpoint
-     that does return the name is platform-admin only — calling it logged every
-     customer out. Signup creates the default location named after the company, so
-     that name is used instead. Verified across every company on the account: the
-     two match exactly. It would drift only if somebody renamed their main
-     location, which is a visible, reversible action. */
-  const name =
-    `${identity?.name || ''}`.trim() ||
-    record?.name ||
-    record?.company_name ||
-    defaultSite?.name ||
-    '';
+  /* What the card shows and the form seeds from.
+
+     New servers: the row itself.
+
+     Old servers: the session's company_info carries `address` but not
+     `name`, city, state, country or postal code, so the copy in the settings
+     row fills those in where it has them. For the name there is one more
+     fallback: signup names the default location after the company, so that
+     name is used when nothing better is known. */
+  const record: Record<string, any> = useMemo(() => {
+    if (usesSelf) return selfOutcome.record;
+    const session = companyInfo || {};
+    if (!usesFallback) return session;
+    const merged: Record<string, any> = { ...session };
+    for (const key of ['name', 'address', 'city', 'state', 'country', 'postal_code']) {
+      const copy = identity?.[key];
+      if (text(copy)) merged[key] = copy;
+    }
+    return merged;
+  }, [usesSelf, usesFallback, selfOutcome, companyInfo, identity]);
+
+  const name = usesSelf
+    ? text(record?.name)
+    : text(record?.name) || text(record?.company_name) || text(defaultSite?.name);
 
   const {
     register,
@@ -160,12 +188,12 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
     /* Stored values are codes. They are matched back to a readable name so the
        select shows "India" rather than "IN"; if a code is not recognised the
        stored value is kept as its own label rather than silently blanked. */
-    const storedCountry = `${record?.country || ''}`.trim();
+    const storedCountry = text(record?.country);
     const countryOption =
       COUNTRY_OPTIONS.find((option) => option.value === storedCountry) ||
       (storedCountry ? { label: storedCountry, value: storedCountry } : null);
 
-    const storedState = `${record?.state || ''}`.trim();
+    const storedState = text(record?.state);
     const statesForCountry = countryOption?.value
       ? State.getStatesOfCountry(countryOption.value) || []
       : [];
@@ -176,7 +204,7 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
         ? { label: storedState, value: storedState }
         : null;
 
-    const storedCity = `${record?.city || ''}`.trim();
+    const storedCity = text(record?.city);
 
     reset({
       name,
@@ -186,7 +214,7 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
       state: stateOption,
       city: storedCity ? { label: storedCity, value: storedCity } : null,
     });
-  }, [companyInfo, isEditing, name, reset]);
+  }, [record, isEditing, name, reset]);
 
   /* Shown with the readable country name rather than the stored code, so the
      summary does not read "Mumbai, MH, 400001, IN". */
@@ -200,29 +228,36 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
     record?.postal_code,
     countryName,
   ]
-    .map((part) => `${part ?? ''}`.trim())
+    .map((part) => text(part))
     .filter(Boolean)
     .join(', ');
 
-  /* Saving writes two places, deliberately.
-     
-     The console record always succeeds — it is the reserved settings row this
-     product already owns — so an admin can always correct what their company is
-     called and where it is. The billing row is then attempted as well, because
-     on a deployment where that endpoint is open to customers it is the right
-     thing to update, and it costs one request to find out.
-     
-     The two outcomes are reported differently. Claiming "saved" when only half
-     of it landed is how someone discovers months later that their invoices still
-     carry the old name. */
+  /* New servers: one request to the row itself. The reply is the row as it
+     now stands, and it goes straight into the query cache so the card shows
+     the saved values without a second round trip.
+
+     Old servers: two writes, deliberately. The settings-row copy always
+     succeeds, so an admin can always correct what their company is called.
+     The admin route is then tried too, because on a deployment where it is
+     open to customers it is the right thing to update. The two outcomes are
+     reported differently: claiming "saved" when only half of it landed is how
+     someone finds out months later that their invoices carry the old name. */
   const { mutate: save, isPending } = useMutation({
-    mutationFn: async (values: any) => {
+    mutationFn: async (values: any): Promise<{ path: 'self' | 'fallback'; billingUpdated: boolean }> => {
+      const changed: CompanySelfChanges = values.changed;
+
+      if (!usesFallback) {
+        const row = await saveCompanySelfRecord(changed);
+        queryClient.setQueryData(COMPANY_SELF_QUERY_KEY, { source: 'self', record: row });
+        return { path: 'self', billingUpdated: true };
+      }
+
       const nextIdentity = {
         version: 1,
         updated_at: new Date().toISOString(),
-        name: `${values.name || ''}`.trim(),
-        address: `${values.address || ''}`.trim(),
-        postal_code: `${values.postal_code || ''}`.trim(),
+        name: text(values.name),
+        address: text(values.address),
+        postal_code: text(values.postal_code),
         country: values.country?.value || '',
         state: values.state?.value || '',
         city: values.city?.value || '',
@@ -232,33 +267,39 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
         uuid: companyDefaults?.uuid,
         settings: { ...(companyDefaults?.settings || {}), company_identity: nextIdentity },
         greetings: companyDefaults?.greetings || {},
+        only: ['company_identity'],
       });
 
-      /* Attempted, never required. A refusal here is expected on deployments
-         where the billing row is platform-staff only, and it must not turn a
-         successful save into a failure. */
+      /* Attempted, never required. A refusal here is expected where the row
+         is platform-staff only, and it must not turn a successful save into a
+         failure. */
       let billingUpdated = false;
       if (uuid) {
         try {
-          await upsertCompany({ uuid, ...values.changed });
+          await upsertCompany({ uuid, ...changed });
           billingUpdated = true;
         } catch {
           billingUpdated = false;
         }
       }
 
-      return { billingUpdated };
+      return { path: 'fallback', billingUpdated };
     },
-    onSuccess: ({ billingUpdated }: any) => {
-      if (!billingUpdated) setServerRefused(true);
+    onSuccess: ({ path, billingUpdated }) => {
+      if (path === 'fallback' && !billingUpdated) setServerRefused(true);
       handleAlert({
-        text: billingUpdated
-          ? 'Company details saved, including your billing record.'
-          : 'Saved. Your console is updated — your billing record is held separately and only your provider can change that.',
+        text:
+          path === 'self'
+            ? 'Company details saved.'
+            : billingUpdated
+              ? 'Company details saved, including your billing record.'
+              : 'Saved. Your console is updated — your billing record is held separately and only your provider can change that.',
         type: 'success',
       });
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: COMPANY_DEFAULTS_QUERY_KEY });
+      if (path === 'fallback') {
+        queryClient.invalidateQueries({ queryKey: COMPANY_DEFAULTS_QUERY_KEY });
+      }
       refetch();
     },
     onError: (error: any) => {
@@ -266,33 +307,20 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
         text:
           error?.response?.data?.message ||
           error?.response?.data?.error?.message ||
+          error?.message ||
           'Could not save the company details. Nothing was changed.',
         type: 'error',
       });
     },
   });
 
-  /* Only the fields the admin actually edited are sent, and a field left alone
-     is omitted rather than sent empty.
-     
-     This matters more than it looks. The session's company_info carries the
-     address but NOT name, city, state, country or postal code, so those seed
-     as blank no matter what the company record holds. Sending them anyway meant
-     an admin correcting one line of the street address also wrote '' over four
-     columns they had never seen — Sequelize strips `undefined` before writing
-     but treats '' as a real value. The name is worse: it seeds from the main
-     location's name, because the company's own name cannot be read, so an
-     untouched save would have written the location name onto the company.
-     
-     Omitting untouched fields makes both harmless. */
+  /* Only the fields the admin actually edited are sent, and a field left
+     alone is omitted rather than sent empty. The server treats an omitted
+     field as "leave it" and an empty one as "clear it", so this is the
+     difference between correcting one line of the address and blanking four
+     columns the admin never looked at. */
   const onSubmit = (values: any) => {
-    /* `changed` carries ONLY the fields the admin actually edited, and is what
-       the billing attempt sends. A field left alone is omitted rather than sent
-       empty, because the session does not carry city, state, country or postal
-       code — sending them anyway would write '' over four columns the admin
-       never saw. The console record gets the full set, since it is the thing
-       this screen owns and displays. */
-    const changed: Record<string, any> = {};
+    const changed: CompanySelfChanges = {};
     if (dirtyFields.name) changed.name = values.name;
     if (dirtyFields.address) changed.address = values.address;
     if (dirtyFields.postal_code) changed.postal_code = values.postal_code;
@@ -352,29 +380,25 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
               {copied ? 'Copied' : 'Company ID'}
             </button>
           )}
-          {/* Editing is back. The reason it was hidden was not the form but the
-              consequence of failing: /api/admin/company/upsert may be gated to
-              platform staff, and a 401 used to tear the session down, so pressing
-              Save logged the admin out. That call now opts out of the session
-              teardown (see `allowUnauthorized` in services/api/axios.tsx), so the
-              worst case is a clear message instead of being thrown to the login
-              screen. */}
+          {/* Held back until the server has said which door is open, so the
+              form never seeds from the wrong record. */}
           {!isEditing && (
-            <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isProbing}
+              onClick={() => setIsEditing(true)}
+            >
               Edit details
             </Button>
           )}
         </div>
       </div>
 
-      {/* Where the name on this card actually comes from, and what can be done
-          about it today. Signup names the main location after the company, and
-          the session does not carry the company's own name — so the name above
-          is the main location's. That one IS editable, which is a real fix for
-          a wrong name on screen. It is deliberately not described as renaming
-          the company: invoices and number purchases read the company record,
-          which keeps the old name until the API allows a change. */}
-      {serverRefused && (
+      {/* Older servers only, and only after the admin route has refused a
+          save. On a server with the self endpoint the row itself is changed
+          and there is nothing to explain. */}
+      {usesFallback && serverRefused && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <p className="text-xs font-semibold text-gray-900">
             These details cannot be changed from here yet
@@ -404,11 +428,11 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
               options={COUNTRY_OPTIONS}
               value={country}
               handleChange={(option: any) => {
-                setValue('country', option || null);
+                setValue('country', option || null, { shouldDirty: true });
                 /* State and city belong to the old country, so they are cleared
                    rather than left pointing somewhere that no longer exists. */
-                setValue('state', null);
-                setValue('city', null);
+                setValue('state', null, { shouldDirty: true });
+                setValue('city', null, { shouldDirty: true });
               }}
             />
 
@@ -419,8 +443,8 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
               value={stateValue}
               isDisabled={!country}
               handleChange={(option: any) => {
-                setValue('state', option || null);
-                setValue('city', null);
+                setValue('state', option || null, { shouldDirty: true });
+                setValue('city', null, { shouldDirty: true });
               }}
             />
 
@@ -430,7 +454,7 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
               options={cityOptions}
               value={watch('city')}
               isDisabled={!stateValue}
-              handleChange={(option: any) => setValue('city', option || null)}
+              handleChange={(option: any) => setValue('city', option || null, { shouldDirty: true })}
             />
 
             <Input

@@ -68,7 +68,7 @@ const Groups = () => {
   return (
     <DirectoryPage
       title="Groups"
-      description="Teams across the organisation — the same records Admin calls Departments."
+      description="Teams that answer calls together. Each group has an extension, a manager and the people in it."
       actions={
         canCreateGroup ? (
           <button type="button" className="btn primary" onClick={() => setCreating(true)}>
@@ -91,7 +91,7 @@ const Groups = () => {
           <tr>
             <th>Group</th>
             <th>Manager</th>
-            <th>Members</th>
+            <th>People</th>
             <th>Extension</th>
             <th>Open</th>
           </tr>

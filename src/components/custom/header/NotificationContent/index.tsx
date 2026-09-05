@@ -69,7 +69,13 @@ const NotificationContent = ({ setNotificationState }: { setNotificationState: a
   return (
     <div className="w-full mx-auto ">
       <div className="flex flex-col  gap-2 px-1 py-2">
-        <div className="flex justify-between items-center ">
+        {/* This drawer is opened without a title, so SideDrawer renders no header
+            row of its own — its close button is absolutely positioned at
+            top-4/right-4 and lands on this row. `pr-12` keeps the filter button
+            clear of it; `min-h-14` makes this row 56px so its centre line falls
+            at the same 36px from the top as the 40px close button's, which is
+            what puts the two circles level rather than merely side by side. */}
+        <div className="flex min-h-14 items-center justify-between pr-12">
           <div className=" text-gray-900 font-semibold flex gap-2 items-center justify-between w-full">
             <div className="flex items-center gap-3 ">
               <div className="flex w-5 h-5">{notificationFilterValue?.icon}</div>
@@ -95,7 +101,7 @@ const NotificationContent = ({ setNotificationState }: { setNotificationState: a
                 <DropdownMenuTrigger>
                   <div
                     className={
-                      'cursor-pointer flex items-center justify-center rounded-full w-9 h-9 bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white'
+                      'cursor-pointer flex items-center justify-center rounded-full w-10 h-10 bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white'
                     }
                   >
                     <FilterIcon className="w-5 h-5" />

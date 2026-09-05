@@ -1,5 +1,6 @@
 import { Label } from '@/components/ui/label';
 import { GreetingItem, useGetGreetings } from '@/hooks/common';
+import { greetingOptionsForSlots } from '@/lib/greeting-slots';
 import { useIsStarterPlan } from '@/hooks/use-is-starter-plan';
 import { capitalizeFirstLetter } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -8,7 +9,7 @@ import { ISELECTVALUE } from '@/interfaces/api-interfaces';
 import { useFormContext } from 'react-hook-form';
 
 const Media = () => {
-  const { greetingList } = useGetGreetings();
+  const { allGreetings } = useGetGreetings();
   const isStarterPlan = useIsStarterPlan();
 
   const {
@@ -20,8 +21,7 @@ const Media = () => {
   const watchMedia = watch('media');
 
   const optionsData: Record<string, GreetingItem[]> = {
-    welcome: greetingList,
-    hold: greetingList,
+    ...greetingOptionsForSlots(allGreetings, ['welcome', 'hold']),
   };
 
   const mediaOptionsGreetingNotifications = [

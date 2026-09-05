@@ -46,7 +46,7 @@ const STEP_NOTES: Record<string, { decides: string; ifSkipped: string }> = {
       'The roles that ship all grant nearly the same thing, so the name on somebody’s record means very little.',
   },
   '/admin-settings/admin-scope': {
-    decides: 'How far a role reaches — which locations or departments an administrator covers.',
+    decides: 'How far a role reaches — which locations or groups an administrator covers.',
     ifSkipped:
       'Every administrator covers the whole company, so the person who runs one location can change another.',
   },
@@ -65,14 +65,14 @@ const AccessControlPage = () => {
     <AdminPage
       section="People"
       title="How access works"
-      description="Who can do what, in four steps. Start here, then work down: the later steps assume the earlier ones have been answered."
+      description="Who can do what, in three steps. Start here, then work down: the later steps assume the earlier ones have been answered."
       actions={<AreaNav current="/admin-settings/access-control" />}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
         <SettingCard
-          title="The four steps, in order"
+          title="The three steps, in order"
           icon={<Compass className="h-4 w-4" />}
-          description="Access is one decision made in four places. Doing them out of order still works, but each one is easier once the one above it is settled."
+          description="Access is one decision made in three places. Doing them out of order still works, but each one is easier once the one above it is settled. Only Roles is in the sidebar; the strip at the top of each step leads to the others."
         >
           {ACCESS_STEPS.map((item) => {
             const note = STEP_NOTES[item.path];
@@ -102,16 +102,17 @@ const AccessControlPage = () => {
         </SettingCard>
 
         <SettingCard
-          title="Step 1 — the six kinds of person"
+          title="Step 1 — the kinds of person"
           icon={<Users className="h-4 w-4" />}
-          description="Each name says how far that kind of person reaches, not how senior they are. Somebody who runs two departments and somebody who runs the company do the same sorts of thing to different sets of people."
+          description="Each name says how far that kind of person reaches, not how senior they are. Somebody who runs two groups and somebody who runs the company do the same sorts of thing to different sets of people."
           status="coming-soon"
           note={
             <>
-              Coming soon: reach. There is no record yet of which locations or departments somebody
-              looks after, so a Location Admin&rsquo;s permissions currently apply to every
-              location. Step 3 is where you write it down, ready for the day it arrives. The
-              permissions themselves do work, inside this app.
+              Coming soon: reach. There is no record yet of which locations or groups somebody
+              looks after, so a Location admin&rsquo;s permissions currently apply to every
+              location. The Admin scope screen is where you write it down, ready for the day it
+              arrives. The permissions themselves decide what a person sees inside this app; the
+              server checks only whether someone is the Account owner.
             </>
           }
           aside={
@@ -154,7 +155,7 @@ const AccessControlPage = () => {
           />
           <SettingRow
             label="3. How far the role reaches"
-            description="Which locations or departments it applies to. Written down on the Admin scope screen, and nothing acts on it yet, so today every role reaches the whole company."
+            description="Which locations or groups it applies to. Written down on the Admin scope screen, and nothing acts on it yet, so today every role reaches the whole company."
             status="coming-soon"
           />
         </SettingCard>

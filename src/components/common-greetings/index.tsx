@@ -38,16 +38,41 @@ const CommonGreetingNotification: FC<IGREETINGPROPS> = ({
     ({ name }) => !isStarterPlan || !['hold', 'on_hold_music'].includes(name),
   );
 
+  /* Turning a slot on picks its stock recording, rather than leaving an empty
+     box above a switch that says the slot is in use. Every tenant is seeded
+     with the same defaults, so there is always one to reach for - except ring
+     tone, which has no stock recording, and is simply left blank.
+     A recording already chosen is never overwritten. */
+  const defaultForSlot = (name: string): ISELECTVALUE | null => {
+    const stock = (optionsData?.[name] ?? []).find((item) => Boolean(item?.is_default));
+    if (!stock) return null;
+    return {
+      label: stock.name,
+      value: stock.filename,
+      uuid: stock.uuid,
+      is_default: stock.is_default,
+    } as ISELECTVALUE;
+  };
+
   const onChangeMedia = (name: string, status: boolean) => {
     setValue(`${formParentKey}.${name}.enabled`, status, {
       shouldDirty: true,
       shouldTouch: true,
     });
-    setValue(`${formParentKey}.${name}.value`, { label: '', value: '' } as ISELECTVALUE, {
-      shouldDirty: true,
-      shouldTouch: true,
-      // shouldValidate: true,
-    });
+
+    const current = watch(`${formParentKey}.${name}.value`);
+    const alreadyChosen = Boolean(current?.value);
+    const next = status && !alreadyChosen ? defaultForSlot(name) : null;
+
+    setValue(
+      `${formParentKey}.${name}.value`,
+      (next ?? ({ label: '', value: '' } as ISELECTVALUE)),
+      {
+        shouldDirty: true,
+        shouldTouch: true,
+        // shouldValidate: true,
+      },
+    );
   };
 
   const preserveGreetingForm = () => {
@@ -122,10 +147,17 @@ const CommonGreetingNotification: FC<IGREETINGPROPS> = ({
                             shouldValidate: true,
                           })
                         }
+                        /* `is_default` matters as much as the uuid: it is what
+                           tells the player to fetch from the shared default
+                           path instead of this company's folder, where a stock
+                           file does not exist. Without it a stock recording
+                           resolved to a 404 and the row read "Unable to load
+                           this audio." */
                         options={optionsData[name]?.map((item: GreetingItem) => ({
                           label: item.name,
                           value: item.filename,
                           uuid: item.uuid,
+                          is_default: item.is_default,
                         }))}
                         value={watch(`${formParentKey}.${name}.value`) || null}
                         errors={

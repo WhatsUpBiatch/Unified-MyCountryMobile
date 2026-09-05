@@ -11,6 +11,10 @@ export const routes = {
     METHOD: 'POST',
     URL: '/api/login',
   },
+  GOOGLE_LOGIN: {
+    METHOD: 'POST',
+    URL: '/api/auth/google',
+  },
   FORGET_PASSWORD: {
     METHOD: 'POST',
     URL: '/api/forgot-password',
@@ -18,6 +22,23 @@ export const routes = {
   NEW_PASSWORD: {
     METHOD: 'POST',
     URL: '/api/verify-password',
+  },
+  /* Invite links for new people (backend-patches/invites). */
+  INVITE_INSPECT: {
+    METHOD: 'POST',
+    URL: '/api/invite/inspect',
+  },
+  INVITE_ACCEPT: {
+    METHOD: 'POST',
+    URL: '/api/invite/accept',
+  },
+  INVITE_RESEND: {
+    METHOD: 'POST',
+    URL: '/api/invite/resend',
+  },
+  INVITE_PENDING: {
+    METHOD: 'POST',
+    URL: '/api/invite/pending',
   },
 
   DASHBOARD_STATS: {
@@ -84,6 +105,36 @@ export const routes = {
   ROLE_LIST: {
     METHOD: 'POST',
     URL: '/api/user/role/list',
+  },
+  /* Rewrites a draft message. Returns text and never sends anything - what
+     happens to the suggestion is entirely the composer's decision. */
+  AI_MESSAGE_REWRITE: {
+    METHOD: 'POST',
+    URL: '/api/ai/message/rewrite',
+  },
+  /* Records a thumbs up/down. Stores which preset was rated, never the
+     message itself - see the route's own comment for why. */
+  AI_MESSAGE_REWRITE_FEEDBACK: {
+    METHOD: 'POST',
+    URL: '/api/ai/message/rewrite/feedback',
+  },
+  /* Summarizes the messages already loaded in an open conversation. Nothing
+     is stored - the transcript is sent in the request body and discarded
+     once the response comes back. */
+  AI_CONVERSATION_SUMMARIZE: {
+    METHOD: 'POST',
+    URL: '/api/ai/conversation/summarize',
+  },
+  /* Answers a question grounded only in that same transcript. */
+  AI_CONVERSATION_ASK: {
+    METHOD: 'POST',
+    URL: '/api/ai/conversation/ask',
+  },
+  /* Suggests replies someone could send next. Returns candidate strings -
+     nothing is sent, so picking one stays the composer's decision. */
+  AI_CONVERSATION_SUGGEST_REPLIES: {
+    METHOD: 'POST',
+    URL: '/api/ai/conversation/suggest-replies',
   },
   GET_URL_TYPE_LIST: {
     METHOD: 'POST',
@@ -770,6 +821,41 @@ export const routes = {
     METHOD: 'DELETE',
     URL: '/api/user/delete',
   },
+  /* Person states (3 Sep 2026). Suspend / reactivate are served by default-api's
+     personStateRoute (administrators only, never yourself, never the owner);
+     PERSON_STATES returns every person's state, because /api/user/list does
+     not carry `status`. List-deleted / restore are the 72-hour removal window. */
+  PERSON_SUSPEND: {
+    METHOD: 'POST',
+    URL: '/api/person/suspend',
+  },
+  PERSON_REACTIVATE: {
+    METHOD: 'POST',
+    URL: '/api/person/reactivate',
+  },
+  PERSON_STATES: {
+    METHOD: 'POST',
+    URL: '/api/person/state',
+  },
+  /* Admin scope: who an administrator may act on. SET writes one person's
+     scope (owner or account admin only); SCOPES lists everybody's resolved
+     role and scope, joined by uuid on the People list. */
+  PERSON_SCOPE_SET: {
+    METHOD: 'POST',
+    URL: '/api/person/scope',
+  },
+  PERSON_SCOPES: {
+    METHOD: 'POST',
+    URL: '/api/person/scope',
+  },
+  LIST_DELETED_MEMBERS: {
+    METHOD: 'POST',
+    URL: '/api/user/list-deleted',
+  },
+  RESTORE_MEMBER: {
+    METHOD: 'POST',
+    URL: '/api/user/restore',
+  },
   GET_PLANS: {
     METHOD: 'GET',
     URL: '/api/plan/list',
@@ -836,6 +922,23 @@ export const routes = {
   TEMPLATE_DELETE: {
     METHOD: 'DELETE',
     URL: '/api/tenant/user/template/delete',
+  },
+  // Company settings, one section per former top-level key of the template blob
+  COMPANY_SETTINGS_LIST: {
+    METHOD: 'POST',
+    URL: '/api/tenant/user/company-settings/list',
+  },
+  COMPANY_SETTINGS_GET: {
+    METHOD: 'POST',
+    URL: '/api/tenant/user/company-settings/get',
+  },
+  COMPANY_SETTINGS_SAVE: {
+    METHOD: 'POST',
+    URL: '/api/tenant/user/company-settings/save',
+  },
+  COMPANY_SETTINGS_HISTORY: {
+    METHOD: 'POST',
+    URL: '/api/tenant/user/company-settings/history',
   },
   // Delete Call Handling Template
   DELETE_CALL_HANDLING_TEMPLATE: {
@@ -1473,6 +1576,18 @@ export const routes = {
   COMPANY_UPSERT: {
     METHOD: 'POST',
     URL: '/api/admin/company/upsert',
+  },
+  /* The company's own record, read and written by its own admins. The company
+     is taken from the session on the server, never from the body. These two
+     are the tenant-scoped doors that COMPANY_INFO and COMPANY_UPSERT never
+     were: those sit under /api/admin behind the platform-staff check. */
+  COMPANY_SELF: {
+    METHOD: 'POST',
+    URL: '/api/company/self',
+  },
+  COMPANY_SELF_UPDATE: {
+    METHOD: 'POST',
+    URL: '/api/company/self/update',
   },
   // MAIN SITE INFO
   MAIN_SITE_INFO: {

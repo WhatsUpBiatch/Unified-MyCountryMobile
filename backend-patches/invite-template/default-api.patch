@@ -1,0 +1,352 @@
+diff --git a/src/controllers/Admin/UserController.ts b/src/controllers/Admin/UserController.ts
+index e3c43a0..bb545d4 100644
+--- a/src/controllers/Admin/UserController.ts
++++ b/src/controllers/Admin/UserController.ts
+@@ -7,13 +7,13 @@ import { paginate } from "@/utils/paginate";
+ import { Response } from "express";
+ import { Op, UniqueConstraintError } from "sequelize";
+ import { UserCreationAttributes } from "@/interfaces/IUser";
+-import { generatePassword } from "@/helpers/authHelper";
+ import { hash, genSalt } from "bcryptjs";
+ import User from "@/models/User";
+ import Company from "@/models/Company";
+ import CommonHelper from "@/helpers/CommonHelper";
+ import { createUserValidatorAdmin } from "@/validators/UserValidator";
+-import { SmsController } from "../SmsController";
++import { randomTemporaryPassword } from "@/helpers/inviteToken";
++import UserInviteService from "@/services/UserInviteService";
+ import DIDNumber from "@/models/DIDNumber";
+ 
+ 
+@@ -38,16 +38,25 @@ export default class UserController extends BaseController {
+                 return super.sendError(res, error.details[0].message, 422);
+             }
+ 
+-            const { email, first_name, last_name, phone, role, extension, site_uuid, password } = value;
++            const { email, first_name, last_name, phone, role, extension, site_uuid } = value;
+             const sanitizedPhone = CommonHelper.sanitizePhoneNumber(phone);
+             const normalizedEmail = String(email).trim().toLowerCase();
+ 
+-            if (await CommonHelper.isBreachedPassword(password)) {
++            /* Same rule as the tenant add-member (controllers/UserController.ts):
++               the person gets an invite link and chooses their own password
++               (services/UserInviteService.ts). No password typed -> the row
++               carries a random one nobody ever sees and starts PENDING; login
++               refuses anything but ACTIVE, and accepting the link flips it. A
++               typed password keeps working as before (row ACTIVE) and that
++               person gets the link too. Nothing below e-mails a password. */
++            const typedPassword = String(value.password ?? "").trim();
++            const inviteOnly = !typedPassword;
++            if (!inviteOnly && (await CommonHelper.isBreachedPassword(typedPassword))) {
+                 return super.sendError(res, "This password has been found in a data breach. Please choose a different password.");
+             }
+ 
+             const salt = await genSalt(10);
+-            const hashedPassword = await hash(password, salt);
++            const hashedPassword = await hash(inviteOnly ? randomTemporaryPassword() : typedPassword, salt);
+             const emailCheck = await User.findOne({
+                 where: {
+                     [Op.or]: [
+@@ -112,78 +121,38 @@ export default class UserController extends BaseController {
+                 site_uuid,
+                 phone: sanitizedPhone,
+                 company_uuid,
++                status: inviteOnly ? "PENDING" : "ACTIVE",
+             });
+ 
+-        // await BaseController.sendUserEmail({
+-        //     email: email,
+-        //     subject: "Login Credentials",
+-        //     html: `
+-        //               <div
+-        //                 style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto; color: #333;">
+-        //                 <h2 style="color: #4a90e2;">Welcome, ${first_name}</h2>
+-        //                 <p>We’re excited to have you on board. Below are your login credentials:</p>
+-
+-        //                 <div
+-        //                     style="background-color: #fff; padding: 15px 20px; border: 1px solid #ddd; border-radius: 6px; margin: 20px 0;">
+-        //                     <p style="margin: 0;"><strong>Username:</strong> ${email}</p>
+-        //                     <p style="margin: 0;"><strong>Password:</strong> ${password}</p>
+-        //                 </div>
+-
+-        //                 <p>Please make sure to keep this information secure. You can log in using the credentials above.</p>
+-
+-        //                 <p style="margin-top: 30px;">Best regards,<br><strong>The ucaaS Team</strong></p>
+-        //             </div>`
+-        // });
+-
+-            const getWebsiteUrl = await CommonHelper.getWebsiteUrl(company_uuid);
+-
+-            let notificationPayloadData: any = {
+-                type: 'add_member',
+-                email_notification: {
+-                    subject: 'Your Account Details - Login Information',
+-                    body: 'ADD_MEMBER_NOTIFICATION',
+-                    template: true,
+-                    data: {
+-                        name: `${first_name} ${last_name}`,
+-                        password: password,
+-                        email: normalizedEmail,
+-                        login_url: getWebsiteUrl,
+-                    }
+-                },
+-                socket_notification: null,
+-                // socket_notification: {
+-                //   data: {
+-                //     // domain: getUser?.domain,
+-                //     // extension: getUser?.extension,
+-                //     // type: 'account_invitation',
+-                //     // from: 'INTERNAL',
+-                //     // didNumber: getUser?.caller_id,
+-                //     // time: new Date(),
+-                //     // description: `You have account invitation from Nextere: ${verificationLink}`
+-                //   }
+-                // },
+-                sms_notification: null
+-                // sms_notification: {
+-                //   data: {
+-                //     body: `Test signup notification`
+-                //   }
+-                // }
++            /* The invite link instead of a password in e-mail. A mail failure
++               does not undo the person: the company's own administrators see
++               "Resend invite" on their People list. */
++            const admin: any = req.auth ?? {};
++            const inviterName =
++                `${admin?.first_name ?? ""} ${admin?.last_name ?? ""}`.trim() || String(admin?.name ?? "").trim() || null;
++            let inviteSent = false;
++            let inviteExpiresAt: Date | null = null;
++            try {
++                const invite = await UserInviteService.createInvite(user, admin?.uuid ?? null);
++                inviteExpiresAt = invite.expiresAt;
++                inviteSent = await UserInviteService.sendInviteEmail(user, invite.token, req, inviterName);
++            } catch (inviteError: any) {
++                console.error(`Admin addMember: invite for ${normalizedEmail} failed:`, inviteError?.message || inviteError);
+             }
+ 
+-            //await SmsController.sendNotification(notificationPayloadData, _createUser.email, res);
++            /* The row comes back with the bcrypt hash; the browser has no use for it. */
++            const created: any = typeof user?.get === "function" ? user.get({ plain: true }) : { ...user };
++            delete created.password;
+ 
+-            SmsController.sendNotification(
+-                notificationPayloadData,
+-                normalizedEmail,
+-                null,
+-                req,
+-                company_uuid ?? null,
+-            ).catch(err => {
+-                console.error("Background notification failed #addMember:", err);
+-            });
++            const days = UserInviteService.TTL_HOURS / 24;
++            const message = inviteSent
++                ? `User added. We sent them a link to choose a password. It works for ${days} days.`
++                : `User added, but the invite e-mail to ${normalizedEmail} could not be sent. A company administrator can use "Resend invite" on the People list.`;
+ 
+-
+-            return super.sendSuccess(res, "User added successfully", user);
++            return super.sendSuccess(res, message, {
++                ...created,
++                invite: { sent: inviteSent, expires_at: inviteExpiresAt, status: created.status },
++            });
+         } catch (error: any) {
+             if (error instanceof UniqueConstraintError) {
+                 const uniqueField = error?.errors?.[0]?.path;
+diff --git a/src/helpers/inviteEmail.ts b/src/helpers/inviteEmail.ts
+index 58d1936..cb51f0e 100644
+--- a/src/helpers/inviteEmail.ts
++++ b/src/helpers/inviteEmail.ts
+@@ -1,15 +1,38 @@
+-/* The invite e-mail, as plain HTML.
++/* The invite e-mail: the branded template's variables, and a plain-HTML
++ * fallback body.
+  *
+- * notification-api renders named templates from its own templates folder, and
+- * that service is not part of this change (it would need its own deploy). So
+- * the invite goes through the same mailer as every other notification with
+- * `template: false` and this body. It carries the person's name, who invited
+- * them, the company, the link and how long it lasts - and nothing else. No
+- * password, no extension, no e-mail address.
++ * First choice is the named notification-api template INVITE_LINK
++ * (notification-api src/templates/ucaas/inviteLink.html), rendered by
++ * notification-api with the variables from buildInviteTemplateData() plus the
++ * logo / colours / footer it adds for every mail. If the notification-api on
++ * the box does not have that template yet, it answers 200 with the e-mail
++ * channel's result `false` (EmailService catches "Email template not found"
++ * and returns false; it never throws) - inviteEmailWent() reads that answer,
++ * and the sender falls back to `template: false` with buildInviteEmailHtml()
++ * as the body, which every build sends as-is. The invite never fails to send
++ * because a template is missing.
+  *
+- * Pure: a test checks the body never contains a password field.
++ * Both carry the person's name, who invited them, the company, the link and
++ * how long it lasts - and nothing else. No password, no extension, no e-mail
++ * address. Pure: tests cover the variables, the escaping and the fallback
++ * decision.
+  */
+ 
++/* The `body` notification-api turns into a template file name
++   (INVITE_LINK -> inviteLink.html via CommonHelper.toCamelCase). */
++export const INVITE_TEMPLATE_NAME = "INVITE_LINK";
++
++/* Variables the INVITE_LINK template reads. Raw strings: notification-api
++   renders with Handlebars, which HTML-escapes every {{variable}} itself.
++   Nothing here is a password, an extension or an e-mail address. */
++export interface InviteTemplateData {
++    name: string;
++    inviter_name: string;
++    company_name: string;
++    invite_link: string;
++    ttl_days: number;
++}
++
+ export interface InviteEmailInput {
+     name: string;
+     inviterName?: string | null;
+@@ -66,3 +89,26 @@ export const buildInviteEmailHtml = (input: InviteEmailInput): string => {
+         `</table></td></tr></table></body></html>`,
+     ].join("");
+ };
++
++export const buildInviteTemplateData = (input: InviteEmailInput): InviteTemplateData => ({
++    name: String(input.name ?? "").trim() || "there",
++    inviter_name: String(input.inviterName ?? "").trim(),
++    company_name: String(input.companyName ?? "").trim() || String(input.projectName ?? "").trim(),
++    invite_link: String(input.link ?? ""),
++    ttl_days: Math.max(1, Math.round(Number(input.hours) / 24)),
++});
++
++/* Did the e-mail channel go? `result` is what SmsController.sendNotification
++   returns: notification-api's `data.result`, an array of
++   `{ channel: "email" | "socket" | "sms" | "push", result }`. For e-mail,
++   `result` is `{ status, body }` on success (status 200 from SMTP, "202" as a
++   string from SendGrid) and `false` on any failure - including a template
++   file notification-api does not have. Anything else (no array, no e-mail
++   entry, a non-2xx status) counts as "did not go". */
++export const inviteEmailWent = (result: unknown): boolean => {
++    if (!Array.isArray(result)) return false;
++    const email = result.find((entry: any) => entry && entry.channel === "email");
++    if (!email || !email.result || typeof email.result !== "object") return false;
++    const status = Number((email.result as any).status);
++    return Number.isFinite(status) && status >= 200 && status < 300;
++};
+diff --git a/src/services/UserInviteService.ts b/src/services/UserInviteService.ts
+index bd097f8..1946422 100644
+--- a/src/services/UserInviteService.ts
++++ b/src/services/UserInviteService.ts
+@@ -10,7 +10,9 @@
+  * that never runs migrations still works.
+  *
+  * Mail goes through SmsController.sendNotification - the same path as
+- * forgot-password - with a plain HTML body (see helpers/inviteEmail.ts).
++ * forgot-password - as the branded INVITE_LINK template, with the plain HTML
++ * body from helpers/inviteEmail.ts as the fallback when the notification-api
++ * on the box does not have that template.
+  */
+ 
+ import { Op, Transaction } from "sequelize";
+@@ -31,7 +33,13 @@ import {
+     tokenLooksValid,
+     validateInvitePassword,
+ } from "@/helpers/inviteToken";
+-import { buildInviteEmailHtml, inviteEmailSubject } from "@/helpers/inviteEmail";
++import {
++    buildInviteEmailHtml,
++    buildInviteTemplateData,
++    INVITE_TEMPLATE_NAME,
++    inviteEmailSubject,
++    inviteEmailWent,
++} from "@/helpers/inviteEmail";
+ 
+ /* Mirrors migrations/20260903150000-create-user-invites-table.js. */
+ const CREATE_TABLE_SQL = `
+@@ -130,7 +138,14 @@ export default class UserInviteService {
+     }
+ 
+     /* Build and send the e-mail. Never throws: a mail failure must not undo a
+-       created person - the admin can press "Resend". Returns whether it went. */
++       created person - the admin can press "Resend". Returns whether it went.
++
++       Two attempts at most. First the branded template (template: true, body
++       INVITE_LINK, the variables from buildInviteTemplateData). notification-api
++       answers 200 either way; if its e-mail channel reports `false` - which is
++       what a build without the template answers - the same mail goes again
++       with template: false and the plain HTML body, which every build sends
++       as-is. A second failure is a real mail failure and is reported as such. */
+     public static async sendInviteEmail(
+         user: InviteTarget,
+         token: string,
+@@ -147,27 +162,43 @@ export default class UserInviteService {
+             const link = buildInviteLink(websiteUrl, token);
+             const companyName = company?.name ?? null;
+             const projectName = company?.websiteSettings?.regards ?? null;
+-            const html = buildInviteEmailHtml({
++            const input = {
+                 name: `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim(),
+                 inviterName: inviterName ?? null,
+                 companyName,
+                 projectName,
+                 link,
+                 hours: INVITE_TTL_HOURS,
+-            });
+-            const payload = {
+-                type: "user_invite",
+-                email_notification: {
+-                    subject: inviteEmailSubject(companyName, projectName),
+-                    body: html,
+-                    template: false,
+-                    data: {},
+-                },
+-                socket_notification: null,
+-                sms_notification: null,
+             };
+-            await SmsController.sendNotification(payload, user.email, null, req, user.company_uuid ?? null);
+-            return true;
++            const subject = inviteEmailSubject(companyName, projectName);
++            const send = (email_notification: Record<string, unknown>) =>
++                SmsController.sendNotification(
++                    { type: "user_invite", email_notification, socket_notification: null, sms_notification: null },
++                    user.email,
++                    null,
++                    req,
++                    user.company_uuid ?? null,
++                );
++
++            const templated = await send({
++                subject,
++                body: INVITE_TEMPLATE_NAME,
++                template: true,
++                data: buildInviteTemplateData(input),
++            });
++            if (inviteEmailWent(templated)) {
++                return true;
++            }
++            console.warn(
++                `UserInviteService: template ${INVITE_TEMPLATE_NAME} did not send to ${user.email} (notification-api answered ${JSON.stringify(templated)}); sending the plain body instead`,
++            );
++            const plain = await send({
++                subject,
++                body: buildInviteEmailHtml(input),
++                template: false,
++                data: {},
++            });
++            return inviteEmailWent(plain);
+         } catch (error: any) {
+             console.error(`UserInviteService: invite e-mail to ${user.email} failed:`, error?.message || error);
+             return false;
+diff --git a/src/validators/UserValidator.ts b/src/validators/UserValidator.ts
+index df1f960..5700808 100644
+--- a/src/validators/UserValidator.ts
++++ b/src/validators/UserValidator.ts
+@@ -90,7 +90,10 @@ export const createUserValidatorAdmin = Joi.object({
+     site_uuid: Joi.string().allow(null, ""),
+     country: Joi.string().allow(null, ""),
+     did: Joi.string().allow(null, ""),
+-    password: Joi.string().required().min(6).max(30),
++    /* Optional since the platform admin's add-member sends an invite link
++       (controllers/Admin/UserController.ts): no password means the person
++       chooses their own through the link. A typed one still works as before. */
++    password: Joi.string().min(6).max(30).allow(null, ""),
+ });
+ export const createUserValidator = Joi.object({
+     first_name: Joi.string().required().min(3).max(20),

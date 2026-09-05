@@ -31,17 +31,31 @@ const parseMaybeJson = (value: any): any => {
 /* `transcription` and `ai_call_monitoring` were booleans before they became
    objects carrying an override flag. Older records still hold the boolean, so
    both forms are accepted and normalised to the object the form expects. */
+/* The rule flags a node carries, and only those it carries. An absent flag now
+   means "the company has no opinion" (see src/lib/company-rule-flags.ts), so
+   manufacturing `override: false` here would turn every untouched rule into a
+   lock the moment the record was saved. */
+const ruleFlagsOf = (node: any) => {
+  const out: Record<string, boolean> = {};
+  if (node && typeof node === 'object') {
+    if (typeof node.override === 'boolean') out.override = node.override;
+    if (typeof node.apply === 'boolean') out.apply = node.apply;
+    if (typeof node.locked === 'boolean') out.locked = node.locked;
+  }
+  return out;
+};
+
 const asToggleWithOverride = (value: any) => {
   const isObject = typeof value === 'object' && value !== null;
   return {
     enabled: isObject ? !!value.enabled : !!value,
-    override: isObject ? !!value.override : false,
+    ...ruleFlagsOf(value),
   };
 };
 
 const asGreetingField = (greeting: any) => ({
   enabled: greeting?.enabled || false,
-  override: greeting?.override || false,
+  ...ruleFlagsOf(greeting),
   value: {
     label: greeting?.label || 'Select',
     value: greeting?.value || '',
@@ -136,7 +150,7 @@ const toStoredGreeting = (greeting: any) => ({
   enabled: greeting?.enabled,
   label: greeting?.value?.label,
   value: greeting?.value?.value,
-  override: greeting?.override,
+  ...ruleFlagsOf(greeting),
 });
 
 /* Turns current form values back into the payload the upsert endpoint stores. */
@@ -152,12 +166,7 @@ export const buildTemplatePayload = ({
   uuid?: string;
 }) => {
   const {
-    display_number: {
-      masking = {},
-      incoming = {},
-      show_number_if_blocked = 'NO',
-      override = false,
-    } = {},
+    display_number: { masking = {}, incoming = {}, show_number_if_blocked = 'NO', ...displayFlags } = {},
     operational_hours = {},
     ...restSettings
   } = settings;
@@ -174,7 +183,7 @@ export const buildTemplatePayload = ({
           value: masking?.value,
         },
         show_number_if_blocked,
-        override,
+        ...ruleFlagsOf(displayFlags),
       },
       operational_hours: {
         type: operational_hours?.type,
@@ -184,13 +193,13 @@ export const buildTemplatePayload = ({
         holidays: operational_hours?.holidays?.length
           ? getHolidaysPayload(operational_hours.holidays)
           : [],
-        override: operational_hours?.override,
+        ...ruleFlagsOf(operational_hours),
         regional: {
           country: operational_hours?.regional?.country,
           timezone: operational_hours?.regional?.timezone,
           time_format: operational_hours?.regional?.time_format,
           country_code: operational_hours?.regional?.country_code,
-          override: operational_hours?.regional?.override,
+          ...ruleFlagsOf(operational_hours?.regional),
         },
         closed_hour_action: {
           type: operational_hours?.closed_hour_action?.type?.value,

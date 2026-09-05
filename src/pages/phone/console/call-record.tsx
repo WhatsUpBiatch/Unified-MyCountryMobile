@@ -6,9 +6,16 @@ import { useGetExtensions } from '@/hooks/common';
 import { useCompanyFeatures } from '@/hooks/rbac';
 import { useUser } from '@/hooks/use-user';
 import { getUserNameByExtension } from '@/lib/extension-utility';
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import { Ic } from './icons';
 import { DialNumber, useConsoleDialer } from './dial-number';
-import { initialsOf, isNumberLike } from './copilot-adapter';
+import {
+  durationSeconds,
+  formatDuration,
+  initialsOf,
+  isNumberLike,
+  wasAnswered,
+} from './copilot-adapter';
 import type { ConsoleCallRow } from './call-list-column';
 
 /**
@@ -27,11 +34,12 @@ const isMeaningful = (v: unknown) => {
   return Boolean(s) && s.toLowerCase() !== 'na' && s.toLowerCase() !== 'null';
 };
 
-const clock = (value: unknown) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return '00:00';
-  return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
-};
+/* The API sends `billsec`/`duration` as "HH:MM:SS" strings and only
+   `billsectotal` as a number, so Number() here produced NaN and every leg read
+   00:00. durationSeconds understands all three. */
+/* Unanswered legs show no length: `duration` on those is ring time, not talk
+   time, and printing it claims a conversation that never happened. */
+const clock = (log: any) => (wasAnswered(log) ? formatDuration(durationSeconds(log)) : '—');
 
 export type RecordLeg = {
   id: string;
@@ -64,6 +72,9 @@ const CallRecord = ({
     search: '',
   });
   const [playingId, setPlayingId] = useState<string | null>(null);
+  /* Opening a leg's transcript used to give no indication of WHICH leg the
+     right-hand panel was describing, once a call had more than one. */
+  const [selectedLegId, setSelectedLegId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
 
   const companyUuid = String(user?.company_info?.uuid || '').trim();
@@ -95,11 +106,15 @@ const CallRecord = ({
       const start = String(log?.start_stamp ?? '').trim();
 
       return {
-        id: String(log?.uuid || log?.sipcall_id || log?.xml_cdr_uuid || `${i}`),
+        /* `uuid` identifies the call, not the leg, so sibling legs shared an
+           id: pressing play matched every one of them and mounted several
+           autoplaying players on the same file (and React saw duplicate keys).
+           The row index makes each leg's id its own. */
+        id: `${String(log?.uuid || log?.sipcall_id || log?.xml_cdr_uuid || 'leg')}#${i}`,
         raw: log,
         direction: isMissed ? 'miss' : isOutbound ? 'out' : 'in',
         when: start && moment(start).isValid() ? moment(start).format('DD MMM, h:mm A') : '—',
-        duration: clock(log?.billsec ?? log?.duration),
+        duration: clock(log),
         by,
         viaDid: isMeaningful(log?.via_did) ? String(log.via_did).trim() : '',
         recordingUrl:
@@ -131,7 +146,9 @@ const CallRecord = ({
             {row.contactId ? <span className="tag acc">Contact</span> : null}
           </div>
           <div className="record-sub num">
-            <DialNumber number={row.number} />
+            <DialNumber number={row.number}>
+              <NumberWithFlag number={row.number} />
+            </DialNumber>
             <span style={{ color: 'var(--ink-4)' }}>
               {' '}
               · {legs.length} {legs.length === 1 ? 'call' : 'calls'}
@@ -153,9 +170,22 @@ const CallRecord = ({
       <div className="card record-legs">
         {legs.map((leg) => {
           const playing = playingId === leg.id;
+          const selected = selectedLegId === leg.id;
           return (
-            <div className={`leg ${playing ? 'open' : ''}`} key={leg.id}>
-              <div className="leg-row">
+            <div className={`leg ${playing ? 'open' : ''} ${selected ? 'on' : ''}`} key={leg.id}>
+              <div
+                className="leg-row"
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                onClick={() => setSelectedLegId(leg.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedLegId(leg.id);
+                  }
+                }}
+              >
                 <div className={`cr-av ${leg.direction === 'miss' ? 'miss' : leg.direction}`}>
                   <Ic
                     n={
@@ -183,7 +213,7 @@ const CallRecord = ({
                     <span className="leg-when num">{leg.when}</span>
                     {leg.viaDid ? (
                       <span>
-                        via <span className="num">{leg.viaDid}</span>
+                        via <NumberWithFlag number={leg.viaDid} className="num" />
                       </span>
                     ) : null}
                     <span className="num">{leg.duration}</span>
@@ -195,7 +225,7 @@ const CallRecord = ({
                 <div className="leg-acts">
                   <button
                     type="button"
-                    className={`legbtn ${playing ? 'on' : ''}`}
+                    className={`legbtn play ${playing ? 'on' : ''}`}
                     title={
                       !leg.recordingUrl
                         ? 'No recording'
@@ -206,16 +236,22 @@ const CallRecord = ({
                             : 'Play recording'
                     }
                     disabled={!leg.recordingUrl || !canListen}
-                    onClick={() => setPlayingId(playing ? null : leg.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLegId(leg.id);
+                      setPlayingId(playing ? null : leg.id);
+                    }}
                   >
                     <Ic n={playing ? 'pause' : 'play'} size={14} />
                   </button>
                   <button
                     type="button"
-                    className="legbtn"
+                    className="legbtn dl"
                     title={leg.recordingUrl ? 'Download recording' : 'No recording'}
                     disabled={!leg.recordingUrl || downloading[leg.id]}
-                    onClick={() =>
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLegId(leg.id);
                       handleDownloadFile({
                         fileUrl: leg.recordingUrl,
                         name: `${row.name || row.number}-${leg.when}`,
@@ -224,8 +260,8 @@ const CallRecord = ({
                             ...prev,
                             [leg.id]: typeof value === 'function' ? value(prev[leg.id]) : value,
                           })),
-                      })
-                    }
+                      });
+                    }}
                   >
                     <Ic n="dl" size={14} />
                   </button>
@@ -240,16 +276,24 @@ const CallRecord = ({
                           : 'Open transcript'
                     }
                     disabled={!leg.transcriptUrl || !canTranscribe}
-                    onClick={() => onOpenTranscript(leg.raw)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLegId(leg.id);
+                      onOpenTranscript(leg.raw);
+                    }}
                   >
-                    <Ic n="book" size={14} />
+                    <Ic n="transcript" size={14} />
                   </button>
                   <button
                     type="button"
                     className="legbtn call"
                     title={`Call ${row.number}`}
                     disabled={!row.number}
-                    onClick={() => dial(row.number)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLegId(leg.id);
+                      dial(row.number);
+                    }}
                   >
                     <Ic n="phone" size={14} />
                   </button>

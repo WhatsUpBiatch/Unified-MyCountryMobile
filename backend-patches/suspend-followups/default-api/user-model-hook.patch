@@ -1,0 +1,46 @@
+diff --git a/src/models/User.ts b/src/models/User.ts
+index 4884e22..2297253 100644
+--- a/src/models/User.ts
++++ b/src/models/User.ts
+@@ -14,6 +14,7 @@ import CustomRole from './CustomRole';
+ import Billing from './Billing';
+ import CompanyLicense from './CompanyLicense';
+ import DidCountryPackageCostModel from './Admin/DidCountryModel';
++import PersonRemovalHooks from '@/services/PersonRemovalHooks';
+ class User extends Model<IUser, UserCreationAttributes> implements IUser {
+     public id!: number;
+     public uuid!: string;
+@@ -36,7 +37,7 @@ class User extends Model<IUser, UserCreationAttributes> implements IUser {
+     public device_type!: 'A' | 'I' | 'W' | 'D';
+     public device_token_voip!: string;
+     public lang!: 'en' | string;
+-    public status!: 'EXPIRED' | 'ACTIVE' | 'INACTIVE' | 'PENDING';
++    public status!: 'EXPIRED' | 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'SUSPENDED';
+     public socket_status!: SocketStatusEnum;
+     public holiday_start_date!: string | null;
+     public holiday_end_date!: string | null;
+@@ -133,7 +134,10 @@ User.init(
+         device_type: { type: DataTypes.ENUM('A', 'I', 'W', 'D'), defaultValue: 'W' },
+         device_token_voip: { type: DataTypes.STRING(200) },
+         lang: { type: DataTypes.CHAR(2), defaultValue: 'en' },
+-        status: { type: DataTypes.ENUM('EXPIRED', 'ACTIVE', 'INACTIVE', 'PENDING'), defaultValue: 'PENDING' },
++        /* SUSPENDED added 3 Sep 2026 (person states): login, API and the phone
++           are all refused. The live column is widened on first use by
++           services/PersonStateService.ts and by the migration of the same day. */
++        status: { type: DataTypes.ENUM('EXPIRED', 'ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED'), defaultValue: 'PENDING' },
+         socket_status: { type: DataTypes.ENUM('online', 'holiday', 'away', 'busy', 'dnd'), defaultValue: 'online' },
+         holiday_start_date: {
+             type: DataTypes.STRING(30),
+@@ -250,6 +254,12 @@ User.init(
+                     user.phone = CommonHelper.sanitizePhoneNumber(user.phone);
+                 }
+             },
++            /* A removed person loses their phone registration and their queue
++               seats. Runs after the removal's transaction commits; best effort;
++               never throws into the delete. See services/PersonRemovalHooks.ts. */
++            afterBulkDestroy: (options) => {
++                PersonRemovalHooks.afterBulkDestroy(options);
++            },
+         },
+         indexes: [
+             {

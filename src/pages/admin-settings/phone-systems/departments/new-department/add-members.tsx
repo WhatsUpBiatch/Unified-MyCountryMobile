@@ -222,7 +222,7 @@ const SelectAllHeader = ({ currentMembers }: { currentMembers: Member[] }) => {
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-xs font-semibold text-gray-500">Members</span>
+      <span className="text-xs font-semibold text-gray-500">People</span>
       <div className="flex justify-center text-primary">
         <Checkbox
           checked={isAllChecked ? true : isIndeterminate ? 'indeterminate' : false}
@@ -321,7 +321,7 @@ const AddMembers = () => {
           <TableManager
             {...{
               emptyTablePlaceholder: 'Nobody to add',
-              descriptionEmptyTable: 'There is nobody available to put in this department yet.',
+              descriptionEmptyTable: 'There is nobody available to put in this group yet.',
               fetcherKey: 'forwardActionType',
               fetcherFn: forwardActionType,
               columns,

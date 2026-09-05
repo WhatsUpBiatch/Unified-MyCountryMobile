@@ -1,0 +1,1910 @@
+--- a/src/controllers/UserController.ts
++++ b/src/controllers/UserController.ts
+@@ -48,6 +48,19 @@
+ import CompanyLicense from "@/models/CompanyLicense";
+ import CommonHelper from "@/helpers/CommonHelper";
+ import CompanyPolicyService from "@/services/CompanyPolicyService";
++import RoleResolverService from "@/services/RoleResolverService";
++import DeletedUserService from "@/services/DeletedUserService";
++import {
++    decideAdminAction,
++    decideNewMemberRole,
++    decidePersonDelete,
++    decidePersonEdit,
++    decideRoleChange,
++} from "@/helpers/roleGuard";
++import {
++    stripExtensionFromNumberRouting,
++    stripExtensionFromPersonForwarding,
++} from "@/helpers/removalRouting";
+ import moment from "moment";
+ import Billing from "@/models/Billing";
+ import Stripe from "stripe";
+@@ -910,10 +923,19 @@
+             return super.sendError(res, `User not found`);
+         }
+ 
+-        if (String(findUser.role ?? "").trim().toUpperCase() === "ADMIN") {
+-            return super.sendError(res, "ADMIN user cannot be deleted", null, 403);
++        /* Who may remove whom is decided on resolved system roles, never on the
++           free-text role column. See helpers/roleGuard.ts. */
++        const deleteDecision = decidePersonDelete({
++            caller: await RoleResolverService.resolveCaller(req.auth as IAuth),
++            target: await RoleResolverService.resolveIdentity(findUser, company_uuid),
++        });
++        if (!deleteDecision.ok) {
++            return super.sendError(res, deleteDecision.message, null, deleteDecision.status);
+         }
+ 
++        /* What was cleared from other people's routing, for the log and the reply. */
++        const routingCleared: Array<{ kind: "number" | "person"; id: string; slots: string[] }> = [];
++
+         let transaction: Transaction = await sequelize.transaction();
+         try {
+             // await User.update(
+@@ -967,130 +989,87 @@
+ 
+             const extension = findUser?.extension;
+             if (extension) {
+-                await DIDNumber.update(
+-                    {
+-                        forward_call_actions: null,
+-                        settings: null,
+-                    },
++                /* Numbers that forwarded to this person: take out that one target
++                   and keep the rest of the number's routing (hours, media,
++                   recording, caller-id display) exactly as it was. Before, the
++                   whole forward_call_actions and settings were nulled.
++                   See helpers/removalRouting.ts for what each slot becomes. */
++                const numbers: any[] = await sequelize.query(
++                    `
++                        SELECT uuid, did_number, forward_call_actions
++                        FROM did_numbers
++                        WHERE company_uuid = :company_uuid
++                            AND forward_call_actions IS NOT NULL
++                            AND forward_call_actions LIKE :needle
++                        `,
+                     {
+-                        where: {
+-                            [Op.or]: [
+-                                sequelize.where(
+-                                    sequelize.literal(
+-                                        `JSON_UNQUOTE(JSON_EXTRACT(forward_call_actions, '$.call_handling.business_hours.value'))`,
+-                                    ),
+-                                    extension,
+-                                ),
+-                                sequelize.where(
+-                                    sequelize.literal(
+-                                        `JSON_UNQUOTE(JSON_EXTRACT(forward_call_actions, '$.condition.operational_hours.closed_hour_action.value'))`,
+-                                    ),
+-                                    extension,
+-                                ),
+-                            ],
+-                            company_uuid,
+-                        },
++                        /* A broad text match (the extension may be stored as a
++                           number or a string); the helper decides precisely. */
++                        replacements: { needle: `%${String(extension)}%`, company_uuid },
++                        type: QueryTypes.SELECT,
+                         transaction,
+                     },
+                 );
+ 
+-                /* User call forwarding settings (Start) */
++                for (const number of numbers) {
++                    const result = stripExtensionFromNumberRouting(number.forward_call_actions, extension);
++                    if (!result.changed) continue;
++                    await DIDNumber.update(
++                        { forward_call_actions: JSON.stringify(result.value) },
++                        { where: { uuid: number.uuid, company_uuid }, transaction },
++                    );
++                    routingCleared.push({ kind: "number", id: String(number.did_number ?? number.uuid), slots: result.cleared });
++                }
++
++                /* Colleagues whose personal forwarding pointed at this person:
++                   take out that one target. "No answer" and "closed hours" fall
++                   back to the colleague's OWN voicemail; nothing is ever
++                   repointed at the person doing the removing. */
+                 const users: any = await sequelize.query(
+                     `
+-                        SELECT uuid, call_forwarding
++                        SELECT uuid, first_name, last_name, extension, call_forwarding
+                         FROM users
+                         WHERE company_uuid = :company_uuid
+-                            AND JSON_SEARCH(call_forwarding, 'one', :extension) IS NOT NULL
++                            AND uuid <> :exclude_uuid
++                            AND deleted_at IS NULL
++                            AND CAST(call_forwarding AS CHAR) LIKE :needle
+                         `,
+                     {
+-                        replacements: { extension, company_uuid, exclude_uuid: uuid },
++                        replacements: { needle: `%${String(extension)}%`, company_uuid, exclude_uuid: uuid },
+                         type: QueryTypes.SELECT,
+                         transaction,
+                     },
+                 );
+ 
+                 for (const user of users) {
+-                    let callForwarding = user.call_forwarding || {};
+-                    let isUpdated = false;
+-
+-                    /** ---------- forward_calls ---------- */
+-                    if (callForwarding?.forward_calls?.value === extension) {
+-                        callForwarding.forward_calls.value =
+-                            logged_user_extension;
+-                        callForwarding.forward_calls.name = `${first_name} ${last_name}`;
+-                        callForwarding.forward_calls.value_label =
+-                            logged_user_extension;
+-                        isUpdated = true;
+-                    }
+-
+-                    /** ---------- device_options ---------- */
+-                    if (
+-                        Array.isArray(
+-                            callForwarding?.incoming_calls?.device_options,
+-                        )
+-                    ) {
+-                        callForwarding.incoming_calls.device_options =
+-                            callForwarding.incoming_calls.device_options.map(
+-                                (device: any) => {
+-                                    if (device?.value === extension) {
+-                                        device.value = logged_user_extension;
+-                                        device.name = `${first_name} ${last_name}`;
+-                                        isUpdated = true;
+-                                    }
+-
+-                                    return device;
+-                                },
+-                            );
+-                    }
+-
+-                    /** ---------- failure_action ---------- */
+-                    if (
+-                        callForwarding?.incoming_calls?.failure_action
+-                            ?.value === extension
+-                    ) {
+-                        callForwarding.incoming_calls.failure_action.value =
+-                            logged_user_extension;
+-                        callForwarding.incoming_calls.failure_action.name = `${first_name} ${last_name}`;
+-                        callForwarding.incoming_calls.failure_action.value_label =
+-                            logged_user_extension;
+-                        isUpdated = true;
+-                    }
+-
+-                    /** ---------- closed_hour_action ---------- */
+-                    if (
+-                        callForwarding?.incoming_calls?.closed_hour_action
+-                            ?.value === extension
+-                    ) {
+-                        callForwarding.incoming_calls.closed_hour_action.value =
+-                            logged_user_extension;
+-                        callForwarding.incoming_calls.closed_hour_action.name = `${first_name} ${last_name}`;
+-                        callForwarding.incoming_calls.closed_hour_action.value_label =
+-                            logged_user_extension;
+-                        isUpdated = true;
+-                    }
+-
+-                    /** ---------- UPDATE ---------- */
+-                    if (isUpdated) {
+-                        await sequelize.query(
+-                            `
+-                                UPDATE users
+-                                SET call_forwarding = :call_forwarding
+-                                WHERE uuid = :uuid AND company_uuid = :company_uuid
+-                                `,
+-                            {
+-                                replacements: {
+-                                    uuid: user.uuid,
+-                                    company_uuid,
+-                                    call_forwarding:
+-                                        JSON.stringify(callForwarding),
+-                                },
+-                                type: QueryTypes.UPDATE,
+-                                transaction,
++                    const result = stripExtensionFromPersonForwarding(user.call_forwarding, extension, {
++                        extension: user.extension,
++                        first_name: user.first_name,
++                        last_name: user.last_name,
++                    });
++                    if (!result.changed) continue;
++                    await sequelize.query(
++                        `
++                            UPDATE users
++                            SET call_forwarding = :call_forwarding
++                            WHERE uuid = :uuid AND company_uuid = :company_uuid
++                            `,
++                        {
++                            replacements: {
++                                uuid: user.uuid,
++                                company_uuid,
++                                call_forwarding: JSON.stringify(result.value),
+                             },
+-                        );
+-                    }
++                            type: QueryTypes.UPDATE,
++                            transaction,
++                        },
++                    );
++                    routingCleared.push({ kind: "person", id: String(user.uuid), slots: result.cleared });
+                 }
+-                /* User call forwarding settings (End) */
++            }
++
++            if (routingCleared.length) {
++                console.log(`UserController.delete: removed ${uuid} (ext ${extension}) from routing:`, JSON.stringify(routingCleared));
+             }
+ 
+             await CommonHelper.cleanupDeletedUserReferences(uuid, transaction);
+@@ -1113,7 +1092,12 @@
+             await transaction.commit();
+ 
+             try {
+-                // Call the tenant API using the service
++                /* tenant-api repoints a group's or menu's forward at
++                   `logged_user_extension` when it is given one. It is not given
++                   one any more: the person removing somebody must never inherit
++                   their calls. tenant-api still drops the person from group
++                   membership and manager slots; a forward it cannot repoint is
++                   left as it is (a tenant-api change is needed to empty it). */
+                 const depTenantApiResponse =
+                     await TenantApiService.callTenantApi(
+                         db_name,
+@@ -1124,7 +1108,7 @@
+                             extension,
+                             logged_user_uuid: user_uuid,
+                             logged_user_name: `${first_name} ${last_name}`,
+-                            logged_user_extension: logged_user_extension,
++                            logged_user_extension: null,
+                         }, // Data if it's a POST request
+                         req?.auth,
+                     );
+@@ -1142,7 +1126,7 @@
+                             extension,
+                             logged_user_uuid: user_uuid,
+                             logged_user_name: `${first_name} ${last_name}`,
+-                            logged_user_extension: logged_user_extension,
++                            logged_user_extension: null,
+                         }, // Data if it's a POST request
+                         req?.auth,
+                     );
+@@ -1165,7 +1149,34 @@
+             return super.sendError(res, error?.message);
+         }
+ 
+-        return super.sendSuccess(res, USER.DELETE);
++        return super.sendSuccess(res, USER.DELETE, {
++            uuid,
++            routing_cleared: routingCleared,
++            restore_window_hours: 72,
++        });
++    }
++
++    /** People removed in the last 72 hours, for a Removed tab. Administrators only. */
++    public async listDeleted(req: IRequest, res: Response): Promise<object> {
++        const { company_uuid } = req.auth as IAuth;
++        const rows = await DeletedUserService.listDeleted(company_uuid);
++        return super.sendSuccess(res, API_RESPONSE.SUCCESS, { rows, restore_window_hours: 72 });
++    }
++
++    /** Bring a removed person back, within the window. Administrators only. */
++    public async restore(req: IRequest, res: Response): Promise<object> {
++        const uuid = getString(req.params.uuid);
++        if (!uuid) return super.sendError(res, "Invalid user uuid");
++        const { company_uuid } = req.auth as IAuth;
++
++        const result = await DeletedUserService.restore(company_uuid, uuid);
++        if (!result.ok) {
++            return super.sendError(res, result.message, null, result.status);
++        }
++        return super.sendSuccess(res, "Person restored. Any call routing that pointed at them was not put back.", {
++            user: result.user,
++            licence: result.licence,
++        });
+     }
+ 
+     public async roles(req: IRequest, res: Response): Promise<object> {
+@@ -1219,6 +1230,14 @@
+         const extensions: Array<any> = [];
+         const emails: Array<any> = [];
+ 
++        /* The route is already administrators-only (RequireAdminRole); the
++           per-row rule left is "only the owner may create an owner". */
++        const callerIdentity = await RoleResolverService.resolveCaller(req.auth as IAuth);
++
++        /* Free the e-mail and phone of anyone removed more than 72 hours ago,
++           so they can be used for the new people below. */
++        await DeletedUserService.purgeExpired(company_uuid);
++
+         let index: number = 0;
+         /**
+          * VALIDATE EACH USER IN LOOP
+@@ -1248,57 +1267,57 @@
+                     index++;
+                     continue;
+                 }
+-                const emailCheck = await User.findOne({
+-                    where: {
+-                        [Op.or]: [
+-                            {
+-                                email: value.email,
+-                            }, // Check for the provided email
+-                            {
+-                                phone: CommonHelper.sanitizePhoneNumber(
+-                                    value.phone,
+-                                ),
+-                            }, // Check for the provided phone
+-                        ],
+-                    },
+-                });
+-                if (!emailCheck) {
++                const sanitizedPhone = CommonHelper.sanitizePhoneNumber(value.phone);
++                const duplicateWhere = {
++                    [Op.or]: [
++                        { email: value.email }, // Check for the provided email
++                        { phone: sanitizedPhone }, // Check for the provided phone
++                    ],
++                };
++                /* Within the company first, so the message can say which field
++                   clashes. users.email is unique across the whole platform, so
++                   a clash on another company must still stop the row - but it
++                   is reported without saying whose it is. */
++                const emailCheck = await User.findOne({ where: { ...duplicateWhere, company_uuid } });
++                const foreignClash = emailCheck ? null : await User.findOne({ where: duplicateWhere, attributes: ["uuid"] });
++                if (foreignClash) {
++                    errors.push({
++                        index,
++                        error: `EMAIL/PHONE: ${value.email} cannot be used for a new person. Choose a different e-mail address and phone number.`,
++                    });
++                } else if (!emailCheck) {
+                     const extensionCheck = await User.count({
+                         where: {
+                             extension: value.extension,
+                             company_uuid,
+                         },
+                     });
+-                    let getCustomRole: any;
+-                    if (value.custom_role_uuid) {
+-                        getCustomRole = await CustomRole.findOne({
+-                            where: {
+-                                uuid: value.custom_role_uuid,
+-                            },
+-                            attributes: ["uuid", "role_uuid", "name"],
+-                        });
+-                        if (getCustomRole) {
+-                            const getParentRole = await Role.findOne({
+-                                where: {
+-                                    uuid: getCustomRole?.role_uuid,
+-                                },
+-                                attributes: ["uuid", "name"],
+-                            });
+-                            if (getParentRole) {
+-                                value.role_uuid = getParentRole?.uuid;
+-                            } else {
+-                                return super.sendError(
+-                                    res,
+-                                    "System role not assigned to custom role",
+-                                );
+-                            }
+-                        } else {
+-                            return super.sendError(
+-                                res,
+-                                "Custom role does not exist",
+-                            );
+-                        }
++
++                    /* The role is resolved to a SYSTEM role key from the ids
++                       sent (custom_role_uuid -> its parent, or role_uuid). The
++                       free-text `role` name the form sends is only used when it
++                       is itself one of the four keys and no id came with it.
++                       users.role always ends up holding the system key, never a
++                       custom role's name. */
++                    const requestedRole = await RoleResolverService.resolveRequestedRole(
++                        { custom_role_uuid: value.custom_role_uuid, role_uuid: value.role_uuid, role: value.role },
++                        company_uuid,
++                    );
++                    if (!requestedRole.ok) {
++                        return super.sendError(res, requestedRole.message);
++                    }
++                    if (!requestedRole.role) {
++                        errors.push({ index, error: `ROLE: no role was given for ${value.email}.` });
++                        index++;
++                        continue;
+                     }
++                    const newMemberDecision = decideNewMemberRole({ caller: callerIdentity, requested: requestedRole.role });
++                    if (!newMemberDecision.ok) {
++                        return super.sendError(res, newMemberDecision.message, null, newMemberDecision.status);
++                    }
++                    value.role = requestedRole.role.systemRole;
++                    value.role_uuid = requestedRole.role.roleUuid;
++                    value.custom_role_uuid = requestedRole.role.customRoleUuid ?? null;
+ 
+                     if (extensionCheck === 0) {
+                         if (!extensions.includes(value.extension)) {
+@@ -1837,13 +1856,12 @@
+             parsedSettings = settings;
+         }
+ 
+-        const roleFromSettings = parsedSettings?.role?.label;
+-        const isRoleUuidLike = typeof roleFromSettings === "string"
+-            && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(roleFromSettings);
+-
+-        if (roleFromSettings && !isRoleUuidLike) {
+-            obj["role"] = roleFromSettings;
+-        }
++        /* `settings.role.label` used to be copied straight into users.role -
++           the free-text column every server check compares against - so a
++           body of {settings:{role:{label:"ADMIN"}}} made anyone the owner. It is
++           no longer read for the role at all. The role comes from role_uuid /
++           custom_role_uuid, resolved to a system key, and only after the rules
++           in helpers/roleGuard.ts allow it. */
+ 
+         const getUser = await User.findOne({
+             where: {
+@@ -1856,88 +1874,55 @@
+             return super.sendError(res, "User not found");
+         }
+ 
+-        if (String(getUser.role ?? "").trim().toUpperCase() === "ADMIN") {
+-            const isSameAdmin = String(userData.uuid) === String(getUser.uuid) && String(userData.role ?? "").trim().toUpperCase() === "ADMIN";
+-            if (!isSameAdmin) {
+-                return super.sendError(res, "Only the ADMIN user can modify this ADMIN account", null, 403);
+-            }
++        const callerIdentity = await RoleResolverService.resolveCaller(userData);
++        const targetIdentity = await RoleResolverService.resolveIdentity(getUser, userData.company_uuid);
++
++        const editDecision = decidePersonEdit({ caller: callerIdentity, target: targetIdentity });
++        if (!editDecision.ok) {
++            return super.sendError(res, editDecision.message, null, editDecision.status);
+         }
+ 
+-        let getCustomRole: any;
+-        let resolvedRoleLabel: string | null = null;
++        const requestedRole = await RoleResolverService.resolveRequestedRole(
++            { custom_role_uuid, role_uuid },
++            userData.company_uuid,
++        );
++        if (!requestedRole.ok) {
++            return super.sendError(res, requestedRole.message);
++        }
+ 
+-        if (custom_role_uuid) {
+-            getCustomRole = await CustomRole.findOne({
+-                where: {
+-                    uuid: custom_role_uuid,
+-                },
+-                attributes: ["uuid", "role_uuid", "name"],
++        let applyRole = false;
++        if (requestedRole.role) {
++            const roleDecision = decideRoleChange({
++                caller: callerIdentity,
++                target: targetIdentity,
++                requested: requestedRole.role,
+             });
+-
+-            if (getCustomRole) {
+-                const getParentRole = await Role.findOne({
+-                    where: {
+-                        uuid: getCustomRole?.role_uuid,
+-                    },
+-                    attributes: ["uuid", "name"],
+-                });
+-                if (getParentRole) {
+-                    role_uuid = getParentRole?.uuid;
+-                    resolvedRoleLabel = getCustomRole?.name ?? null;
+-                } else {
+-                    return super.sendError(
+-                        res,
+-                        "System role not assigned to custom role",
+-                    );
+-                }
+-            } else {
+-                return super.sendError(res, "Custom role does not exist");
++            if (!roleDecision.ok) {
++                return super.sendError(res, roleDecision.message, null, roleDecision.status);
+             }
+-        } else if (role_uuid) {
+-            const getSystemRole = await Role.findOne({
+-                where: { uuid: role_uuid },
+-                attributes: ["uuid", "name"],
+-            });
+-
+-            if (getSystemRole) {
+-                custom_role_uuid = null;
+-                resolvedRoleLabel = getSystemRole?.name ?? null;
+-            } else {
+-                // Backward compatibility: if custom role UUID is passed in role_uuid.
+-                const customRoleFromRoleUuid = await CustomRole.findOne({
+-                    where: {
+-                        uuid: role_uuid,
+-                        company_uuid: userData?.company_uuid,
+-                    },
+-                    attributes: ["uuid", "role_uuid", "name"],
+-                });
+-
+-                if (!customRoleFromRoleUuid) {
+-                    return super.sendError(res, "Role does not exist");
+-                }
+-
+-                const getParentRole = await Role.findOne({
+-                    where: {
+-                        uuid: customRoleFromRoleUuid?.role_uuid,
+-                    },
+-                    attributes: ["uuid", "name"],
+-                });
+-
+-                if (!getParentRole) {
+-                    return super.sendError(
+-                        res,
+-                        "System role not assigned to custom role",
+-                    );
+-                }
+-
+-                custom_role_uuid = customRoleFromRoleUuid?.uuid;
+-                role_uuid = getParentRole?.uuid;
+-                resolvedRoleLabel = customRoleFromRoleUuid?.name ?? null;
++            /* apply=false: a self-edit repeating the current role. Everything
++               else in the body saves; the role fields are dropped. */
++            applyRole = roleDecision.apply;
++        }
++
++        if (applyRole && requestedRole.role) {
++            /* The SYSTEM key goes in users.role; the custom role's own name only
++               ever goes in settings.role.label, which is display. */
++            obj["role"] = requestedRole.role.systemRole;
++            role_uuid = requestedRole.role.roleUuid ?? null;
++            custom_role_uuid = requestedRole.role.customRoleUuid ?? null;
++            /* Only when the body carried settings: never replace a person's whole
++               settings blob with just a role. */
++            if (settings && parsedSettings && typeof parsedSettings === "object") {
++                parsedSettings.role = {
++                    label: requestedRole.role.label,
++                    value: custom_role_uuid ?? role_uuid,
++                };
++                obj["settings"] = typeof settings === "string" ? JSON.stringify(parsedSettings) : parsedSettings;
+             }
+-        }
+-
+-        if (resolvedRoleLabel) {
+-            obj["role"] = resolvedRoleLabel;
++        } else {
++            role_uuid = null;
++            custom_role_uuid = null;
+         }
+ 
+         let userRequestObj: any = {
+@@ -1945,7 +1930,7 @@
+             notification_settings: getUser?.notification_settings,
+         };
+ 
+-        if (role_uuid || custom_role_uuid) {
++        if (applyRole && (role_uuid || custom_role_uuid)) {
+             userRequestObj.role_uuid = role_uuid;
+             userRequestObj.custom_role_uuid = custom_role_uuid;
+ 
+@@ -2629,14 +2614,20 @@
+         if (typeFieldMap[type]) {
+             const whereClause: any = {
+                 [typeFieldMap[type]]: value,
++                /* Always the caller's own company. Without this the endpoint
++                   told any signed-in person whether an e-mail or phone existed
++                   on ANY tenant. The Add-person form is the only caller; signup
++                   does not use this route. */
++                company_uuid: req.auth?.company_uuid,
+             };
+ 
+-            if (type === "extension") {
+-                whereClause.company_uuid = req.auth?.company_uuid;
++            if (type === "phone") {
++                whereClause.phone = CommonHelper.sanitizePhoneNumber(String(value ?? ""));
+             }
+ 
+-            if (type === "phone") {
+-                CommonHelper.sanitizePhoneNumber(value.phone);
++            if (type === "email") {
++                /* People removed more than 72 hours ago no longer hold their address. */
++                await DeletedUserService.purgeExpired(String(req.auth?.company_uuid ?? ""));
+             }
+ 
+             const existingUser = await User.findOne({
+@@ -2716,61 +2707,33 @@
+             return super.sendError(res, "Users not found");
+         }
+ 
+-        let roleLabel: string | null = null;
+-        let roleValue: string | null = null;
+-        let systemRoleUuid: string | null = null;
+-        let customRoleUuid: string | null = null;
+-
+-        const systemRole = await Role.findOne({
+-            where: { uuid: role_uuid },
+-            attributes: ["uuid", "name"],
+-            raw: true,
+-        });
+-
+-        if (systemRole) {
+-            roleLabel = systemRole.name;
+-            roleValue = systemRole.uuid;
+-            systemRoleUuid = systemRole.uuid;
+-            customRoleUuid = null;
+-        } else {
+-            const customRole = await CustomRole.findOne({
+-                where: {
+-                    uuid: role_uuid,
+-                    company_uuid: userData?.company_uuid,
+-                },
+-                attributes: ["uuid", "name", "role_uuid"],
+-                raw: true,
+-            });
+-
+-            if (!customRole) {
+-                return super.sendError(res, "Role does not exist");
+-            }
+-
+-            const parentRole = await Role.findOne({
+-                where: { uuid: customRole.role_uuid },
+-                attributes: ["uuid", "name"],
+-                raw: true,
+-            });
+-
+-            if (!parentRole) {
+-                return super.sendError(
+-                    res,
+-                    "System role not assigned to custom role",
+-                );
+-            }
+-
+-            roleLabel = customRole.name;
+-            roleValue = customRole.uuid;
+-            systemRoleUuid = parentRole.uuid;
+-            customRoleUuid = customRole.uuid;
++        /* role_uuid may be a system role or (older screens) a custom role's id.
++           Either way what is written to users.role is the SYSTEM key; the
++           custom role's own name is display only (settings.role.label). */
++        const requestedRole = await RoleResolverService.resolveRequestedRole(
++            { role_uuid },
++            userData?.company_uuid,
++        );
++        if (!requestedRole.ok) {
++            return super.sendError(res, requestedRole.message);
++        }
++        if (!requestedRole.role) {
++            return super.sendError(res, "Role does not exist");
+         }
+ 
++        const roleLabel: string = requestedRole.role.label;
++        const systemRoleKey: string = requestedRole.role.systemRole as string;
++        /* The resolver always returns the parent system role's uuid on an ok result. */
++        const systemRoleUuid: string = requestedRole.role.roleUuid as string;
++        const customRoleUuid: string | null = requestedRole.role.customRoleUuid ?? null;
++        const roleValue: string | null = customRoleUuid ?? systemRoleUuid;
++
+         const userRecords: any[] = await User.findAll({
+             where: {
+                 uuid: { [Op.in]: userUuids },
+                 company_uuid: userData?.company_uuid,
+             },
+-            attributes: ["uuid", "settings"],
++            attributes: ["uuid", "settings", "role", "role_uuid", "custom_role_uuid"],
+             raw: true,
+         });
+ 
+@@ -2778,7 +2741,21 @@
+             return super.sendError(res, "Users not found");
+         }
+ 
++        /* Every target is checked before anything is written, so a refused
++           request changes nobody. The rules: helpers/roleGuard.ts. */
++        const callerIdentity = await RoleResolverService.resolveCaller(userData);
++        const targets: any[] = [];
+         for (const user of userRecords) {
++            const targetIdentity = await RoleResolverService.resolveIdentity(user, userData.company_uuid);
++            const decision = decideRoleChange({ caller: callerIdentity, target: targetIdentity, requested: requestedRole.role });
++            if (!decision.ok) {
++                return super.sendError(res, decision.message, { user_uuid: user.uuid }, decision.status);
++            }
++            /* A self-assignment of the role already held is a no-op, not an error. */
++            if (decision.apply) targets.push(user);
++        }
++
++        for (const user of targets) {
+             let parsedSettings: any = {};
+             const rawSettings = user?.settings;
+ 
+@@ -2802,7 +2779,7 @@
+ 
+             await User.update(
+                 {
+-                    role: roleLabel,
++                    role: systemRoleKey,
+                     role_uuid: systemRoleUuid,
+                     custom_role_uuid: customRoleUuid,
+                     settings: parsedSettings,
+--- a/src/controllers/Roles/index.ts
++++ b/src/controllers/Roles/index.ts
+@@ -12,6 +12,8 @@
+ import { IQuery } from "@/interfaces/IQuery";
+ import User from "@/models/User";
+ import RoleFeature from "@/models/RoleFeature";
++import RoleResolverService from "@/services/RoleResolverService";
++import { normaliseSystemRole } from "@/helpers/roleGuard";
+ 
+ interface UpsertRequest {
+     name: string;
+@@ -193,6 +195,24 @@
+             });
+         }
+ 
++        /* A custom role's NAME used to be copied into users.role, so a role
++           named ADMIN made its holders the account owner. The name is display
++           only now, but a custom role called ADMIN or AGENT would still confuse
++           every screen that shows both, so the four built-in names are reserved. */
++        if (name && normaliseSystemRole(name)) {
++            return super.sendError(res, `"${name}" is the name of a built-in role. Choose a different name.`, null, 422);
++        }
++
++        /* The parent must be one of the four built-in roles: it is what the
++           holder becomes on the server (users.role), so it cannot be free text
++           or a company-created row. */
++        if (role_uuid) {
++            const parentKey = await RoleResolverService.systemRoleFromRoleUuid(role_uuid);
++            if (!parentKey) {
++                return super.sendError(res, "role_uuid must be one of the built-in roles (ADMIN, MANAGER, SUB-ADMIN, AGENT).", null, 422);
++            }
++        }
++
+         const requestObj: any = {};
+ 
+         if (name) requestObj.name = name;
+--- a/src/routers/userRoute.ts
++++ b/src/routers/userRoute.ts
+@@ -15,6 +15,7 @@
+ import { validate } from "@/middlewares/validator";
+ import { PrivateCallAuth } from "@/middlewares/PrivateCallAuth";
+ import { CompanyPolicyLock } from "@/middlewares/CompanyPolicyLock";
++import { RequireAdminRole } from "@/middlewares/RoleGuard";
+ 
+ const Main = new UserController();
+ 
+@@ -35,10 +36,15 @@
+ userRoute.post("/info/via/email", catchErrors(Main.infoViaEmail));
+ userRoute.post("/list", auth, catchErrors(Main.list));
+ userRoute.post("/list/chat", PrivateCallAuth, catchErrors(Main.listChat));
+-userRoute.delete("/delete/:uuid", auth, catchErrors(Main.delete));
++/* Administrators only (helpers/roleGuard.ts). The handler adds the per-target
++   rules: not yourself, not the account owner. */
++userRoute.delete("/delete/:uuid", auth, RequireAdminRole, catchErrors(Main.delete));
++/* Removed in the last 72 hours, and bringing one back. */
++userRoute.post("/list-deleted", auth, RequireAdminRole, catchErrors(Main.listDeleted));
++userRoute.post("/restore/:uuid", auth, RequireAdminRole, catchErrors(Main.restore));
+ userRoute.get("/cards", auth, catchErrors(Main.cardListing));
+ 
+-userRoute.post("/add-member", auth, catchErrors(Main.addMember));
++userRoute.post("/add-member", auth, RequireAdminRole, catchErrors(Main.addMember));
+ userRoute.put(
+     "/update-settings/",
+     auth,
+@@ -51,6 +57,7 @@
+ userRoute.post(
+     "/assign-role-bulk-users",
+     auth,
++    RequireAdminRole,
+     validate(assignBulkRoleByRoleId),
+     catchErrors(Main.assignBulkRoleToUser),
+ );
+--- a/src/routers/rolesRoute.ts
++++ b/src/routers/rolesRoute.ts
+@@ -5,6 +5,7 @@
+ import RolesController from "@/controllers/Roles";
+ import { validate } from "@/middlewares/validator";
+ import { checkUserPermissionValidation, customRoleListValidation, customRoleUpsertValidation } from "@/validators/RoleValidation";
++import { RequireAdminRole } from "@/middlewares/RoleGuard";
+ const roleRoute = express.Router();
+ 
+ const { info, list, upsert, remove, predefined, getRoleList, upsertCustomRole, removeCustomRole, getCustomRoles, checkUserPermission } = new RolesController();
+@@ -12,14 +13,15 @@
+ roleRoute.get("/predefined/list", auth, catchErrors(predefined));
+ roleRoute.get("/info/:uuid", auth, catchErrors(info));
+ // roleRoute.post("/list/:type?", auth, catchErrors(list));
+-roleRoute.post("/upsert/:uuid?", auth, catchErrors(upsert));
+-roleRoute.delete("/delete/:uuid", auth, catchErrors(remove));
++/* Writing routes are administrators only (helpers/roleGuard.ts). */
++roleRoute.post("/upsert/:uuid?", auth, RequireAdminRole, catchErrors(upsert));
++roleRoute.delete("/delete/:uuid", auth, RequireAdminRole, catchErrors(remove));
+ // roleRoute.get("/list", auth, catchErrors(getRoleList));
+ 
+ // Custom role routes
+ roleRoute.post("/custom/list", validate(customRoleListValidation), auth, catchErrors(getCustomRoles));
+-roleRoute.post("/custom/upsert", validate(customRoleUpsertValidation), auth, catchErrors(upsertCustomRole));
+-roleRoute.delete("/custom/remove/:uuid", auth, catchErrors(removeCustomRole));
++roleRoute.post("/custom/upsert", validate(customRoleUpsertValidation), auth, RequireAdminRole, catchErrors(upsertCustomRole));
++roleRoute.delete("/custom/remove/:uuid", auth, RequireAdminRole, catchErrors(removeCustomRole));
+ roleRoute.post("/check-user-permission", validate(checkUserPermissionValidation), auth, catchErrors(checkUserPermission));
+ 
+ 
+--- a/src/routers/TenantRouter/tenantUserTemplate.ts
++++ b/src/routers/TenantRouter/tenantUserTemplate.ts
+@@ -2,12 +2,15 @@
+ import { catchErrors } from "../../helpers/responseHelper";
+ import auth from "@/middlewares/AuthMiddleware";
+ import TenantUserTemplateController from "@/controllers/Tenant/TenantUserTemplateController";
++import { RequireAdminRole } from "@/middlewares/RoleGuard";
+ const tenantUserTemplateRoute = express.Router();
+ 
+ const { list, upsert, remove, info } = new TenantUserTemplateController();
+ tenantUserTemplateRoute.post("/user/template/list", auth, catchErrors(list));
+-tenantUserTemplateRoute.post("/user/template/upsert/:uuid?", auth, catchErrors(upsert));
+-tenantUserTemplateRoute.delete("/user/template/delete/:uuid", auth, catchErrors(remove));
++/* The company template (the "Company Default" rule, admin scopes, default
++   role) is written by administrators only (helpers/roleGuard.ts). */
++tenantUserTemplateRoute.post("/user/template/upsert/:uuid?", auth, RequireAdminRole, catchErrors(upsert));
++tenantUserTemplateRoute.delete("/user/template/delete/:uuid", auth, RequireAdminRole, catchErrors(remove));
+ tenantUserTemplateRoute.get("/user/template/info/:uuid", auth, catchErrors(info));
+ 
+ 
+--- /dev/null
++++ b/src/helpers/roleGuard.ts
+@@ -0,0 +1,186 @@
++/* Who may change whose role - the one place the rules live.
++ *
++ * Every role-changing route (person update, bulk assign, add member, delete,
++ * custom-role upsert/remove, role upsert/remove, company template upsert/delete,
++ * list-deleted, restore) asks this file before it writes. Until now those
++ * routes carried only "is signed in", so any person on the account could make
++ * themselves the account owner with one request. A guard was added on 29 Aug
++ * but lived only in the compiled file and was lost on the next build; this is
++ * the source-tree version.
++ *
++ * Everything here is pure: no database, no express. The comparison is on the
++ * RESOLVED system role - the four built-in keys - never on the free-text
++ * `users.role` string, and never on a role's display name. Resolving a person
++ * (role_uuid / custom_role_uuid -> parent system role) is the job of
++ * services/RoleResolverService.ts; this file only decides.
++ *
++ * Vocabulary, as the product shows it:
++ *   ADMIN      account owner  - one per company, created at signup
++ *   MANAGER    account admin
++ *   SUB-ADMIN  people admin
++ *   AGENT      call reviewer
++ *
++ * The rules, in the order they are checked:
++ *   1. A caller whose role cannot be resolved is refused. Fail closed.
++ *   2. Nobody changes their own role. A self-edit that repeats the current role
++ *      is not a change: the role part is dropped and the rest saves.
++ *   3. Only an administrator (ADMIN, MANAGER, SUB-ADMIN) changes a role, adds
++ *      or removes a person, or manages roles and the company template.
++ *   4. Only the account owner grants the owner role, and only the owner may
++ *      change (or edit) an owner's account.
++ *   5. The owner cannot be removed; nobody can remove themselves.
++ */
++
++export const SYSTEM_ROLE_KEYS = ["ADMIN", "SUB-ADMIN", "MANAGER", "AGENT"] as const;
++export type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number];
++
++/** The account owner. There is meant to be exactly one per company. */
++export const OWNER_ROLE: SystemRoleKey = "ADMIN";
++
++/** Roles allowed to run the People and Roles screens on the server side.
++    Mirrors what the product's own labels promise: "account admin" and
++    "people admin" both administer people. AGENT never does. */
++export const ADMIN_ROLES: ReadonlyArray<SystemRoleKey> = ["ADMIN", "MANAGER", "SUB-ADMIN"];
++
++export interface RoleIdentity {
++    uuid: string;
++    /** null when it could not be resolved from role_uuid / custom_role_uuid / a valid users.role. */
++    systemRole: SystemRoleKey | null;
++    roleUuid?: string | null;
++    customRoleUuid?: string | null;
++}
++
++export interface RequestedRole {
++    systemRole: SystemRoleKey | null;
++    roleUuid?: string | null;
++    customRoleUuid?: string | null;
++}
++
++export type RoleDecision =
++    | { ok: true; /** false = a self-edit repeating the current role: drop the role fields, save the rest. */ apply: boolean }
++    | { ok: false; status: 403; message: string };
++
++const refuse = (message: string): RoleDecision => ({ ok: false, status: 403, message });
++const allow = (apply = true): RoleDecision => ({ ok: true, apply });
++
++export const MESSAGES = {
++    UNRESOLVED_CALLER: "Your role could not be determined, so this change was not made. Ask an administrator to check your account.",
++    OWN_ROLE: "You cannot change your own role. Ask another administrator to do it.",
++    NOT_ADMIN_ROLE: "Only an administrator can change a person's role.",
++    NOT_ADMIN_EDIT: "Only an administrator can edit another person.",
++    NOT_ADMIN_MANAGE: "Only an administrator can do this.",
++    OWNER_GRANT: "Only the account owner can make someone the account owner.",
++    OWNER_TARGET: "Only the account owner can change the account owner's role.",
++    OWNER_EDIT: "Only the account owner can edit the account owner's account.",
++    OWNER_DELETE: "The account owner cannot be removed.",
++    SELF_DELETE: "You cannot remove yourself.",
++    NOT_ADMIN_DELETE: "Only an administrator can remove a person.",
++} as const;
++
++/** "admin", " Admin ", "SUB_ADMIN" -> the key; anything else -> null. */
++export function normaliseSystemRole(value: unknown): SystemRoleKey | null {
++    const key = String(value ?? "").trim().toUpperCase().replace(/_/g, "-");
++    return (SYSTEM_ROLE_KEYS as ReadonlyArray<string>).includes(key) ? (key as SystemRoleKey) : null;
++}
++
++export function isUuidLike(value: unknown): boolean {
++    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value ?? "").trim());
++}
++
++export function isAdminRole(role: SystemRoleKey | null | undefined): boolean {
++    return !!role && ADMIN_ROLES.includes(role);
++}
++
++export function isOwnerRole(role: SystemRoleKey | null | undefined): boolean {
++    return role === OWNER_ROLE;
++}
++
++const same = (a: unknown, b: unknown): boolean => String(a ?? "").trim() === String(b ?? "").trim();
++
++/** Is the requested role the one the person already holds? Compared on the
++    resolved system role AND on the custom role id, so "swap my custom role
++    for a different custom role under the same parent" still counts as a change. */
++export function isSameRole(current: RoleIdentity, requested: RequestedRole): boolean {
++    if (current.systemRole !== requested.systemRole) return false;
++    return same(current.customRoleUuid, requested.customRoleUuid);
++}
++
++/** May `caller` set `target`'s role to `requested`? */
++export function decideRoleChange(args: {
++    caller: RoleIdentity;
++    target: RoleIdentity;
++    requested: RequestedRole;
++}): RoleDecision {
++    const { caller, target, requested } = args;
++
++    if (!caller.systemRole) return refuse(MESSAGES.UNRESOLVED_CALLER);
++
++    if (same(caller.uuid, target.uuid)) {
++        /* Editing yourself: the role part is either a no-op (dropped) or a refusal. */
++        return isSameRole(target, requested) ? allow(false) : refuse(MESSAGES.OWN_ROLE);
++    }
++
++    if (!isAdminRole(caller.systemRole)) return refuse(MESSAGES.NOT_ADMIN_ROLE);
++
++    if (isOwnerRole(requested.systemRole) && !isOwnerRole(caller.systemRole)) {
++        return refuse(MESSAGES.OWNER_GRANT);
++    }
++
++    if (isOwnerRole(target.systemRole) && !isOwnerRole(caller.systemRole)) {
++        return refuse(MESSAGES.OWNER_TARGET);
++    }
++
++    return allow(true);
++}
++
++/** May `caller` edit `target`'s non-role fields (name, settings, forwarding...)? */
++export function decidePersonEdit(args: { caller: RoleIdentity; target: RoleIdentity }): RoleDecision {
++    const { caller, target } = args;
++
++    if (same(caller.uuid, target.uuid)) return allow(true);
++
++    if (!caller.systemRole) return refuse(MESSAGES.UNRESOLVED_CALLER);
++    if (!isAdminRole(caller.systemRole)) return refuse(MESSAGES.NOT_ADMIN_EDIT);
++    if (isOwnerRole(target.systemRole) && !isOwnerRole(caller.systemRole)) {
++        return refuse(MESSAGES.OWNER_EDIT);
++    }
++
++    return allow(true);
++}
++
++/** May `caller` remove `target`? */
++export function decidePersonDelete(args: { caller: RoleIdentity; target: RoleIdentity }): RoleDecision {
++    const { caller, target } = args;
++
++    if (same(caller.uuid, target.uuid)) return refuse(MESSAGES.SELF_DELETE);
++    if (!caller.systemRole) return refuse(MESSAGES.UNRESOLVED_CALLER);
++    if (!isAdminRole(caller.systemRole)) return refuse(MESSAGES.NOT_ADMIN_DELETE);
++    if (isOwnerRole(target.systemRole)) return refuse(MESSAGES.OWNER_DELETE);
++
++    return allow(true);
++}
++
++/** May `caller` do an administrative thing that has no single target: manage
++    roles, edit the company template, add people, list or restore removed people? */
++export function decideAdminAction(args: { caller: RoleIdentity }): RoleDecision {
++    const { caller } = args;
++
++    if (!caller.systemRole) return refuse(MESSAGES.UNRESOLVED_CALLER);
++    if (!isAdminRole(caller.systemRole)) return refuse(MESSAGES.NOT_ADMIN_MANAGE);
++
++    return allow(true);
++}
++
++/** May `caller` create a NEW person holding `requested`? (No target yet.) */
++export function decideNewMemberRole(args: { caller: RoleIdentity; requested: RequestedRole }): RoleDecision {
++    const { caller, requested } = args;
++
++    const admin = decideAdminAction({ caller });
++    if (!admin.ok) return admin;
++
++    if (isOwnerRole(requested.systemRole) && !isOwnerRole(caller.systemRole)) {
++        return refuse(MESSAGES.OWNER_GRANT);
++    }
++
++    return allow(true);
++}
+--- /dev/null
++++ b/src/helpers/removalRouting.ts
+@@ -0,0 +1,231 @@
++/* What happens to call routing when a person is removed.
++ *
++ * Before: any number that forwarded to the person had its WHOLE
++ * `forward_call_actions` and `settings` set to null (hours, recording, media,
++ * caller-id display - everything), and every colleague whose personal
++ * forwarding pointed at the person was silently repointed at whoever clicked
++ * delete. Both are wrong. This file removes only the one target - the removed
++ * person - and leaves everything else in the record as it was.
++ *
++ * Pure functions over the stored JSON shapes, so they can be unit tested
++ * without a database. The controller reads, calls these, and writes back only
++ * when `changed` is true.
++ *
++ * What "remove the one target" means per slot:
++ *
++ *   Number (did_numbers.forward_call_actions)
++ *     call_handling.business_hours                 -> slot emptied (type/value/label "")
++ *     call_handling.business_hours.missed_call_action -> removed
++ *     call_handling.closed_hours                   -> removed
++ *     condition.operational_hours.closed_hour_action -> slot emptied
++ *     condition.operational_hours.holidays[n]      -> that holiday's target emptied
++ *     (the same slots under a top-level operational_hours, the group shape)
++ *   An empty slot is what a freshly bought number has: "no destination set".
++ *   It is NOT replaced with voicemail, because a number has no mailbox of its
++ *   own on this switch - VOICEMAIL always needs a person's extension
++ *   (dialplan: vm_target_extension). Pointing it at somebody else's mailbox
++ *   would be inventing a destination the owner never chose.
++ *
++ *   Colleague (users.call_forwarding)
++ *     forward_calls (forward all my calls to X)    -> switched off, target emptied
++ *     incoming_calls.device_options[]              -> the entry for X removed
++ *     incoming_calls.failure_action (no answer)    -> back to the colleague's OWN voicemail
++ *     incoming_calls.closed_hour_action            -> back to the colleague's OWN voicemail
++ *   The colleague's own mailbox is the one fallback the data shape supports
++ *   honestly: it is exactly what generateCallForwarding gives a new person.
++ */
++
++export interface StripResult<T> {
++    value: T;
++    changed: boolean;
++    /** Dotted paths of the slots that were touched, for the log and the reply. */
++    cleared: string[];
++}
++
++const matches = (slotValue: unknown, extension: string): boolean =>
++    String(slotValue ?? "").trim() !== "" && String(slotValue ?? "").trim() === extension;
++
++const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
++
++export function parseJsonObject(raw: unknown): Record<string, any> | null {
++    if (isObject(raw)) return raw;
++    if (typeof raw !== "string" || !raw.trim()) return null;
++    try {
++        const parsed = JSON.parse(raw);
++        return isObject(parsed) ? parsed : null;
++    } catch {
++        return null;
++    }
++}
++
++/** Empty a destination slot in place, keeping keys the screens expect. */
++function emptySlot(slot: Record<string, any>): void {
++    slot.type = "";
++    slot.value = "";
++    if ("label" in slot) slot.label = "";
++    if ("name" in slot) slot.name = "";
++    if ("extension" in slot) delete slot.extension;
++    if ("value_label" in slot) slot.value_label = "";
++    if ("type_label" in slot) slot.type_label = "";
++    if ("personal" in slot) slot.personal = false;
++}
++
++/**
++ * Remove one extension from a number's routing. Works on a parsed object or the
++ * stored JSON string; returns the object either way (the caller stringifies).
++ */
++export function stripExtensionFromNumberRouting(
++    raw: unknown,
++    extension: string | number,
++): StripResult<Record<string, any> | null> {
++    const ext = String(extension ?? "").trim();
++    const actions = parseJsonObject(raw);
++    const cleared: string[] = [];
++    if (!actions || !ext) return { value: actions, changed: false, cleared };
++
++    const bh = actions?.call_handling?.business_hours;
++    if (isObject(bh)) {
++        if (matches(bh.value, ext)) {
++            emptySlot(bh);
++            cleared.push("call_handling.business_hours");
++        }
++        if (isObject(bh.missed_call_action) && matches(bh.missed_call_action.value, ext)) {
++            delete bh.missed_call_action;
++            cleared.push("call_handling.business_hours.missed_call_action");
++        }
++    }
++
++    const closedHours = actions?.call_handling?.closed_hours;
++    if (isObject(closedHours) && matches(closedHours.value, ext)) {
++        delete actions.call_handling.closed_hours;
++        cleared.push("call_handling.closed_hours");
++    }
++
++    const hoursBlocks: Array<[string, any]> = [
++        ["condition.operational_hours", actions?.condition?.operational_hours],
++        ["operational_hours", actions?.operational_hours],
++    ];
++    for (const [path, hours] of hoursBlocks) {
++        if (!isObject(hours)) continue;
++        if (isObject(hours.closed_hour_action) && matches(hours.closed_hour_action.value, ext)) {
++            emptySlot(hours.closed_hour_action);
++            cleared.push(`${path}.closed_hour_action`);
++        }
++        if (Array.isArray(hours.holidays)) {
++            hours.holidays.forEach((holiday: any, index: number) => {
++                if (isObject(holiday) && matches(holiday.value, ext)) {
++                    holiday.value = "";
++                    if ("name" in holiday) holiday.name = "";
++                    if ("value_label" in holiday) holiday.value_label = "";
++                    cleared.push(`${path}.holidays[${index}]`);
++                }
++            });
++        }
++    }
++
++    return { value: actions, changed: cleared.length > 0, cleared };
++}
++
++export interface ForwardingOwner {
++    extension: string | number;
++    first_name?: string | null;
++    last_name?: string | null;
++}
++
++function ownVoicemail(owner: ForwardingOwner): Record<string, any> {
++    const fullName = `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim();
++    return {
++        type: "VOICEMAIL",
++        label: fullName,
++        value: String(owner.extension),
++        name: fullName,
++        enabled: true,
++        personal: true,
++        type_label: "Send to Voicemail",
++        value_label: "Select",
++    };
++}
++
++/**
++ * Remove one extension from a colleague's personal call forwarding. `owner` is
++ * the colleague whose record this is - the fallback for "no answer" and
++ * "closed hours" is their own mailbox, never the caller's.
++ */
++export function stripExtensionFromPersonForwarding(
++    raw: unknown,
++    extension: string | number,
++    owner: ForwardingOwner,
++): StripResult<Record<string, any> | null> {
++    const ext = String(extension ?? "").trim();
++    const cf = parseJsonObject(raw);
++    const cleared: string[] = [];
++    if (!cf || !ext) return { value: cf, changed: false, cleared };
++
++    /* Never treat the owner's own extension as the removed one: a person's
++       record points at itself in several places by design. */
++    if (String(owner.extension ?? "").trim() === ext) return { value: cf, changed: false, cleared };
++
++    if (isObject(cf.forward_calls) && matches(cf.forward_calls.value, ext)) {
++        cf.forward_calls.enabled = false;
++        cf.forward_calls.value = "";
++        if ("name" in cf.forward_calls) cf.forward_calls.name = "";
++        if ("value_label" in cf.forward_calls) cf.forward_calls.value_label = "Select";
++        cleared.push("forward_calls");
++    }
++
++    const incoming = cf.incoming_calls;
++    if (isObject(incoming)) {
++        if (Array.isArray(incoming.device_options)) {
++            const before = incoming.device_options.length;
++            incoming.device_options = incoming.device_options.filter(
++                (device: any) => !(isObject(device) && matches(device.value, ext)),
++            );
++            if (incoming.device_options.length !== before) cleared.push("incoming_calls.device_options");
++        }
++        if (isObject(incoming.failure_action) && matches(incoming.failure_action.value, ext)) {
++            incoming.failure_action = ownVoicemail(owner);
++            cleared.push("incoming_calls.failure_action");
++        }
++        if (isObject(incoming.closed_hour_action) && matches(incoming.closed_hour_action.value, ext)) {
++            incoming.closed_hour_action = ownVoicemail(owner);
++            cleared.push("incoming_calls.closed_hour_action");
++        }
++    }
++
++    return { value: cf, changed: cleared.length > 0, cleared };
++}
++
++/* ---------- soft-delete window and purge ---------- */
++
++/** How long a removed person can be brought back. After this the row is purged
++    (its email and phone are freed) and it no longer appears in list-deleted. */
++export const RESTORE_WINDOW_HOURS = 72;
++
++export const TOMBSTONE_PREFIX = "deleted+";
++
++/** users.email is STRING(60) and UNIQUE, and the soft-deleted row keeps it, so
++    the address could never be used again. The purge rewrites it to something
++    that cannot collide and cannot be logged in with. Truncated to the column,
++    with the uuid fragment kept so two purged rows never share a tombstone. */
++export function tombstoneEmail(email: string, uuid: string, maxLength = 60): string {
++    const fragment = String(uuid ?? "").replace(/-/g, "").slice(0, 12) || "unknown";
++    const head = `${TOMBSTONE_PREFIX}${fragment}+`;
++    const room = Math.max(0, maxLength - head.length);
++    return head + String(email ?? "").slice(0, room);
++}
++
++export function isTombstonedEmail(email: unknown): boolean {
++    return String(email ?? "").startsWith(TOMBSTONE_PREFIX);
++}
++
++export function restoreDeadline(deletedAt: Date | string, hours = RESTORE_WINDOW_HOURS): Date {
++    const base = new Date(deletedAt);
++    return new Date(base.getTime() + hours * 60 * 60 * 1000);
++}
++
++export function isWithinRestoreWindow(deletedAt: Date | string | null | undefined, now = new Date(), hours = RESTORE_WINDOW_HOURS): boolean {
++    if (!deletedAt) return false;
++    const base = new Date(deletedAt);
++    if (Number.isNaN(base.getTime())) return false;
++    return restoreDeadline(base, hours).getTime() > now.getTime();
++}
+--- /dev/null
++++ b/src/services/RoleResolverService.ts
+@@ -0,0 +1,237 @@
++/* Turn what a user row (or a request) says about a role into a system role key.
++ *
++ * `users.role` is free text. Custom roles used to copy their NAME into it, so
++ * live rows hold things like "Custom Sub-Admin", "New role" and raw uuids, and
++ * a custom role named ADMIN made its holder the account owner. Nothing that
++ * decides authorisation may read that column first any more.
++ *
++ * Resolution order, for a person:
++ *   1. custom_role_uuid -> custom_roles.role_uuid -> roles.name  (the parent system role)
++ *   2. role_uuid        -> roles.name                            (a system role directly)
++ *   3. users.role, only if it is already one of the four keys    (fallback, logged)
++ * Anything else resolves to null, and helpers/roleGuard.ts fails closed on null.
++ *
++ * The four PREDEFINED roles are cached for a minute: they are shared by every
++ * company and never change at runtime.
++ */
++
++import Role from "@/models/Role";
++import CustomRole from "@/models/CustomRole";
++import { IAuth } from "@/interfaces/IRequest";
++import {
++    isUuidLike,
++    normaliseSystemRole,
++    RoleIdentity,
++    RequestedRole,
++    SystemRoleKey,
++} from "@/helpers/roleGuard";
++
++const SYSTEM_ROLE_CACHE_MS = 60 * 1000;
++
++interface SystemRoleRow {
++    uuid: string;
++    name: string;
++    key: SystemRoleKey;
++}
++
++let cache: { at: number; byUuid: Map<string, SystemRoleRow>; byKey: Map<SystemRoleKey, SystemRoleRow> } | null = null;
++
++export interface RoleSourceRow {
++    uuid: string;
++    role?: string | null;
++    role_uuid?: string | null;
++    custom_role_uuid?: string | null;
++}
++
++export interface ResolvedRequestedRole extends RequestedRole {
++    /** What the screens show: the custom role's own name, or the system key. */
++    label: string;
++}
++
++export type RequestedRoleResult =
++    | { ok: true; role: ResolvedRequestedRole }
++    | { ok: false; message: string };
++
++export default class RoleResolverService {
++    /** The PREDEFINED roles table rows whose names are system keys. */
++    static async systemRoles(force = false): Promise<{ byUuid: Map<string, SystemRoleRow>; byKey: Map<SystemRoleKey, SystemRoleRow> }> {
++        if (!force && cache && Date.now() - cache.at < SYSTEM_ROLE_CACHE_MS) return cache;
++
++        const rows: any[] = await Role.findAll({
++            where: { company_uuid: "PREDEFINED" },
++            attributes: ["uuid", "name"],
++            raw: true,
++        });
++
++        const byUuid = new Map<string, SystemRoleRow>();
++        const byKey = new Map<SystemRoleKey, SystemRoleRow>();
++        for (const row of rows) {
++            const key = normaliseSystemRole(row?.name);
++            if (!key) continue;
++            const entry = { uuid: String(row.uuid), name: String(row.name), key };
++            byUuid.set(entry.uuid, entry);
++            if (!byKey.has(key)) byKey.set(key, entry);
++        }
++        cache = { at: Date.now(), byUuid, byKey };
++        return cache;
++    }
++
++    static clearCache(): void {
++        cache = null;
++    }
++
++    /** role_uuid -> system key, or null if it is not one of the PREDEFINED roles. */
++    static async systemRoleFromRoleUuid(role_uuid: unknown): Promise<SystemRoleKey | null> {
++        const id = String(role_uuid ?? "").trim();
++        if (!id) return null;
++        const { byUuid } = await this.systemRoles();
++        if (byUuid.has(id)) return byUuid.get(id)!.key;
++
++        /* Not in the cache: either a stale cache or a company-created row in
++           `roles` (the old /role/upsert path). Look once more, uncached. */
++        const row: any = await Role.findOne({ where: { uuid: id }, attributes: ["uuid", "name", "company_uuid"], raw: true });
++        if (!row) return null;
++        if (String(row.company_uuid) === "PREDEFINED") {
++            this.clearCache();
++            return normaliseSystemRole(row.name);
++        }
++        return null;
++    }
++
++    /** The system role a custom role hangs off, scoped to the company. */
++    static async customRoleParent(custom_role_uuid: unknown, company_uuid: string): Promise<{ customRoleUuid: string; name: string; parentRoleUuid: string; systemRole: SystemRoleKey | null } | null> {
++        const id = String(custom_role_uuid ?? "").trim();
++        if (!id) return null;
++        const row: any = await CustomRole.findOne({
++            where: { uuid: id, company_uuid },
++            attributes: ["uuid", "name", "role_uuid"],
++            raw: true,
++        });
++        if (!row) return null;
++        return {
++            customRoleUuid: String(row.uuid),
++            name: String(row.name ?? ""),
++            parentRoleUuid: String(row.role_uuid ?? ""),
++            systemRole: await this.systemRoleFromRoleUuid(row.role_uuid),
++        };
++    }
++
++    /** What a stored person actually is. */
++    static async resolveIdentity(row: RoleSourceRow, company_uuid: string): Promise<RoleIdentity> {
++        const identity: RoleIdentity = {
++            uuid: String(row.uuid),
++            systemRole: null,
++            roleUuid: row.role_uuid ?? null,
++            customRoleUuid: row.custom_role_uuid ?? null,
++        };
++
++        if (row.custom_role_uuid) {
++            const custom = await this.customRoleParent(row.custom_role_uuid, company_uuid);
++            if (custom?.systemRole) {
++                identity.systemRole = custom.systemRole;
++                return identity;
++            }
++        }
++
++        if (row.role_uuid) {
++            const key = await this.systemRoleFromRoleUuid(row.role_uuid);
++            if (key) {
++                identity.systemRole = key;
++                return identity;
++            }
++        }
++
++        /* About half the live rows carry a role UUID in the text column with
++           no role_uuid beside it. Until the data-fix migration has run, read it
++           as the id it is (system role, or a custom role of this company). */
++        const text = String(row.role ?? "").trim();
++        if (isUuidLike(text)) {
++            const key = await this.systemRoleFromRoleUuid(text);
++            if (key) {
++                identity.systemRole = key;
++                identity.roleUuid = text;
++                return identity;
++            }
++            const custom = await this.customRoleParent(text, company_uuid);
++            if (custom?.systemRole) {
++                identity.systemRole = custom.systemRole;
++                identity.roleUuid = custom.parentRoleUuid;
++                identity.customRoleUuid = custom.customRoleUuid;
++                return identity;
++            }
++        }
++
++        /* Fallback: the free-text column, but only when it already IS a key.
++           "Custom Sub-Admin" resolves to nothing. */
++        const fallback = normaliseSystemRole(row.role);
++        if (fallback) {
++            console.warn(`RoleResolverService: user ${row.uuid} resolved from users.role text ("${row.role}") - role_uuid/custom_role_uuid did not resolve`);
++            identity.systemRole = fallback;
++        }
++        return identity;
++    }
++
++    static async resolveCaller(auth: IAuth): Promise<RoleIdentity> {
++        return this.resolveIdentity(
++            {
++                uuid: auth.uuid,
++                role: auth.role,
++                role_uuid: auth.role_uuid ?? null,
++                custom_role_uuid: auth.custom_role_uuid ?? null,
++            },
++            auth.company_uuid,
++        );
++    }
++
++    /**
++     * What a request is asking a person to become. Accepts the shapes the
++     * screens send today: custom_role_uuid, role_uuid (a system role, or - for
++     * older screens - a custom role's uuid), or a bare `role` name that is one
++     * of the four keys. Returns null role when nothing role-like was sent.
++     */
++    static async resolveRequestedRole(
++        input: { role_uuid?: unknown; custom_role_uuid?: unknown; role?: unknown },
++        company_uuid: string,
++    ): Promise<RequestedRoleResult | { ok: true; role: null }> {
++        const customId = String(input.custom_role_uuid ?? "").trim();
++        const roleId = String(input.role_uuid ?? "").trim();
++        const roleName = String(input.role ?? "").trim();
++
++        if (customId) {
++            const custom = await this.customRoleParent(customId, company_uuid);
++            if (!custom) return { ok: false, message: "Custom role does not exist" };
++            if (!custom.systemRole) return { ok: false, message: "System role not assigned to custom role" };
++            return {
++                ok: true,
++                role: { systemRole: custom.systemRole, roleUuid: custom.parentRoleUuid, customRoleUuid: custom.customRoleUuid, label: custom.name },
++            };
++        }
++
++        if (roleId) {
++            const key = await this.systemRoleFromRoleUuid(roleId);
++            if (key) {
++                const { byKey } = await this.systemRoles();
++                return { ok: true, role: { systemRole: key, roleUuid: byKey.get(key)?.uuid ?? roleId, customRoleUuid: null, label: key } };
++            }
++            /* Backward compatibility: a custom role's uuid arriving in role_uuid. */
++            const custom = await this.customRoleParent(roleId, company_uuid);
++            if (!custom) return { ok: false, message: "Role does not exist" };
++            if (!custom.systemRole) return { ok: false, message: "System role not assigned to custom role" };
++            return {
++                ok: true,
++                role: { systemRole: custom.systemRole, roleUuid: custom.parentRoleUuid, customRoleUuid: custom.customRoleUuid, label: custom.name },
++            };
++        }
++
++        if (roleName) {
++            const key = normaliseSystemRole(roleName);
++            if (!key) return { ok: false, message: "Role does not exist. Send the role's id, not its name." };
++            const { byKey } = await this.systemRoles();
++            const row = byKey.get(key);
++            if (!row) return { ok: false, message: `System role ${key} is not configured on this platform.` };
++            return { ok: true, role: { systemRole: key, roleUuid: row.uuid, customRoleUuid: null, label: key } };
++        }
++
++        return { ok: true, role: null };
++    }
++}
+--- /dev/null
++++ b/src/services/DeletedUserService.ts
+@@ -0,0 +1,164 @@
++/* Removed people: the 72-hour window, the list, restore, and the purge.
++ *
++ * Removing a person is a soft delete (users is a paranoid model: deleted_at is
++ * set, the row stays). That is unchanged. What was missing:
++ *
++ *   - nothing ever freed the e-mail: users.email is UNIQUE and the removed row
++ *     kept it, so the address could never be used for a new person;
++ *   - there was no way to see who was removed, or to bring them back.
++ *
++ * So: a removed person can be listed and restored for RESTORE_WINDOW_HOURS.
++ * After that the row is purged - it stays for reports that join on it, but its
++ * e-mail is rewritten to a tombstone and its phone cleared, which frees both.
++ * The purge is lazy (run on the paths that care: add person, validate, list,
++ * restore) so it needs no cron and is safe on a box that runs no crons.
++ */
++
++import { Op, Transaction } from "sequelize";
++import { sequelize } from "@/config/database";
++import User from "@/models/User";
++import CompanyLicense from "@/models/CompanyLicense";
++import Company from "@/models/Company";
++import {
++    isTombstonedEmail,
++    isWithinRestoreWindow,
++    restoreDeadline,
++    RESTORE_WINDOW_HOURS,
++    tombstoneEmail,
++} from "@/helpers/removalRouting";
++
++export interface DeletedUserRow {
++    uuid: string;
++    first_name: string;
++    last_name: string;
++    email: string;
++    phone: string | null;
++    extension: number | null;
++    role: string | null;
++    role_uuid: string | null;
++    custom_role_uuid: string | null;
++    site_uuid: string | null;
++    deleted_at: Date;
++    restore_until: Date;
++}
++
++export type RestoreResult =
++    | { ok: true; user: any; licence: "reused" | "created" }
++    | { ok: false; status: number; message: string };
++
++export default class DeletedUserService {
++    /** Rewrite the e-mail and clear the phone of rows removed longer ago than the window. */
++    static async purgeExpired(company_uuid: string): Promise<number> {
++        const cutoff = new Date(Date.now() - RESTORE_WINDOW_HOURS * 60 * 60 * 1000);
++        const rows: any[] = await User.findAll({
++            where: {
++                company_uuid,
++                deleted_at: { [Op.ne]: null, [Op.lt]: cutoff } as any,
++            },
++            attributes: ["uuid", "email", "phone", "deleted_at"],
++            paranoid: false,
++            raw: true,
++        });
++
++        let purged = 0;
++        for (const row of rows) {
++            if (isTombstonedEmail(row.email)) continue;
++            const email = tombstoneEmail(String(row.email ?? ""), String(row.uuid));
++            await User.update(
++                { email, phone: null } as any,
++                { where: { uuid: row.uuid, company_uuid }, paranoid: false, hooks: false } as any,
++            );
++            console.log(`DeletedUserService: purged user ${row.uuid} (removed ${new Date(row.deleted_at).toISOString()}) - e-mail freed`);
++            purged++;
++        }
++        return purged;
++    }
++
++    /** People removed within the window, newest first. */
++    static async listDeleted(company_uuid: string): Promise<DeletedUserRow[]> {
++        await this.purgeExpired(company_uuid);
++        const cutoff = new Date(Date.now() - RESTORE_WINDOW_HOURS * 60 * 60 * 1000);
++        const rows: any[] = await User.findAll({
++            where: {
++                company_uuid,
++                deleted_at: { [Op.ne]: null, [Op.gte]: cutoff } as any,
++            },
++            attributes: [
++                "uuid", "first_name", "last_name", "email", "phone", "extension",
++                "role", "role_uuid", "custom_role_uuid", "site_uuid", "deleted_at",
++            ],
++            order: [["deleted_at", "DESC"]],
++            paranoid: false,
++            raw: true,
++        });
++
++        return rows
++            .filter((row) => !isTombstonedEmail(row.email))
++            .map((row) => ({ ...row, restore_until: restoreDeadline(row.deleted_at) }));
++    }
++
++    /**
++     * Bring a removed person back. Restores the row, gives them a licence
++     * (a free one if there is one, otherwise a new one if the plan has room).
++     * Routing that was cleared when they were removed is NOT put back - it was
++     * removed from other people's records, and there is no copy of it.
++     */
++    static async restore(company_uuid: string, uuid: string): Promise<RestoreResult> {
++        await this.purgeExpired(company_uuid);
++
++        const row: any = await User.findOne({
++            where: { uuid, company_uuid },
++            paranoid: false,
++        });
++        if (!row || !row.deleted_at) {
++            return { ok: false, status: 404, message: "No removed person with that id was found." };
++        }
++        if (isTombstonedEmail(row.email) || !isWithinRestoreWindow(row.deleted_at)) {
++            return { ok: false, status: 410, message: `That person was removed more than ${RESTORE_WINDOW_HOURS} hours ago and can no longer be restored. Add them again as a new person.` };
++        }
++
++        /* Their e-mail and extension are still theirs (the soft-deleted row kept
++           both, and both are unique), so nothing else can have taken them. */
++
++        const company: any = await Company.findOne({ where: { uuid: company_uuid }, attributes: ["uuid", "licenses"], raw: true });
++        const activeUsers = await User.count({ where: { company_uuid } });
++        const licences = Number(company?.licenses ?? 0);
++
++        const freeLicence: any = await CompanyLicense.findOne({
++            where: { company_uuid, user_uuid: null },
++        });
++        if (!freeLicence && activeUsers >= licences) {
++            return {
++                ok: false,
++                status: 409,
++                message: `No free licence: ${activeUsers} of ${licences} in use. Buy a licence or remove somebody else first.`,
++            };
++        }
++
++        const transaction: Transaction = await sequelize.transaction();
++        try {
++            await row.restore({ transaction });
++
++            let licence: "reused" | "created";
++            if (freeLicence) {
++                await freeLicence.update({ user_uuid: uuid, is_license_revoked: false }, { transaction });
++                licence = "reused";
++            } else {
++                await CompanyLicense.create({ user_uuid: uuid, company_uuid } as any, { transaction });
++                licence = "created";
++            }
++
++            await transaction.commit();
++            const restored: any = await User.findOne({
++                where: { uuid, company_uuid },
++                attributes: ["uuid", "first_name", "last_name", "email", "extension", "role", "role_uuid", "custom_role_uuid", "status"],
++                raw: true,
++            });
++            console.log(`DeletedUserService: restored user ${uuid} for company ${company_uuid} (licence ${licence})`);
++            return { ok: true, user: restored, licence };
++        } catch (error: any) {
++            await transaction.rollback();
++            return { ok: false, status: 500, message: error?.message || "Restore failed" };
++        }
++    }
++}
+--- /dev/null
++++ b/src/middlewares/RoleGuard.ts
+@@ -0,0 +1,37 @@
++/* Route-level "administrators only".
++ *
++ * Sits in front of the routes that add, remove or re-role people, manage roles,
++ * or edit the company template. Each handler still runs the per-target rules
++ * from helpers/roleGuard.ts (own role, owner-only); this only settles the one
++ * question that has no target: is the caller an administrator at all?
++ *
++ * The decision is on the caller's resolved system role, never on the free-text
++ * users.role string. A caller whose role cannot be resolved is refused.
++ */
++
++import { NextFunction, Response } from "express";
++import { IAuth, IRequest } from "@/interfaces/IRequest";
++import RoleResolverService from "@/services/RoleResolverService";
++import { decideAdminAction } from "@/helpers/roleGuard";
++
++export const RequireAdminRole = async (req: IRequest, res: Response, next: NextFunction): Promise<any> => {
++    const auth = req.auth as IAuth | undefined;
++    if (!auth?.uuid || !auth?.company_uuid) {
++        return res.status(401).json({ success: false, message: "Un-authenticate or deleted User" });
++    }
++
++    try {
++        const caller = await RoleResolverService.resolveCaller(auth);
++        const decision = decideAdminAction({ caller });
++        if (!decision.ok) {
++            return res.status(decision.status).json({ success: false, message: decision.message });
++        }
++        return next();
++    } catch (error: any) {
++        console.error("RequireAdminRole: could not resolve the caller's role:", error?.message || error);
++        return res.status(403).json({
++            success: false,
++            message: "Your role could not be checked, so this change was not made. Please try again.",
++        });
++    }
++};
+--- /dev/null
++++ b/migrations/20260903120000-fix-users-role-system-key.js
+@@ -0,0 +1,194 @@
++"use strict";
++
++/* One-off data fix: make users.role hold a system role key.
++ *
++ * users.role is free text. Custom roles used to copy their NAME into it, and
++ * some screens wrote a raw uuid, so live rows hold "Custom Sub-Admin", "New
++ * role", uuids, and so on. Every server-side check compares that column against
++ * "ADMIN" / "AGENT" / "MANAGER", so those rows are either locked out of things
++ * they should see or (for a custom role NAMED "ADMIN") let in everywhere.
++ *
++ * For every row whose users.role is not already one of the four keys, this
++ * works out the right key from the ids the row carries and writes it:
++ *
++ *   1. custom_role_uuid -> custom_roles.role_uuid -> roles.name (the parent)
++ *   2. role_uuid        -> roles.name (must be a PREDEFINED system role)
++ *   3. users.role is itself a uuid of a custom role or a system role -> as 1/2,
++ *      and role_uuid / custom_role_uuid are filled in from it
++ *   4. users.role is a key with wrong case or spacing ("admin", " Agent ",
++ *      "SUB_ADMIN") -> normalised
++ *
++ * A row that resolves to nothing is REPORTED and left alone. Every change is
++ * logged with the old and new value. Running it twice changes nothing the
++ * second time: rows already holding a key are not selected.
++ *
++ * Soft-deleted rows are included: they can be restored within 72 hours and
++ * would otherwise come back with the old value.
++ *
++ * `down` is deliberately a no-op. The old values are in the migration log,
++ * and putting free text back into the column would reopen the hole.
++ */
++
++const SYSTEM_ROLE_KEYS = ["ADMIN", "SUB-ADMIN", "MANAGER", "AGENT"];
++const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++
++function normaliseSystemRole(value) {
++  const key = String(value == null ? "" : value).trim().toUpperCase().replace(/_/g, "-");
++  return SYSTEM_ROLE_KEYS.includes(key) ? key : null;
++}
++
++/**
++ * Pure: decide what one row should become.
++ *
++ * @param row      { uuid, role, role_uuid, custom_role_uuid }
++ * @param lookup   { systemByUuid: Map<uuid, KEY>, customByUuid: Map<uuid, { role_uuid, company_uuid }> }
++ * @returns        { action: "skip" } | { action: "report", reason }
++ *                 | { action: "update", role, role_uuid?, custom_role_uuid?, via }
++ */
++function resolveRow(row, lookup) {
++  if (normaliseSystemRole(row.role) === String(row.role || "")) {
++    return { action: "skip" };
++  }
++
++  const systemKeyFor = (roleUuid) => lookup.systemByUuid.get(String(roleUuid || "").trim()) || null;
++
++  // 1. custom role -> parent system role
++  if (row.custom_role_uuid) {
++    const custom = lookup.customByUuid.get(String(row.custom_role_uuid).trim());
++    if (custom) {
++      if (custom.company_uuid && row.company_uuid && String(custom.company_uuid) !== String(row.company_uuid)) {
++        return { action: "report", reason: `custom_role_uuid ${row.custom_role_uuid} belongs to another company` };
++      }
++      const key = systemKeyFor(custom.role_uuid);
++      if (key) return { action: "update", role: key, role_uuid: String(custom.role_uuid), via: "custom_role_uuid" };
++      return { action: "report", reason: `custom role ${row.custom_role_uuid} has parent ${custom.role_uuid} which is not a system role` };
++    }
++    // fall through: a dangling custom_role_uuid should not stop role_uuid from working
++  }
++
++  // 2. role_uuid -> system role
++  if (row.role_uuid) {
++    const key = systemKeyFor(row.role_uuid);
++    if (key) return { action: "update", role: key, via: "role_uuid" };
++  }
++
++  // 3. users.role holds a uuid
++  const text = String(row.role == null ? "" : row.role).trim();
++  if (UUID_RE.test(text)) {
++    const key = systemKeyFor(text);
++    if (key) return { action: "update", role: key, role_uuid: text, custom_role_uuid: null, via: "role text is a system role uuid" };
++    const custom = lookup.customByUuid.get(text);
++    if (custom) {
++      const parentKey = systemKeyFor(custom.role_uuid);
++      if (parentKey) {
++        return { action: "update", role: parentKey, role_uuid: String(custom.role_uuid), custom_role_uuid: text, via: "role text is a custom role uuid" };
++      }
++      return { action: "report", reason: `role text is custom role ${text} whose parent ${custom.role_uuid} is not a system role` };
++    }
++  }
++
++  // 4. a key with the wrong case or spacing
++  const normalised = normaliseSystemRole(text);
++  if (normalised) return { action: "update", role: normalised, via: "normalised text" };
++
++  return { action: "report", reason: `cannot resolve role "${text}" (role_uuid=${row.role_uuid || "-"}, custom_role_uuid=${row.custom_role_uuid || "-"})` };
++}
++
++async function loadLookup(queryInterface) {
++  const [systemRows] = await queryInterface.sequelize.query(
++    "SELECT uuid, name FROM roles WHERE company_uuid = 'PREDEFINED'",
++  );
++  const systemByUuid = new Map();
++  for (const r of systemRows) {
++    const key = normaliseSystemRole(r.name);
++    if (key) systemByUuid.set(String(r.uuid), key);
++  }
++
++  const [customRows] = await queryInterface.sequelize.query(
++    "SELECT uuid, role_uuid, company_uuid FROM custom_roles",
++  );
++  const customByUuid = new Map();
++  for (const r of customRows) {
++    customByUuid.set(String(r.uuid), { role_uuid: r.role_uuid, company_uuid: r.company_uuid });
++  }
++
++  return { systemByUuid, customByUuid };
++}
++
++async function up(queryInterface) {
++  /* ROLE_FIX_DRY_RUN=1 logs every decision and writes nothing. Run it first. */
++  const dryRun = /^(1|true|yes)$/i.test(String(process.env.ROLE_FIX_DRY_RUN || ""));
++  const lookup = await loadLookup(queryInterface);
++  if (lookup.systemByUuid.size === 0) {
++    throw new Error("fix-users-role-system-key: no PREDEFINED system roles found in `roles`; refusing to run");
++  }
++
++  const placeholders = SYSTEM_ROLE_KEYS.map(() => "?").join(", ");
++  const [rows] = await queryInterface.sequelize.query(
++    `SELECT uuid, company_uuid, role, role_uuid, custom_role_uuid, deleted_at
++       FROM users
++      WHERE role IS NULL OR BINARY role NOT IN (${placeholders})`,
++    { replacements: SYSTEM_ROLE_KEYS },
++  );
++
++  const summary = { selected: rows.length, updated: 0, reported: 0, skipped: 0 };
++  const reported = [];
++
++  for (const row of rows) {
++    const decision = resolveRow(row, lookup);
++    if (decision.action === "skip") {
++      summary.skipped++;
++      continue;
++    }
++    if (decision.action === "report") {
++      summary.reported++;
++      reported.push({ uuid: row.uuid, company_uuid: row.company_uuid, role: row.role, reason: decision.reason });
++      console.warn(`[fix-users-role] REPORT user ${row.uuid} (company ${row.company_uuid}): ${decision.reason}`);
++      continue;
++    }
++
++    const sets = ["role = ?"];
++    const values = [decision.role];
++    if (decision.role_uuid !== undefined) {
++      sets.push("role_uuid = ?");
++      values.push(decision.role_uuid);
++    }
++    if (decision.custom_role_uuid !== undefined) {
++      sets.push("custom_role_uuid = ?");
++      values.push(decision.custom_role_uuid);
++    }
++    values.push(row.uuid);
++
++    if (!dryRun) {
++      await queryInterface.sequelize.query(
++        `UPDATE users SET ${sets.join(", ")} WHERE uuid = ?`,
++        { replacements: values },
++      );
++    }
++    summary.updated++;
++    console.log(
++      `[fix-users-role] ${dryRun ? "WOULD UPDATE" : "UPDATE"} user ${row.uuid} (company ${row.company_uuid}${row.deleted_at ? ", soft-deleted" : ""}): ` +
++        `role "${row.role}" -> "${decision.role}"` +
++        (decision.role_uuid !== undefined ? `, role_uuid ${row.role_uuid || "-"} -> ${decision.role_uuid}` : "") +
++        (decision.custom_role_uuid !== undefined ? `, custom_role_uuid ${row.custom_role_uuid || "-"} -> ${decision.custom_role_uuid}` : "") +
++        ` (via ${decision.via})`,
++    );
++  }
++
++  console.log(`[fix-users-role] ${dryRun ? "DRY RUN " : ""}done: ${JSON.stringify(summary)}`);
++  if (reported.length) {
++    console.warn(`[fix-users-role] ${reported.length} row(s) left untouched - fix by hand:\n` + JSON.stringify(reported, null, 2));
++  }
++  return summary;
++}
++
++module.exports = {
++  up,
++  down: async () => {
++    // Intentionally no-op: the old free-text values are in the migration log.
++  },
++  // Exported for the unit tests (backend-patches/people-roles/tests).
++  resolveRow,
++  normaliseSystemRole,
++  SYSTEM_ROLE_KEYS,
++};

@@ -1,3 +1,4 @@
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PageSidebarLayout from '@/layout/page-sidebar-layout';
 import './inbox-theme.css';
@@ -32,6 +33,7 @@ import Loader from '@/components/custom/loader';
 import { useUser } from '@/hooks/use-user';
 import { count } from 'sms-length';
 import { useSmsRateCredits } from '@/hooks/use-sms-rate-credits';
+import { useNameForNumber } from '@/hooks/use-contact-suggestions';
 import EmojiPicker from 'emoji-picker-react';
 import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 
@@ -70,7 +72,6 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useFetchContact } from '@/hooks/common';
-import SideDrawer from '@/components/custom/side-drawer';
 import Flag from '@/components/flag';
 import { useCompanyFeatures } from '@/hooks/rbac';
 import DLCVerificationPopup from '@/components/custom/dlc-verification-popup';
@@ -695,6 +696,7 @@ const InnerSidebarInbox = (props: any) => {
     headerAction = null,
     focusNumber = '',
     onFocusHandled,
+    onOpenConversation,
   } = props;
   const [isDIDLoaded, setIsDIDLoaded] = useState(false);
   const { getParam, clearAllParams } = useSearchParamManager();
@@ -852,6 +854,7 @@ const InnerSidebarInbox = (props: any) => {
             search={debouncedSearch}
             setSmsNumber={setSmsNumber}
             setShowSendSMSModal={setShowSendSMSModal}
+            onOpenConversation={onOpenConversation}
             isCompactLayout={isCompactLayout}
           />
         ) : (
@@ -873,6 +876,7 @@ const InnerSidebarInbox = (props: any) => {
             tabType="fax"
             getNameFromNumber={getNameFromNumber}
             search={debouncedSearch}
+            onOpenConversation={onOpenConversation}
             isCompactLayout={isCompactLayout}
           />
         )}
@@ -977,7 +981,6 @@ const InboxContent = ({
     allow_country?.some(({ country_code_iso2 }: any) => country_code_iso2 === countryCode) &&
     freeSms > sms_used;
   const freeSmsLeft = isSmsFree ? freeSms - sms_used : 0;
-  const totalSmsCharges = Number(sms_rates?.rate || 0) * smsCountData.messages;
   const balanceAmount = Number(user?.company_info?.amount || 0);
   const chargeableSmsCount = Math.max(smsCountData.messages - freeSmsLeft, 0);
 
@@ -988,6 +991,15 @@ const InboxContent = ({
     phone: otherNumber,
     alpha2code: countryCode,
   });
+
+  /* `sms_rates` is destructured with a default of `[]`, so `sms_rates.rate` is
+     undefined whenever the response omits it — the old rate-card sum was then
+     0, which the balance dialog read as "you cannot afford this" and refused a
+     fully funded wallet. The applied cost from the rate service is the same
+     figure shown on screen as "SMS Charges", so the dialog and the price now
+     agree; the rate card is only the fallback. */
+  const totalSmsCharges =
+    smsCredits > 0 ? smsCredits : Number(sms_rates?.rate || 0) * smsCountData.messages;
 
   const { mutateAsync: sendSMSMutate, isPending: sendSMSLoad } = useMutation({
     mutationKey: ['sendSmsNew'],
@@ -1268,7 +1280,7 @@ const InboxContent = ({
                 <div className="min-w-0 flex-1">
                   <div className="mcm-thread-name">{name}</div>
                   <div className="mcm-thread-num">
-                    <span className="mcm-num truncate">{otherNumber}</span>
+                    <NumberWithFlag number={otherNumber} className="mcm-num truncate" />
                     <span className="mcm-tag neu hidden sm:inline-flex">
                       {type === 'fax' ? 'FAX' : 'SMS / MMS'}
                     </span>
@@ -1733,7 +1745,13 @@ const Inbox = () => {
   const canUseMessages = Boolean(messagesAccess?.send_message || messagesAccess?.send_mms);
   const canUseFax = Boolean(messagesAccess?.send_fax);
   const [type, setType] = useState<string>('messages');
-  const hasActiveConversation = type === 'fax' ? Boolean(faxMessageId) : Boolean(chatId);
+  /* The composer used to be a drawer floating over everything. Now it takes the
+     conversation area, so on a compact layout — where that section is hidden
+     unless something is open — "composing" has to count as active, or the form
+     is simply unreachable on a phone. */
+  const isComposing = showSendSMSModal || showSendFaxModal;
+  const hasActiveConversation =
+    isComposing || (type === 'fax' ? Boolean(faxMessageId) : Boolean(chatId));
   const { data: faxAssignedNumbers = EMPTY_FAX_DID_NUMBERS, isLoading: isFaxDIDLoading } = useQuery(
     {
       queryKey: ['faxAssignedDidNumbers', FAX_ASSIGNED_DID_PAYLOAD],
@@ -1783,15 +1801,38 @@ const Inbox = () => {
     });
   }, [faxDIDOptions, isFaxDIDLoading]);
   const openSendModal = () => {
+    setShowSendFaxModal(false);
     setShowSendSMSModal(true);
   };
+
+  const closeComposers = () => {
+    setShowSendSMSModal(false);
+    setShowSendFaxModal(false);
+  };
+
+  /* A drawer sat over everything, so it never had to decide what happens when
+     you click a conversation underneath. In place, it does: opening one closes
+     the composer. Keying off a chatId change is not enough — the list
+     auto-selects a conversation, so clicking the already-selected row changes
+     nothing and the composer would stay sitting on top of it. */
+  const handleOpenConversation = () => {
+    closeComposers();
+  };
+  /* The map is keyed by the number as the contact stored it, plus a digits-only
+     and a "+digits" variant. A number that reaches here punctuated or with a
+     different country prefix matched none of those, so conversation headers
+     showed a raw number where a saved contact name belongs. The last-10-digit
+     lookup is the fallback for exactly that case.
+
+     A contact row with no name used to return a single space, which renders as
+     an empty header — fall back to the number instead. */
+  const nameForNumber = useNameForNumber();
   const getNameFromNumber = (number: string = '') => {
     const contact = dataFetchContact?.[number] || null;
-    if (contact) {
-      return `${contact?.first_name || ''} ${contact?.last_name || ''}`;
-    } else {
-      return number;
-    }
+    const saved = contact
+      ? `${contact?.first_name || ''} ${contact?.last_name || ''}`.trim()
+      : nameForNumber(number);
+    return saved || number;
   };
 
   // Keep the selected tab when it is allowed and only fall back when access changes.
@@ -1807,13 +1848,19 @@ const Inbox = () => {
     });
   }, [canUseFax, canUseMessages]);
 
-  // Keep SMS and fax conversation state isolated when switching tabs.
+  /* Keep SMS and fax conversation state isolated when switching tabs.
+     This effect drops the OTHER tab's stale URL param and nothing else. It used
+     to clear `selectedChat` too, which broke the Fax → SMS round trip: coming
+     back to SMS the list re-selects the last conversation and writes its chatId
+     to the URL, and then this effect ran (every one of its deps had just
+     changed) and wiped the selection while clearing the stale faxMessageId.
+     chatId set with no selection is the loading state, and nothing re-ran to
+     resolve it — the thread sat on skeletons for ever. Clearing the selection
+     is the tab switch's job, and it already does it. */
   useEffect(() => {
     if (type === 'fax' && chatId) {
-      setSelectedChat({});
       removeParam('chatId');
     } else if (type === 'messages' && faxMessageId) {
-      setSelectedChat({});
       removeParam('faxMessageId');
     }
   }, [chatId, faxMessageId, type]);
@@ -1875,6 +1922,7 @@ const Inbox = () => {
           content={
             <InnerSidebarInbox
               type={type}
+              onOpenConversation={handleOpenConversation}
               focusNumber={focusNumber}
               onFocusHandled={() => setFocusNumber('')}
               headerAction={
@@ -1906,6 +1954,7 @@ const Inbox = () => {
                           onClick={() => {
                             setFaxNumber('');
                             setIsFaxFromDisabled(false);
+                            setShowSendSMSModal(false);
                             setShowSendFaxModal(true);
                           }}
                         >
@@ -1946,7 +1995,31 @@ const Inbox = () => {
           isCompactLayout ? (hasActiveConversation ? 'block' : 'hidden') : 'block',
         )}
       >
-        {type === 'fax' ? (
+        {/* Composing happens HERE, in the same space an open conversation
+            occupies — not in a drawer over the top of it. The composer follows
+            the active tab: switching to Fax mid-compose swaps in the fax form
+            rather than leaving an SMS form, addressed from an SMS DID, on a
+            screen that is now about faxes. */}
+        {isComposing ? (
+          type === 'fax' ? (
+            <SendFaxModal
+              defaultNumber={faxNumber}
+              faxDIDOptions={faxDIDOptions}
+              selectedDID={selectedFaxDID}
+              isFromDisabled={isFaxFromDisabled}
+              handleClose={closeComposers}
+            />
+          ) : (
+            <SendSMSModal
+              handleClose={() => {
+                if (formState === 'contact' && number) clearAllParams();
+                closeComposers();
+              }}
+              defaultNumber={smsNumber}
+              selectedDID={selectedDID}
+            />
+          )
+        ) : type === 'fax' ? (
           <FaxContent
             selectedDID={selectedFaxDID}
             selectedChat={selectedChat}
@@ -1955,6 +2028,7 @@ const Inbox = () => {
             onSendNewFax={(number) => {
               setFaxNumber(number);
               setIsFaxFromDisabled(true);
+              setShowSendSMSModal(false);
               setShowSendFaxModal(true);
             }}
             isCompactLayout={isCompactLayout}
@@ -1970,51 +2044,6 @@ const Inbox = () => {
           />
         )}
       </section>
-      {showSendSMSModal && (
-        <>
-          <SideDrawer
-            isOpen={showSendSMSModal}
-            handleClose={() => setShowSendSMSModal(false)}
-            isHeader={true}
-            width="500px"
-            enableResponsive
-            responsiveWidth="96vw"
-            responsiveBreakpoint={1024}
-            content={
-              <SendSMSModal
-                handleClose={() => {
-                  if (formState === 'contact' && number) {
-                    clearAllParams();
-                  }
-                  setShowSendSMSModal(false);
-                }}
-                defaultNumber={smsNumber}
-                selectedDID={selectedDID}
-              />
-            }
-          />
-        </>
-      )}
-      {showSendFaxModal ? (
-        <SideDrawer
-          isOpen={showSendFaxModal}
-          handleClose={() => setShowSendFaxModal(false)}
-          isHeader={true}
-          width="500px"
-          enableResponsive
-          responsiveWidth="96vw"
-          responsiveBreakpoint={1024}
-          content={
-            <SendFaxModal
-              defaultNumber={faxNumber}
-              faxDIDOptions={faxDIDOptions}
-              selectedDID={selectedFaxDID}
-              isFromDisabled={isFaxFromDisabled}
-              handleClose={() => setShowSendFaxModal(false)}
-            />
-          }
-        />
-      ) : null}
     </div>
   );
 };

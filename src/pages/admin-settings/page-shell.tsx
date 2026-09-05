@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Crumbs, type Crumb } from '@/components/mcm/crumbs';
 import { McmIconSprite } from '@/components/mcm/icons';
 import '@/components/mcm/mcm-page.css';
 
@@ -17,6 +18,7 @@ import '@/components/mcm/mcm-page.css';
  */
 
 export const AdminPage = ({
+  crumbs,
   section,
   title,
   description,
@@ -24,6 +26,9 @@ export const AdminPage = ({
   filters,
   children,
 }: {
+  /** The trail above the title, if this screen wants one. Optional, so the
+      screens that have never had crumbs are unchanged. */
+  crumbs?: Crumb[];
   /** The area this screen belongs to, e.g. "Numbers". */
   section?: string;
   title: string;
@@ -36,7 +41,13 @@ export const AdminPage = ({
     <McmIconSprite />
     <div className="mcm-adminpage-head">
       <div className="mcm-adminpage-title">
-        {section ? <div className="mcm-adminpage-eyebrow">{section}</div> : null}
+        {crumbs?.length ? <Crumbs items={crumbs} /> : null}
+        {/* The eyebrow says the area in one word; the trail says the whole path
+            and can be walked back up. A screen passing crumbs does not need
+            both. */}
+        {section && !crumbs?.length ? (
+          <div className="mcm-adminpage-eyebrow">{section}</div>
+        ) : null}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>

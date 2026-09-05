@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import useDebounce from '@/hooks/use-debounce';
 import { usePaginatedUsers } from '@/hooks/use-paginated-users';
+import { roleDisplayName } from '@/pages/admin-settings/roles/role-names';
 
 interface AssignUsersModalProps {
   open: boolean;
@@ -68,7 +69,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
     mutationFn: assignRoleBulkUsers,
     onSuccess: (data: any) => {
       handleAlert({
-        text: data?.data?.data?.message || 'Users assigned to role successfully!',
+        text: data?.data?.data?.message || 'People assigned to the role',
         type: 'success',
       });
       queryClient.invalidateQueries(['rolesList']);
@@ -78,7 +79,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
     },
     onError: (error: any) => {
       handleAlert({
-        text: error?.response?.data?.message || 'Failed to assign users to role.',
+        text: error?.response?.data?.message || 'Could not assign people to the role.',
         type: 'error',
       });
     },
@@ -187,7 +188,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
       return;
     }
     if (!selectedUserIds?.length) {
-      handleAlert({ text: 'Please select at least one user.', type: 'error' });
+      handleAlert({ text: 'Pick at least one person.', type: 'error' });
       return;
     }
 
@@ -205,9 +206,10 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
       >
         <div className="flex items-start justify-between p-5 border-b border-gray-200">
           <div className="flex flex-col gap-1">
-            <h4 className="text-gray-900 text-lg font-semibold">Assign Users to Role</h4>
+            <h4 className="text-gray-900 text-lg font-semibold">Assign people to a role</h4>
             <p className="text-sm text-gray-500">
-              Selecting users for <span className="text-primary text-sm">{roleName}</span>
+              Choosing people for{' '}
+              <span className="text-primary text-sm">{roleDisplayName(roleName)}</span>
             </p>
           </div>
           <button
@@ -229,7 +231,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
           </div>
           <div className="w-[260px]">
             <Input
-              placeholder="Search users..."
+              placeholder="Search people..."
               className="pl-10"
               IconPosition="left-0 pl-3 inset-y-0"
               value={search}
@@ -291,7 +293,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
                     <span
                       className={`uppercase tracking-[0.08em] text-[11px] font-semibold px-2.5 py-1 rounded-md border ${getRoleBadgeClass(currentRoleName)}`}
                     >
-                      {currentRoleName}
+                      {roleDisplayName(currentRoleName)}
                     </span>
                   </div>
                 </div>
@@ -299,7 +301,7 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
             })
           ) : (
             <div className="w-full min-h-[180px] flex items-center justify-center text-sm text-gray-500">
-              No users found.
+              No people found.
             </div>
           )}
 
@@ -318,7 +320,8 @@ const AssignUsersModal: FC<AssignUsersModalProps> = ({ open, roleData, setOpen }
 
         <div className="border-t border-gray-200 bg-gray-50 px-6 text-sm py-4 flex items-center justify-between rounded-b-lg">
           <p className="text-gray-600 font-medium">
-            <span className="text-gray-900">{selectedUserIds.length}</span> user(s) selected
+            <span className="text-gray-900">{selectedUserIds.length}</span>{' '}
+            {selectedUserIds.length === 1 ? 'person' : 'people'} selected
           </p>
           <div className="flex items-center gap-4">
             <Button type="button" variant="transparent" onClick={handleClose}>

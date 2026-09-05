@@ -35,7 +35,7 @@ const CALLER_ID_EXPLAINED: Record<string, { title: string; detail: string }> = {
 };
 
 const CALLER_ID_NOT_LIVE =
-  'Not applied to calls yet. What a person shows when calling out comes from their own record, under Users.';
+  'Applied to outbound calls from everyone at this location since 3 September 2026: a custom name replaces the name shown, the company main number replaces the number shown, and withheld asks the carrier to hide it.';
 
 const Row = ({ label, value }: { label: string; value?: string }) => (
   <div className="flex items-start justify-between gap-3 py-1.5">

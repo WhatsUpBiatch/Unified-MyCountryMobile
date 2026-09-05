@@ -61,6 +61,7 @@ const CompanyLogo = () => {
         [LOGO_SETTINGS_KEY]: buildStoredLogo(storedFileName),
       },
       greetings: companyDefaults?.greetings || {},
+      only: [LOGO_SETTINGS_KEY],
     });
     queryClient.invalidateQueries({ queryKey: COMPANY_DEFAULTS_QUERY_KEY });
   };

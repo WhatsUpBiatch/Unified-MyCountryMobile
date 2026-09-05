@@ -1,5 +1,5 @@
 import CallRules from '@/pages/admin-settings/people/update-forwarding/call-rules';
-import { getUserDetails, updateUserSettings, userUpdateStatus } from '@/services/api';
+import { getUserDetails, updateUserSettings } from '@/services/api';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -8,16 +8,13 @@ import { phoneSettingsSchema } from './schema';
 import { handleAlert } from '@/lib/utils';
 import { RING_TYPE_LABELS, RINGING_OPTIONS } from '@/constants/forwarding-consts';
 import { Button } from '@/components/ui/button';
-import { useSocketEvents } from '@/hooks/use-socket-events';
-import { useUser } from '@/hooks/use-user';
 import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
 import { mergeCallForwarding } from '@/lib/call-forwarding-record';
+import '@/components/mcm/mcm-page.css';
 
 const IncomingCalls = () => {
   const [schemaContext, setSchemaContext] = useState(null);
   const queryClient: any = useQueryClient();
-  const { socketEventsManager } = useSocketEvents();
-  const { user } = useUser();
   const { data: userDetails } = useQuery({
     queryKey: ['userInfoForPhoneSettings'],
     queryFn: getUserDetails,
@@ -40,23 +37,6 @@ const IncomingCalls = () => {
   }, [watch]);
 
   const { handleSubmit } = methods;
-
-  /* The dropdown below hydrates to "Send to Voicemail" whenever nothing is
-     stored, so this screen shows voicemail on an account that has never saved
-     one — and the switch, having no rule, hangs up on the caller instead. That
-     mismatch is invisible, so it is called out rather than left to be
-     discovered by someone ringing the number. */
-  const storedRules =
-    typeof userDetails?.call_forwarding === 'string'
-      ? (() => {
-          try {
-            return JSON.parse(userDetails?.call_forwarding || '{}');
-          } catch {
-            return {};
-          }
-        })()
-      : userDetails?.call_forwarding || {};
-  const fallbackSaved = Boolean(storedRules?.incoming_calls?.failure_action?.type);
 
   const { mutate: mutateUpdateMember, isPending: isPendingUpdateMember } = useMutation({
     mutationFn: updateUserSettings,
@@ -104,7 +84,11 @@ const IncomingCalls = () => {
             : callRules?.forwardCall?.value?.name || selectedUser?.name,
         personal: callRules?.forwardCall?.personal,
       },
-      status: callRules?.status,
+      /* No `status` here. Presence is not edited on this screen, and it used to
+         be posted anyway - to the record and to update-status, which moves the
+         person's queue rows to On Break whenever the stored status is not
+         "online". Saving a ring time could log an agent out of their queues.
+         The stored presence is carried through untouched by the merge below. */
       incoming_calls: {
         enabled: callRules?.incomingCall?.enabled,
         device_options: transformPayloadNew(deviceOptionsSorted),
@@ -163,23 +147,6 @@ const IncomingCalls = () => {
       key: 'call_forwarding',
     };
 
-    const status = callRules?.status;
-
-    socketEventsManager?.emit('user-presence-update', {
-      doc: {
-        userId: user?.user_info?.extension,
-        domain: user?.sip_credentials?.domain,
-        uuid: user?.uuid,
-        status,
-        onCall: false,
-        timeObj: {
-          holiday_start_date: null,
-          holiday_end_date: null,
-        },
-      },
-    });
-
-    handleStatusChange(status);
     mutateUpdateMember(payload);
   };
 
@@ -199,38 +166,6 @@ const IncomingCalls = () => {
     }));
   }
 
-  function statusChangeEvent(status: string, timeObj: any = undefined) {
-    socketEventsManager?.emit(
-      'user-presence-update',
-      {
-        doc: {
-          userId: user?.user_info?.extension,
-          domain: user?.sip_credentials?.domain,
-          uuid: user?.uuid,
-          status: status,
-          onCall: false,
-          timeObj,
-        },
-      },
-      () => {},
-    );
-  }
-
-  const { mutate: mutateUserUpdateStatus } = useMutation({
-    mutationFn: userUpdateStatus,
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries(['getUsersDetails']);
-      statusChangeEvent(variables?.socket_status, {
-        holiday_start_date: null,
-        holiday_end_date: null,
-      });
-    },
-  });
-
-  const handleStatusChange = async (status: string) => {
-    if (user?.socket_status === status) return;
-    mutateUserUpdateStatus({ socket_status: status });
-  };
   useEffect(() => {
     if (userDetails?.call_forwarding) {
       const callHandlingData =
@@ -353,8 +288,6 @@ const IncomingCalls = () => {
           })),
       });
 
-      setValue('callRules.status', callHandlingData?.status ?? 'online');
-
       setValue('basic.extension', userDetails?.user_info?.extension);
       setValue('callRules.outgoingCall', {
         enabled: outgoing_calls?.enabled || false,
@@ -434,13 +367,6 @@ const IncomingCalls = () => {
         value: fallbackValue,
       });
       setValue('callRules.forwardCall.type', { label: 'Send to Voicemail', value: 'VOICEMAIL' });
-
-      /* Presence is not edited on this screen, but it is part of the payload it
-         saves. With no stored rules there is nothing to hydrate it from, so it
-         stayed undefined and Submit broadcast an undefined status and posted one
-         to update-status. The person's current availability is the truthful
-         value for a record that has never stored one. */
-      setValue('callRules.status', user?.socket_status || 'online');
     }
   }, [userDetails]);
 
@@ -452,7 +378,13 @@ const IncomingCalls = () => {
   }, [watch]);
 
   return (
-    <section className="w-full bg-gray-200/15 flex flex-col overflow-x-auto overflow-y-hidden">
+    <section
+      /* The page scrolls here. It used to be `overflow-y-hidden`, which clipped
+        everything below the fold with no way to reach it. The sticky footer is
+        `position: sticky; bottom: 0`, so it pins to this container rather than
+        scrolling away with the content. */
+      className="flex h-full min-h-0 w-full flex-col overflow-x-auto overflow-y-auto bg-gray-200/15"
+    >
       <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
         <div>
           <p className="text-gray-900 font-semibold text-lg">My Phone</p>
@@ -465,22 +397,47 @@ const IncomingCalls = () => {
       <FormProvider {...methods}>
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="gap-3 flex flex-col justify-between h-full p-3"
+          className="gap-3 flex flex-col justify-between min-h-full p-3"
         >
-          {!fallbackSaved ? (
-            <div className="mcm-notsaved" role="status">
-              <strong>Voicemail is not saved yet.</strong>
-              <span>
-                “If Busy / Unanswered / Unreachable” shows Send to Voicemail below, but nothing has
-                been stored for this account — so unanswered and rejected calls are hung up on
-                instead. Press Submit to apply it.
-              </span>
-            </div>
-          ) : null}
+          {/* What the switch reads from this page, as of the patch of 3 Sep
+              2026 (proven by offline tests and by reading the running switch,
+              not yet by a real call), for a call dialled straight to the
+              person's extension:
+                - Forward All Calls (`call_forwarding.forward_calls`).
+                - Do not disturb (`call_forwarding.dnd`). This page has no
+                  switch for it - an admin sets it in the person's call rules
+                  under People, and the summary below reports it. The presence
+                  "DND" in the avatar menu writes `status`, not `dnd`, and the
+                  switch does not read it.
+                - Ring time: the person's own device timeout, and the shorter
+                  of theirs and the company's wins.
+                - What happens after ringing (`incoming_calls.failure_action`),
+                  but only for a voicemail, extension or hang-up destination.
+                  An outside number, a queue or a menu is saved and not
+                  followed after the ring - though the same destination does
+                  work for forward-all, DND and closed hours.
+                - Default Caller ID, under Outgoing Calls: it becomes
+                  `users.caller_id`, which the dialplan puts on every outbound
+                  call.
+              Still stored and not read: which devices are on and their ring
+              order. The shared editor below carries no badge of its own, so
+              the split is stated here, first. */}
+          <div className="mcm-callsummary" role="status">
+            <span className="mcm-callsummary-l">What works today</span>
+            <p>
+              Forward All Calls, Do Not Disturb, your ring time and Default Caller ID are live for
+              calls straight to you. What happens after ringing is live when it sends callers to
+              voicemail, to an extension or hangs up; an outside number, a queue or a menu is saved
+              but not followed after the ring. Which devices ring, and in what order, is saved, not
+              applied yet. Do Not Disturb here means the one in your call rules: the DND status in
+              your avatar menu does not stop calls. Calls through a queue or a menu follow that
+              queue&rsquo;s or menu&rsquo;s own rules.
+            </p>
+          </div>
           <CallRules customClass="md:min-h-[calc(100vh_-_13rem)]" />
-          <div className="flex justify-end gap-2">
+          <div className="mcm-stickyfoot">
             <Button variant={'primary'} type="submit" disabled={isPendingUpdateMember}>
-              {isPendingUpdateMember ? 'Please wait...' : 'Submit'}
+              {isPendingUpdateMember ? 'Please wait...' : 'Save call handling'}
             </Button>
           </div>
         </form>

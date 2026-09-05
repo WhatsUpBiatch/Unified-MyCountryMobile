@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'react-toastify';
 import DialpadMaxiTabDispositions from '@/components/dialpad/components/dialpad-maxi-tab-dispositions';
 import DialpadEndedScreen from '@/components/dialpad/components/dialpad-ended-screen';
 import DialpadAddUserList from '@/components/dialpad/components/dialpad-add-user-list';
@@ -7,20 +8,21 @@ import DialpadConferenceMembersList from '@/components/dialpad/components/dialpa
 import DialpadMaxiScriptSidebar from '@/components/dialpad/components/dialpad-maxi-script-sidebar';
 import { useDialpadCallerIdOptions } from '@/hooks/use-dialpad-caller-id-options';
 import { useUsersDirectory } from '@/hooks/use-users-directory';
+import { useContactSuggestions } from '@/hooks/use-contact-suggestions';
 import { useSocketEvents } from '@/hooks/use-socket-events';
 import { useUser } from '@/hooks/use-user';
 import { getHeaderFirstValue } from '@/components/dialpad/session-display';
-import Flag from '@/components/flag';
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import type { DialpadSession } from '@/context/dialpad-context';
 import type { ConsoleCallRow } from './call-list-column';
 import { Ic } from './icons';
 import { useConsoleDialer } from './dial-number';
+import { useCallerName } from './use-caller-name';
 import CallRecord from './call-record';
 import { isTerminalSession, mmss, type ConsoleCallState } from './use-console-call';
 import {
   buildEnrichment,
   CHECKLIST,
-  contactDisplayName,
   initialsOf,
   lineHealth,
   type ConsoleTurn,
@@ -37,6 +39,28 @@ const getSessionSipCallId = (session: DialpadSession | null | undefined): string
       getHeaderFirstValue(session?.headers, 'call-id') ||
       '',
   ).trim();
+};
+
+/* ------------------------------------------------------------- dial guard ---
+ * The dialler field doubles as a directory search, so it holds whatever was
+ * typed — including a name like "Helo". That string used to be handed straight
+ * to the SIP stack, which tried to place a call to it. One rule, used by both
+ * the Call button and the Enter key.
+ * -------------------------------------------------------------------------- */
+
+/** null when `target` is dialable, otherwise why it is not. */
+export const dialTargetIssue = (raw: unknown): string | null => {
+  const target = String(raw ?? '').trim();
+  if (!target) return 'Type a number to call.';
+  if (/[a-z]/i.test(target)) {
+    return 'That looks like a name. Pick someone from the suggestions, or type a number.';
+  }
+  // *67, #31 and friends are feature codes, not short numbers.
+  if (/^[*#]\d+$/.test(target)) return null;
+  if (target.replace(/\D/g, '').length < 3) {
+    return 'That is too short to dial — extensions are at least 3 digits.';
+  }
+  return null;
 };
 
 const KEYS: [string, string][] = [
@@ -79,7 +103,8 @@ const CallerBlock = ({
   state: ConsoleCallState;
   secs: number;
 }) => {
-  const name = contactDisplayName(session);
+  const { callerName } = useCallerName();
+  const name = callerName(session);
   const pill =
     state === 'incoming'
       ? { cls: 'ringing', label: 'Incoming' }
@@ -101,7 +126,7 @@ const CallerBlock = ({
         <div style={{ minWidth: 0 }}>
           <div className="caller-name">{name}</div>
           <div className="caller-num num">
-            {session?.remoteNumber}
+            <NumberWithFlag number={session?.remoteNumber} />
             {contact?.company ? ` · ${contact.company}` : ''}
           </div>
         </div>
@@ -162,6 +187,8 @@ const SessionStrip = ({
   activeId: string | null;
   onSwitch: (id: string) => void;
 }) => {
+  // Before the early return — hooks cannot sit behind a condition.
+  const { callerName } = useCallerName();
   if (sessions.length < 2) return null;
   return (
     <div
@@ -183,7 +210,7 @@ const SessionStrip = ({
             <span
               className={`dot ${ringing ? 'amber' : s.isOnHold ? 'red' : 'green'} ${ringing ? 'pulsing' : ''}`}
             />
-            {contactDisplayName(s)}
+            {callerName(s)}
             <span className="num" style={{ opacity: 0.7 }}>
               {ringing
                 ? s.direction === 'incoming'
@@ -209,7 +236,8 @@ const EnrichmentTicker = ({
   title: string;
   session: DialpadSession | null;
 }) => {
-  const rows = buildEnrichment(session);
+  const { resolveName } = useCallerName();
+  const rows = buildEnrichment(session, resolveName);
   return (
     <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div className="sect-title">
@@ -396,6 +424,10 @@ const StageColumn = ({
     />
   );
 
+  /* Saved contacts, from the contact book — not the call log. The two groups
+     share one scroller below so a long list cannot push the keypad off-card. */
+  const { matches: contactHits } = useContactSuggestions(dial);
+
   const directoryHits = useMemo(() => {
     const q = dial.trim().toLowerCase();
     if (!q) return [];
@@ -409,7 +441,23 @@ const StageColumn = ({
       .slice(0, 6);
   }, [users, dial]);
 
+  const dialIssue = dialTargetIssue(dial);
+
+  /* A suggestion goes INTO the field so it can be checked, edited or added to
+     before anything is dialled. */
+  const pickSuggestion = (target: string) => {
+    const value = String(target || '').trim();
+    if (!value) return;
+    setDial(value);
+  };
+
   const placeCall = (target: string) => {
+    const issue = dialTargetIssue(target);
+    if (issue) {
+      // Failing silently here just looked like a broken button.
+      toast.error(issue);
+      return;
+    }
     if (dial2(target)) setDial('');
   };
 
@@ -468,10 +516,20 @@ const StageColumn = ({
                   title="Choose which of your numbers people see"
                   onClick={() => setCallerIdOpen((open) => !open)}
                 >
-                  <Ic n="globe" size={12} />
-                  {isCallerIdUpdating
-                    ? 'Saving…'
-                    : defaultCallerIdOption?.number || 'No caller ID'}
+                  {/* The country of the number people will see beats a generic
+                      globe. NumberWithFlag normalises the DID first — they are
+                      stored both with and without a leading "+", and a raw one
+                      renders no flag at all. */}
+                  {isCallerIdUpdating ? (
+                    'Saving…'
+                  ) : defaultCallerIdOption?.number ? (
+                    <NumberWithFlag number={defaultCallerIdOption.number} />
+                  ) : (
+                    <>
+                      <Ic n="globe" size={12} />
+                      No caller ID
+                    </>
+                  )}
                   {callerIdOptions.length > 1 ? <Ic n="chev" size={11} /> : null}
                 </button>
 
@@ -525,7 +583,7 @@ const StageColumn = ({
                               {option.label}
                             </span>
                             <span className="v" style={{ flex: 1 }}>
-                              {option.number}
+                              <NumberWithFlag number={option.number} />
                             </span>
                             {active ? <Ic n="check" size={12} /> : null}
                           </button>
@@ -551,7 +609,7 @@ const StageColumn = ({
             </div>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <span className="dial-flag-slot">
-                {dial && <Flag phoneNumber={dial.startsWith('+') ? dial : `+${dial}`} />}
+                {dial ? <NumberWithFlag number={dial} isFlagOnly /> : null}
               </span>
               <input
                 className="dial-display num"
@@ -567,45 +625,118 @@ const StageColumn = ({
               />
               <span className="dial-flag-slot" aria-hidden="true" />
             </div>
-            {directoryHits.length ? (
-              <div className="dres">
-                <div className="eyebrow" style={{ padding: '0 10px 4px' }}>
-                  {directoryHits.length} match{directoryHits.length > 1 ? 'es' : ''} · directory
-                </div>
-                {directoryHits.map((d: any) => (
-                  <button
-                    type="button"
-                    className="dres-row"
-                    key={d.extension}
-                    onClick={() => placeCall(d.extension)}
-                  >
-                    <span className="dres-av">{initialsOf(d.name)}</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span className="dres-n" style={{ display: 'block' }}>
-                        {d.name}
-                      </span>
-                      <span className="dres-m">
-                        {d.role} · <span className="num">ext {d.extension}</span>
-                      </span>
-                    </span>
-                  </button>
-                ))}
+            {/* Suggestions sit ABOVE the keypad, never instead of it. They used
+                to replace it, so typing "9" — which matches ext 9088 — made the
+                dialler vanish with no way to finish the number.
+
+                Both groups share one scroller: capping each list separately let
+                two full lists stack past the card and push the keypad out of
+                view. */}
+            {dial.trim() && (contactHits.length || directoryHits.length || /[a-z]/i.test(dial)) ? (
+              <div className="dres-scroll">
+                {contactHits.length ? (
+                  <div className="dres">
+                    <div className="dres-group">
+                      {contactHits.length} match{contactHits.length > 1 ? 'es' : ''} · contacts
+                    </div>
+                    {contactHits.map((c) => (
+                      <div className="dres-row" key={c.id || c.phone}>
+                        {/* Picking a suggestion FILLS the field — it does not
+                            dial. Brushing a name while scanning used to place a
+                            real call; the phone button is now the only thing
+                            that starts one. */}
+                        <button
+                          type="button"
+                          className="dres-pick"
+                          disabled={!c.phone}
+                          title={c.phone ? `Put ${c.phone} in the dialler` : 'No number saved'}
+                          onClick={() => pickSuggestion(c.phone)}
+                        >
+                          <span className="dres-av">{initialsOf(c.name)}</span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span className="dres-n" style={{ display: 'block' }}>
+                              {c.name || c.phone}
+                            </span>
+                            <span className="dres-m">
+                              {c.company ? `${c.company} · ` : ''}
+                              <NumberWithFlag number={c.phone} className="num" />
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="dres-call"
+                          disabled={!c.phone}
+                          aria-label={`Call ${c.name || c.phone}`}
+                          title={c.phone ? `Call ${c.name || c.phone}` : 'No number saved'}
+                          onClick={() => placeCall(c.phone)}
+                        >
+                          <Ic n="phone" size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {directoryHits.length ? (
+                  <div className="dres">
+                    <div className="dres-group">
+                      {directoryHits.length} match{directoryHits.length > 1 ? 'es' : ''} · directory
+                    </div>
+                    {directoryHits.map((d: any) => (
+                      <div className="dres-row" key={d.extension}>
+                        <button
+                          type="button"
+                          className="dres-pick"
+                          title={`Put ext ${d.extension} in the dialler`}
+                          onClick={() => pickSuggestion(d.extension)}
+                        >
+                          <span className="dres-av">{initialsOf(d.name)}</span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span className="dres-n" style={{ display: 'block' }}>
+                              {d.name}
+                            </span>
+                            <span className="dres-m">
+                              {d.role} · <span className="num">ext {d.extension}</span>
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="dres-call"
+                          aria-label={`Call ${d.name}`}
+                          title={`Call ${d.name}`}
+                          onClick={() => placeCall(d.extension)}
+                        >
+                          <Ic n="phone" size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Empty space reads as "still searching". Say it found nothing. */}
+                {!contactHits.length && !directoryHits.length && /[a-z]/i.test(dial) ? (
+                  <div className="dres-none">No contact or extension matches “{dial.trim()}”.</div>
+                ) : null}
               </div>
-            ) : (
-              <div className="keypad">
-                {KEYS.map(([d, l]) => (
-                  <button type="button" className="key" key={d} onClick={() => pressKey(d)}>
-                    <b>{d}</b>
-                    <i>{l}</i>
-                  </button>
-                ))}
-              </div>
-            )}
+            ) : null}
+
+            <div className="keypad">
+              {KEYS.map(([d, l]) => (
+                <button type="button" className="key" key={d} onClick={() => pressKey(d)}>
+                  <b>{d}</b>
+                  <i>{l}</i>
+                </button>
+              ))}
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
                 className="btn primary"
                 style={{ flex: 1 }}
+                disabled={Boolean(dialIssue)}
+                title={dialIssue || `Call ${dial}`}
                 onClick={() => placeCall(dial)}
               >
                 <Ic n="phone" />
@@ -644,7 +775,13 @@ const StageColumn = ({
             </div>
             <div className="kv">
               <span className="k">Caller ID</span>
-              <span className="v num">{defaultCallerIdOption?.number || '—'}</span>
+              <span className="v num">
+                {defaultCallerIdOption?.number ? (
+                  <NumberWithFlag number={defaultCallerIdOption.number} />
+                ) : (
+                  '—'
+                )}
+              </span>
             </div>
             {dialpad.lastError ? (
               <div className="kv">
@@ -868,7 +1005,8 @@ const StageColumn = ({
                     data: {
                       type: 'transcript',
                       agent_extension: user?.user_info?.extension || '',
-                      agent_name: `${user?.user_info?.first_name || ''} ${user?.user_info?.last_name || ''}`.trim(),
+                      agent_name:
+                        `${user?.user_info?.first_name || ''} ${user?.user_info?.last_name || ''}`.trim(),
                       contact_number: session.remoteNumber || '',
                       direction: session.direction === 'outgoing' ? 'outbound' : 'inbound',
                       sipCallId: getSessionSipCallId(session),

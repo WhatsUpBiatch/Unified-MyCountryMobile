@@ -1,0 +1,904 @@
+diff -ruN a/migrations/20260903150000-create-user-invites-table.js b/migrations/20260903150000-create-user-invites-table.js
+--- a/migrations/20260903150000-create-user-invites-table.js	1970-01-01 00:00:00.000000000 +0000
++++ b/migrations/20260903150000-create-user-invites-table.js	2026-09-03 08:36:15.606021871 +0000
+@@ -0,0 +1,60 @@
++"use strict";
++
++/* user_invites: one row per invite link sent to a new person.
++ *
++ * Main database. Only the sha256 of the token is stored; the token itself is
++ * in the e-mail and nowhere else. A person may have several rows (each
++ * "Resend" adds one); the newest un-accepted row is the live one.
++ *
++ * UserInviteService.ensureTable runs the same CREATE TABLE IF NOT EXISTS on
++ * first use, so a box that never runs migrations still works. The two
++ * definitions must stay identical. Idempotent: a database that already has
++ * the table is left alone.
++ */
++module.exports = {
++  up: async (queryInterface, Sequelize) => {
++    const existing = await queryInterface.showAllTables();
++    const names = existing.map((t) => (typeof t === "string" ? t : t.tableName));
++    if (names.includes("user_invites")) {
++      return;
++    }
++
++    await queryInterface.createTable(
++      "user_invites",
++      {
++        id: {
++          type: Sequelize.INTEGER.UNSIGNED,
++          allowNull: false,
++          autoIncrement: true,
++          primaryKey: true,
++        },
++        user_uuid: { type: Sequelize.STRING(36), allowNull: false },
++        company_uuid: { type: Sequelize.STRING(36), allowNull: false },
++        token_hash: { type: Sequelize.CHAR(64), allowNull: false, unique: true },
++        expires_at: { type: Sequelize.DATE, allowNull: false },
++        accepted_at: { type: Sequelize.DATE, allowNull: true, defaultValue: null },
++        created_by: { type: Sequelize.STRING(36), allowNull: true },
++        created_at: {
++          type: Sequelize.DATE,
++          allowNull: false,
++          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
++        },
++      },
++      {
++        engine: "InnoDB",
++        charset: "utf8mb4",
++        collate: "utf8mb4_unicode_ci",
++      },
++    );
++    await queryInterface.addIndex("user_invites", ["user_uuid", "created_at"], {
++      name: "user_invites_user_uuid_created_at",
++    });
++    await queryInterface.addIndex("user_invites", ["company_uuid", "accepted_at"], {
++      name: "user_invites_company_uuid_accepted_at",
++    });
++  },
++
++  down: async (queryInterface) => {
++    await queryInterface.dropTable("user_invites");
++  },
++};
+diff -ruN a/src/controllers/InviteController.ts b/src/controllers/InviteController.ts
+--- a/src/controllers/InviteController.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/controllers/InviteController.ts	2026-09-03 08:36:15.588021801 +0000
+@@ -0,0 +1,96 @@
++/* Invite links: the four endpoints under /api/invite.
++ *
++ * Lives in its own controller on purpose. Production default-api has no
++ * source; its dist/controllers/AuthController.js carries fixes this mirror
++ * does not, so nothing here touches AuthController. See
++ * backend-patches/invites/README.md.
++ *
++ *   POST /api/invite/inspect  {token}            public   -> what this link is
++ *   POST /api/invite/accept   {token, password}  public   -> set own password
++ *   POST /api/invite/resend   {user_uuid}        admin    -> fresh link
++ *   POST /api/invite/pending  {}                 admin    -> who has not accepted
++ *
++ * accept does NOT sign the person in. The login route is gated by OTP,
++ * Turnstile and device sessions inside AuthController; copying that here
++ * would mean duplicating the very file this change must not touch. The page
++ * sends them to the login screen instead.
++ */
++
++import { Response } from "express";
++import BaseController from "./BaseController";
++import { IAuth, IRequest } from "@/interfaces/IRequest";
++import UserInviteService, { UserInviteError } from "@/services/UserInviteService";
++import { INVITE_MIN_PASSWORD_LENGTH, INVITE_TTL_HOURS } from "@/helpers/inviteToken";
++
++export default class InviteController extends BaseController {
++    constructor() {
++        super();
++        this.inspect = this.inspect.bind(this);
++        this.accept = this.accept.bind(this);
++        this.resend = this.resend.bind(this);
++        this.pending = this.pending.bind(this);
++    }
++
++    public async inspect(req: IRequest, res: Response): Promise<object> {
++        const { token } = (req.body ?? {}) as { token?: unknown };
++        const state = await UserInviteService.inspect(token);
++        return super.sendSuccess(res, "Invite checked", {
++            ...state,
++            min_password_length: INVITE_MIN_PASSWORD_LENGTH,
++            ttl_hours: INVITE_TTL_HOURS,
++        });
++    }
++
++    public async accept(req: IRequest, res: Response): Promise<object> {
++        const { token, password } = (req.body ?? {}) as { token?: unknown; password?: unknown };
++        try {
++            const done = await UserInviteService.accept(token, password);
++            return super.sendSuccess(res, "Your password is set. You can log in now.", {
++                ok: true,
++                email: done.email,
++                name: done.name,
++            });
++        } catch (error: any) {
++            if (error instanceof UserInviteError) {
++                return super.sendError(res, error.message, { ok: false }, error.status);
++            }
++            console.error("InviteController.accept:", error?.message || error);
++            return super.sendError(res, "Something went wrong. Please try the link again.", null, 500);
++        }
++    }
++
++    public async resend(req: IRequest, res: Response): Promise<object> {
++        const auth = req.auth as IAuth;
++        const { user_uuid } = (req.body ?? {}) as { user_uuid?: unknown };
++        const target = String(user_uuid ?? "").trim();
++        if (!target) {
++            return super.sendError(res, "user_uuid is required.");
++        }
++        try {
++            const result = await UserInviteService.resend(
++                target,
++                { uuid: auth.uuid, company_uuid: auth.company_uuid, first_name: auth.first_name, last_name: auth.last_name },
++                req,
++            );
++            return super.sendSuccess(
++                res,
++                result.sent
++                    ? `We sent them a new link. It works for ${INVITE_TTL_HOURS / 24} days.`
++                    : "The link was made, but the e-mail could not be sent. Please try again in a minute.",
++                { ok: result.sent, email: result.email, expires_at: result.expiresAt },
++            );
++        } catch (error: any) {
++            if (error instanceof UserInviteError) {
++                return super.sendError(res, error.message, null, error.status);
++            }
++            console.error("InviteController.resend:", error?.message || error);
++            return super.sendError(res, "The invite could not be sent. Please try again.", null, 500);
++        }
++    }
++
++    public async pending(req: IRequest, res: Response): Promise<object> {
++        const auth = req.auth as IAuth;
++        const rows = await UserInviteService.pendingForCompany(auth.company_uuid);
++        return super.sendSuccess(res, "Pending invites", { pending: rows, ttl_hours: INVITE_TTL_HOURS });
++    }
++}
+diff -ruN a/src/controllers/UserController.ts b/src/controllers/UserController.ts
+--- a/src/controllers/UserController.ts	2026-09-03 08:36:15.533021588 +0000
++++ b/src/controllers/UserController.ts	2026-09-03 08:39:39.145876901 +0000
+@@ -66,7 +66,8 @@
+ import Stripe from "stripe";
+ import { ValidationError } from "joi";
+ import Country from "@/models/Country";
+-import { generatePassword } from "@/helpers/authHelper";
++import { randomTemporaryPassword } from "@/helpers/inviteToken";
++import UserInviteService from "@/services/UserInviteService";
+ import { SmsController } from "./SmsController";
+ import { userStatus } from "@/validators/AuthValidator";
+ import AuthController from "./AuthController";
+@@ -1243,14 +1244,18 @@
+          * VALIDATE EACH USER IN LOOP
+          */
+         for (let user of users) {
+-            user.password = user?.password
+-                ? user?.password
+-                : generatePassword();
++            /* No password came with the row: the person chooses their own
++               through the invite link (services/UserInviteService.ts). The row
++               still needs one - the column and the create validator require
++               it - so it gets a random one nobody ever sees, and the row
++               starts PENDING: login refuses anything but ACTIVE, and accepting
++               the invite flips it. A password the administrator typed keeps
++               working as before (row ACTIVE); that person gets the link too,
++               so they can pick their own. Nothing below e-mails a password. */
++            const inviteOnly = !user?.password;
++            user.password = inviteOnly ? randomTemporaryPassword() : user.password;
+             const salt = await genSalt(10);
+-            let hashedPassword = await hash(
+-                !user?.password ? "Country@123" : user?.password,
+-                salt,
+-            );
++            let hashedPassword = await hash(user.password, salt);
+ 
+             const { error, value } = createUserValidator.validate(user);
+             if (error) {
+@@ -1327,7 +1332,7 @@
+                                 values.push({
+                                     ...value,
+                                     company_uuid,
+-                                    status: "ACTIVE",
++                                    status: inviteOnly ? "PENDING" : "ACTIVE",
+                                     site_uuid,
+                                     password: hashedPassword,
+                                     call_forwarding:
+@@ -1698,34 +1703,24 @@
+                     }
+                 }
+ 
+-                const getWebsiteUrl = await CommonHelper.getWebsiteUrl(company_uuid);
+-
+-                for (let user of users) {
+-                    let notificationPayloadData: any = {
+-                        type: "add_member",
+-                        email_notification: {
+-                            subject: "Your Account Details - Login Information",
+-                            body: "ADD_MEMBER_NOTIFICATION",
+-                            template: true,
+-                            data: {
+-                                name: `${user?.first_name} ${user?.last_name}`,
+-                                email: user?.email,
+-                                password: user?.password,
+-                                login_url: getWebsiteUrl,
+-                            },
+-                        },
+-                        socket_notification: null,
+-                        sms_notification: null,
+-                    };
+-
+-                    await SmsController.sendNotification(
+-                        notificationPayloadData,
+-                        user?.email,
+-                        res,
+-                        req,
+-                        company_uuid ?? null,
+-                    );
++                /* Invite links instead of passwords in e-mail. Every new person
++                   gets a link to choose their own password; the message never
++                   carries one (helpers/inviteEmail.ts). A mail failure does not
++                   undo the person - the People list offers "Resend invite". */
++                const inviterName =
++                    `${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || null;
++                const inviteResults: Array<{ user_uuid: string; email: string; sent: boolean }> = [];
++                for (const created of createdUsers) {
++                    let sent = false;
++                    try {
++                        const { token } = await UserInviteService.createInvite(created, uuid);
++                        sent = await UserInviteService.sendInviteEmail(created, token, req, inviterName);
++                    } catch (error: any) {
++                        console.error(`addMember: invite for ${created?.email} failed:`, error?.message || error);
++                    }
++                    inviteResults.push({ user_uuid: created.uuid, email: created.email, sent });
+                 }
++                responsePayload.invites = inviteResults;
+ 
+                 let notificationPayloadData: any = {
+                     type: "new_member",
+@@ -1759,12 +1754,25 @@
+                     company_uuid ?? null,
+                 ); // will set to payment webhook later
+ 
+-                responsePayload.createdUsers = createdUsers;
++                /* bulkCreate returns the full row, bcrypt hash included; the
++                   browser has no use for it. */
++                responsePayload.createdUsers = createdUsers.map((created: any) => {
++                    const plain = typeof created?.get === "function" ? created.get({ plain: true }) : { ...created };
++                    delete plain.password;
++                    return plain;
++                });
+             }
+ 
++            const unsent = (responsePayload.invites ?? []).filter((r: any) => !r.sent).map((r: any) => r.email);
++            const successMessage = responsePayload.invites?.length
++                ? unsent.length
++                    ? `People added. We sent them a link to choose a password. It works for ${UserInviteService.TTL_HOURS / 24} days. The e-mail to ${unsent.join(", ")} could not be sent - use "Resend invite" on the People list.`
++                    : `People added. We sent them a link to choose a password. It works for ${UserInviteService.TTL_HOURS / 24} days.`
++                : "Users added successfully";
++
+             return super.sendSuccess(
+                 res,
+-                "Users added successfully",
++                successMessage,
+                 responsePayload,
+             );
+         } catch (error: any) {
+diff -ruN a/src/helpers/inviteEmail.ts b/src/helpers/inviteEmail.ts
+--- a/src/helpers/inviteEmail.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/helpers/inviteEmail.ts	2026-09-03 08:36:15.563021704 +0000
+@@ -0,0 +1,68 @@
++/* The invite e-mail, as plain HTML.
++ *
++ * notification-api renders named templates from its own templates folder, and
++ * that service is not part of this change (it would need its own deploy). So
++ * the invite goes through the same mailer as every other notification with
++ * `template: false` and this body. It carries the person's name, who invited
++ * them, the company, the link and how long it lasts - and nothing else. No
++ * password, no extension, no e-mail address.
++ *
++ * Pure: a test checks the body never contains a password field.
++ */
++
++export interface InviteEmailInput {
++    name: string;
++    inviterName?: string | null;
++    companyName?: string | null;
++    projectName?: string | null;
++    link: string;
++    hours: number;
++}
++
++const escapeHtml = (value: unknown): string =>
++    String(value ?? "")
++        .replace(/&/g, "&amp;")
++        .replace(/</g, "&lt;")
++        .replace(/>/g, "&gt;")
++        .replace(/"/g, "&quot;")
++        .replace(/'/g, "&#39;");
++
++const escapeAttr = (value: unknown): string => escapeHtml(value);
++
++export const inviteEmailSubject = (companyName?: string | null, projectName?: string | null): string => {
++    const where = String(companyName ?? "").trim() || String(projectName ?? "").trim();
++    return where ? `You have been invited to join ${where}` : "You have been invited";
++};
++
++export const buildInviteEmailHtml = (input: InviteEmailInput): string => {
++    const name = escapeHtml(String(input.name ?? "").trim() || "there");
++    const inviter = String(input.inviterName ?? "").trim();
++    const company = String(input.companyName ?? "").trim();
++    const project = String(input.projectName ?? "").trim();
++    const where = company || project;
++    const days = Math.max(1, Math.round(Number(input.hours) / 24));
++    const link = escapeAttr(input.link);
++
++    const opening = inviter
++        ? `${escapeHtml(inviter)} has added you to ${escapeHtml(where || "the team")}.`
++        : `You have been added to ${escapeHtml(where || "the team")}.`;
++
++    return [
++        `<!DOCTYPE html>`,
++        `<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />`,
++        `<title>${escapeHtml(inviteEmailSubject(company, project))}</title></head>`,
++        `<body style="margin:0;padding:0;background-color:#f3f6fa;font-family:Arial,Helvetica,sans-serif;">`,
++        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f3f6fa;">`,
++        `<tr><td align="center" style="padding:28px 12px;">`,
++        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #dbe4ee;border-radius:12px;">`,
++        `<tr><td style="padding:28px 32px 8px 32px;font-size:18px;line-height:28px;font-weight:700;color:#111827;">Hello ${name},</td></tr>`,
++        `<tr><td style="padding:0 32px 16px 32px;font-size:15px;line-height:24px;color:#374151;">${opening} To get started, choose your own password.</td></tr>`,
++        `<tr><td align="center" style="padding:8px 32px 20px 32px;">`,
++        `<a href="${link}" style="display:inline-block;padding:14px 22px;border-radius:8px;background:#1d6fe8;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;">Choose my password</a>`,
++        `</td></tr>`,
++        `<tr><td style="padding:0 32px 8px 32px;font-size:14px;line-height:22px;color:#4b5563;">This link works for ${days} day${days === 1 ? "" : "s"}. After that, ask the person who added you to send a new one.</td></tr>`,
++        `<tr><td style="padding:0 32px 8px 32px;font-size:13px;line-height:20px;color:#6b7280;">If the button does not work, copy this address into your browser:<br /><a href="${link}" style="color:#1d6fe8;word-break:break-all;">${link}</a></td></tr>`,
++        `<tr><td style="padding:12px 32px 28px 32px;font-size:13px;line-height:20px;color:#6b7280;">If you were not expecting this, you can ignore this e-mail. Nothing changes until you choose a password.</td></tr>`,
++        `</table></td></tr></table></body></html>`,
++    ].join("");
++};
+diff -ruN a/src/helpers/inviteToken.ts b/src/helpers/inviteToken.ts
+--- a/src/helpers/inviteToken.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/helpers/inviteToken.ts	2026-09-03 08:36:15.552021662 +0000
+@@ -0,0 +1,116 @@
++/* Invite links: the token, its hash, the 72-hour window, and the password rule.
++ *
++ * Pure - no database, no request. Everything the invite endpoints decide on
++ * lives here so it can be unit-tested without the API running.
++ *
++ * The person gets a 32-byte random token in a link. The database keeps only
++ * its sha256, so a copy of the table cannot be turned into a working link.
++ */
++
++import { createHash, randomBytes, timingSafeEqual } from "crypto";
++
++export const INVITE_TTL_HOURS = 72;
++export const INVITE_MIN_PASSWORD_LENGTH = 12;
++/* The password column is VARCHAR(150) with bcrypt; the create validator caps a
++   password at 30 characters, so the throw-away one must fit under that. */
++export const TEMP_PASSWORD_LENGTH = 24;
++/* One resend per person per minute, so a stuck "Resend" button cannot flood a mailbox. */
++export const RESEND_COOLDOWN_SECONDS = 60;
++
++const TOKEN_BYTES = 32;
++const TOKEN_HEX_RE = /^[0-9a-f]{64}$/;
++
++export interface IssuedInviteToken {
++    /* Goes into the link. Never stored. */
++    token: string;
++    /* Goes into the table. */
++    tokenHash: string;
++    expiresAt: Date;
++}
++
++export const hashInviteToken = (token: string): string =>
++    createHash("sha256").update(String(token ?? ""), "utf8").digest("hex");
++
++export const tokenLooksValid = (token: unknown): token is string =>
++    typeof token === "string" && TOKEN_HEX_RE.test(token);
++
++export const inviteExpiry = (now: Date = new Date()): Date =>
++    new Date(now.getTime() + INVITE_TTL_HOURS * 60 * 60 * 1000);
++
++export const issueInviteToken = (now: Date = new Date()): IssuedInviteToken => {
++    const token = randomBytes(TOKEN_BYTES).toString("hex");
++    return { token, tokenHash: hashInviteToken(token), expiresAt: inviteExpiry(now) };
++};
++
++export const isInviteExpired = (expiresAt: Date | string | null | undefined, now: Date = new Date()): boolean => {
++    if (!expiresAt) return true;
++    const at = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
++    if (Number.isNaN(at.getTime())) return true;
++    return at.getTime() <= now.getTime();
++};
++
++/* Constant-time compare of two hex hashes, so a wrong token costs the same
++   time as a nearly-right one. */
++export const hashesMatch = (a: string, b: string): boolean => {
++    const ba = Buffer.from(String(a ?? ""), "utf8");
++    const bb = Buffer.from(String(b ?? ""), "utf8");
++    if (ba.length !== bb.length || ba.length === 0) return false;
++    return timingSafeEqual(ba, bb);
++};
++
++export interface PasswordCheck {
++    ok: boolean;
++    message?: string;
++}
++
++/* The rule the accept page and the server both apply: 12 or more characters,
++   not the person's own e-mail address (any case), no leading/trailing spaces
++   that would be lost in a form. */
++export const validateInvitePassword = (password: unknown, email: unknown): PasswordCheck => {
++    if (typeof password !== "string" || password.length === 0) {
++        return { ok: false, message: "Please choose a password." };
++    }
++    if (password !== password.trim()) {
++        return { ok: false, message: "A password cannot start or end with a space." };
++    }
++    if (password.length < INVITE_MIN_PASSWORD_LENGTH) {
++        return { ok: false, message: `Your password must be at least ${INVITE_MIN_PASSWORD_LENGTH} characters long.` };
++    }
++    const normalisedEmail = String(email ?? "").trim().toLowerCase();
++    if (normalisedEmail && password.toLowerCase() === normalisedEmail) {
++        return { ok: false, message: "Your password cannot be your e-mail address." };
++    }
++    return { ok: true };
++};
++
++/* A throw-away password for the new row. Nobody ever sees it: the person sets
++   their own through the link. Built from crypto randomness, not Math.random,
++   and it satisfies the create validator (6-30 chars) and the usual
++   upper/lower/digit/symbol expectations so nothing downstream rejects it. */
++export const randomTemporaryPassword = (length: number = TEMP_PASSWORD_LENGTH): string => {
++    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
++    const bytes = randomBytes(length);
++    let out = "";
++    for (let i = 0; i < length; i++) {
++        out += alphabet[bytes[i] % alphabet.length];
++    }
++    /* Guarantee one of each class regardless of the draw. */
++    return `A1!${out.slice(3)}`;
++};
++
++/* The link the e-mail carries. The base is whatever the platform already uses
++   for its links (CommonHelper.getWebsiteUrl - the same one forgot-password
++   uses); the page is the new public /accept-invite route. */
++export const buildInviteLink = (websiteUrl: string, token: string): string => {
++    const base = String(websiteUrl ?? "").trim().replace(/\/+$/, "");
++    return `${base}/accept-invite?token=${encodeURIComponent(token)}`;
++};
++
++/* Seconds a caller has to wait before another resend for the same person. 0 = go ahead. */
++export const resendWaitSeconds = (lastSentAt: Date | string | null | undefined, now: Date = new Date()): number => {
++    if (!lastSentAt) return 0;
++    const at = lastSentAt instanceof Date ? lastSentAt : new Date(lastSentAt);
++    if (Number.isNaN(at.getTime())) return 0;
++    const elapsed = Math.floor((now.getTime() - at.getTime()) / 1000);
++    return elapsed >= RESEND_COOLDOWN_SECONDS ? 0 : RESEND_COOLDOWN_SECONDS - elapsed;
++};
+diff -ruN a/src/models/UserInvite.ts b/src/models/UserInvite.ts
+--- a/src/models/UserInvite.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/models/UserInvite.ts	2026-09-03 08:36:15.571021735 +0000
+@@ -0,0 +1,63 @@
++/* user_invites: one row per invite link sent to a new person.
++ *
++ * Only the sha256 of the token is stored (token_hash); the token itself lives
++ * in the e-mail and nowhere else. A person can have several rows (each
++ * "Resend" adds one); the newest un-accepted row is the live one.
++ *
++ * Main database, next to `users`. The table is created on first use by
++ * UserInviteService.ensureTable (CREATE TABLE IF NOT EXISTS) and by the
++ * migration 20260903150000-create-user-invites-table.js; the two definitions
++ * must stay identical.
++ */
++
++import { Model, DataTypes, Optional } from "sequelize";
++import { sequelize } from "../config/database";
++
++export interface IUserInvite {
++    id: number;
++    user_uuid: string;
++    company_uuid: string;
++    token_hash: string;
++    expires_at: Date;
++    accepted_at: Date | null;
++    created_by: string | null;
++    created_at: Date;
++}
++
++export type UserInviteCreation = Optional<IUserInvite, "id" | "accepted_at" | "created_by" | "created_at">;
++
++class UserInvite extends Model<IUserInvite, UserInviteCreation> implements IUserInvite {
++    public id!: number;
++    public user_uuid!: string;
++    public company_uuid!: string;
++    public token_hash!: string;
++    public expires_at!: Date;
++    public accepted_at!: Date | null;
++    public created_by!: string | null;
++    public created_at!: Date;
++}
++
++UserInvite.init(
++    {
++        id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
++        user_uuid: { type: DataTypes.STRING(36), allowNull: false },
++        company_uuid: { type: DataTypes.STRING(36), allowNull: false },
++        token_hash: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
++        expires_at: { type: DataTypes.DATE, allowNull: false },
++        accepted_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
++        created_by: { type: DataTypes.STRING(36), allowNull: true },
++        created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
++    },
++    {
++        sequelize,
++        modelName: "UserInvite",
++        tableName: "user_invites",
++        timestamps: false,
++        indexes: [
++            { fields: ["user_uuid", "created_at"] },
++            { fields: ["company_uuid", "accepted_at"] },
++        ],
++    },
++);
++
++export default UserInvite;
+diff -ruN a/src/routers/inviteRoute.ts b/src/routers/inviteRoute.ts
+--- a/src/routers/inviteRoute.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/routers/inviteRoute.ts	2026-09-03 08:36:15.597021836 +0000
+@@ -0,0 +1,22 @@
++/* /api/invite - invite links for new people. See controllers/InviteController.ts. */
++
++import express from "express";
++import { catchErrors } from "../helpers/responseHelper";
++import InviteController from "../controllers/InviteController";
++import auth from "@/middlewares/AuthMiddleware";
++import { RequireAdminRole } from "@/middlewares/RoleGuard";
++import { RateLimit } from "@/middlewares/RateLimit";
++
++const inviteRoute = express.Router();
++const invite = new InviteController();
++
++/* Public: the person holds the link, the link is the secret. Same per-IP
++   limiter as /login and /forgot-password. */
++inviteRoute.post("/inspect", RateLimit, catchErrors(invite.inspect));
++inviteRoute.post("/accept", RateLimit, catchErrors(invite.accept));
++
++/* Administrators only (same guard as add-member), own company only. */
++inviteRoute.post("/resend", auth, RequireAdminRole, catchErrors(invite.resend));
++inviteRoute.post("/pending", auth, RequireAdminRole, catchErrors(invite.pending));
++
++export default inviteRoute;
+diff -ruN a/src/services/UserInviteService.ts b/src/services/UserInviteService.ts
+--- a/src/services/UserInviteService.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/services/UserInviteService.ts	2026-09-03 08:36:15.579021767 +0000
+@@ -0,0 +1,323 @@
++/* Invite links for new people.
++ *
++ * A new person never receives a password. They receive a link; the link opens
++ * the public /accept-invite page; there they choose their own password. The
++ * link works for INVITE_TTL_HOURS (72). An administrator can send a fresh one.
++ *
++ * What is stored: user_invites(user_uuid, company_uuid, token_hash, expires_at,
++ * accepted_at, created_by, created_at). token_hash is sha256(token); the token
++ * is only ever in the e-mail. The table is created here on first use so a box
++ * that never runs migrations still works.
++ *
++ * Mail goes through SmsController.sendNotification - the same path as
++ * forgot-password - with a plain HTML body (see helpers/inviteEmail.ts).
++ */
++
++import { Op, Transaction } from "sequelize";
++import { hash } from "bcryptjs";
++import { sequelize } from "@/config/database";
++import User from "@/models/User";
++import Company from "@/models/Company";
++import UserInvite from "@/models/UserInvite";
++import CommonHelper from "@/helpers/CommonHelper";
++import { SmsController } from "@/controllers/SmsController";
++import {
++    buildInviteLink,
++    hashInviteToken,
++    INVITE_TTL_HOURS,
++    isInviteExpired,
++    issueInviteToken,
++    resendWaitSeconds,
++    tokenLooksValid,
++    validateInvitePassword,
++} from "@/helpers/inviteToken";
++import { buildInviteEmailHtml, inviteEmailSubject } from "@/helpers/inviteEmail";
++
++/* Mirrors migrations/20260903150000-create-user-invites-table.js. */
++const CREATE_TABLE_SQL = `
++CREATE TABLE IF NOT EXISTS \`user_invites\` (
++  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
++  \`user_uuid\` VARCHAR(36) NOT NULL,
++  \`company_uuid\` VARCHAR(36) NOT NULL,
++  \`token_hash\` CHAR(64) NOT NULL,
++  \`expires_at\` DATETIME NOT NULL,
++  \`accepted_at\` DATETIME NULL DEFAULT NULL,
++  \`created_by\` VARCHAR(36) NULL,
++  \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  PRIMARY KEY (\`id\`),
++  UNIQUE KEY \`user_invites_token_hash\` (\`token_hash\`),
++  KEY \`user_invites_user_uuid_created_at\` (\`user_uuid\`, \`created_at\`),
++  KEY \`user_invites_company_uuid_accepted_at\` (\`company_uuid\`, \`accepted_at\`)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
++
++export type InviteState = "ok" | "invalid" | "expired" | "accepted";
++
++export interface InviteInspection {
++    ok: boolean;
++    state: InviteState;
++    expired: boolean;
++    name?: string;
++    email?: string;
++}
++
++export interface PendingInviteRow {
++    user_uuid: string;
++    email: string;
++    first_name: string;
++    last_name: string;
++    sent_at: Date;
++    expires_at: Date;
++    expired: boolean;
++}
++
++interface InviteTarget {
++    uuid: string;
++    company_uuid: string;
++    first_name: string;
++    last_name: string;
++    email: string;
++    status?: string | null;
++}
++
++export class UserInviteError extends Error {
++    public status: number;
++    constructor(message: string, status: number = 422) {
++        super(message);
++        this.status = status;
++    }
++}
++
++let tableReady: Promise<void> | null = null;
++
++export default class UserInviteService {
++    public static readonly TTL_HOURS = INVITE_TTL_HOURS;
++
++    /* Once per process. Safe to call on every request. */
++    public static ensureTable(): Promise<void> {
++        if (!tableReady) {
++            tableReady = sequelize.query(CREATE_TABLE_SQL).then(() => undefined).catch((error) => {
++                tableReady = null;
++                throw error;
++            });
++        }
++        return tableReady;
++    }
++
++    /* Make a new link for this person. Older un-accepted links stop working. */
++    public static async createInvite(
++        user: InviteTarget,
++        createdBy: string | null,
++        transaction?: Transaction,
++    ): Promise<{ token: string; expiresAt: Date }> {
++        await UserInviteService.ensureTable();
++        const now = new Date();
++        const issued = issueInviteToken(now);
++        await UserInvite.update(
++            { expires_at: now },
++            { where: { user_uuid: user.uuid, accepted_at: null, expires_at: { [Op.gt]: now } }, transaction },
++        );
++        await UserInvite.create(
++            {
++                user_uuid: user.uuid,
++                company_uuid: user.company_uuid,
++                token_hash: issued.tokenHash,
++                expires_at: issued.expiresAt,
++                created_by: createdBy,
++            },
++            { transaction },
++        );
++        return { token: issued.token, expiresAt: issued.expiresAt };
++    }
++
++    /* Build and send the e-mail. Never throws: a mail failure must not undo a
++       created person - the admin can press "Resend". Returns whether it went. */
++    public static async sendInviteEmail(
++        user: InviteTarget,
++        token: string,
++        req: any,
++        inviterName?: string | null,
++    ): Promise<boolean> {
++        try {
++            const company: any = await Company.findOne({
++                where: { uuid: user.company_uuid },
++                attributes: ["uuid", "name"],
++                include: [{ association: "websiteSettings", attributes: ["uuid", "regards"], required: false }],
++            });
++            const websiteUrl = await CommonHelper.getWebsiteUrl(user.company_uuid);
++            const link = buildInviteLink(websiteUrl, token);
++            const companyName = company?.name ?? null;
++            const projectName = company?.websiteSettings?.regards ?? null;
++            const html = buildInviteEmailHtml({
++                name: `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim(),
++                inviterName: inviterName ?? null,
++                companyName,
++                projectName,
++                link,
++                hours: INVITE_TTL_HOURS,
++            });
++            const payload = {
++                type: "user_invite",
++                email_notification: {
++                    subject: inviteEmailSubject(companyName, projectName),
++                    body: html,
++                    template: false,
++                    data: {},
++                },
++                socket_notification: null,
++                sms_notification: null,
++            };
++            await SmsController.sendNotification(payload, user.email, null, req, user.company_uuid ?? null);
++            return true;
++        } catch (error: any) {
++            console.error(`UserInviteService: invite e-mail to ${user.email} failed:`, error?.message || error);
++            return false;
++        }
++    }
++
++    /* The public "what is this link?" question. Never says why a token is bad
++       beyond invalid / expired / already used. */
++    public static async inspect(token: unknown): Promise<InviteInspection> {
++        await UserInviteService.ensureTable();
++        if (!tokenLooksValid(token)) {
++            return { ok: false, state: "invalid", expired: false };
++        }
++        const invite = await UserInvite.findOne({ where: { token_hash: hashInviteToken(token) } });
++        if (!invite) {
++            return { ok: false, state: "invalid", expired: false };
++        }
++        const user: any = await User.findOne({
++            where: { uuid: invite.user_uuid, company_uuid: invite.company_uuid },
++            attributes: ["uuid", "first_name", "last_name", "email", "status"],
++        });
++        if (!user) {
++            return { ok: false, state: "invalid", expired: false };
++        }
++        const name = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
++        if (invite.accepted_at) {
++            return { ok: false, state: "accepted", expired: false, name, email: user.email };
++        }
++        if (isInviteExpired(invite.expires_at)) {
++            return { ok: false, state: "expired", expired: true, name, email: user.email };
++        }
++        return { ok: true, state: "ok", expired: false, name, email: user.email };
++    }
++
++    /* Set the person's own password and switch them on. Same hashing as the
++       login path (bcrypt, cost 10 - AuthController.verifyPassword does exactly
++       this). Note for the switch: sip-user-data-api hands users.password (this
++       hash) to FreeSWITCH as the SIP secret, so the SIP secret changes here too;
++       the softphone picks the new one up at its next login. */
++    public static async accept(token: unknown, password: unknown): Promise<{ email: string; name: string }> {
++        const state = await UserInviteService.inspect(token);
++        if (!state.ok) {
++            const message =
++                state.state === "expired"
++                    ? "This link has expired. Ask the person who added you to send a new one."
++                    : state.state === "accepted"
++                        ? "This link has already been used. You can log in with your password."
++                        : "This link is not valid.";
++            throw new UserInviteError(message, state.state === "expired" ? 410 : 404);
++        }
++        const check = validateInvitePassword(password, state.email);
++        if (!check.ok) {
++            throw new UserInviteError(check.message ?? "Please choose a different password.");
++        }
++        if (await CommonHelper.isBreachedPassword(String(password))) {
++            throw new UserInviteError("This password has been found in a data breach. Please choose a different password.");
++        }
++
++        const tokenHash = hashInviteToken(token as string);
++        const now = new Date();
++        const hashed = await hash(String(password), 10);
++
++        await sequelize.transaction(async (transaction) => {
++            /* Claim the row first; two clicks on the same link cannot both win. */
++            const [claimed] = await UserInvite.update(
++                { accepted_at: now },
++                { where: { token_hash: tokenHash, accepted_at: null, expires_at: { [Op.gt]: now } }, transaction },
++            );
++            if (claimed !== 1) {
++                throw new UserInviteError("This link has already been used. You can log in with your password.", 404);
++            }
++            const invite = await UserInvite.findOne({ where: { token_hash: tokenHash }, transaction });
++            await User.update(
++                { password: hashed, status: "ACTIVE" },
++                { where: { uuid: invite!.user_uuid, company_uuid: invite!.company_uuid }, transaction },
++            );
++            /* Any other open link for this person is now pointless. */
++            await UserInvite.update(
++                { expires_at: now },
++                { where: { user_uuid: invite!.user_uuid, accepted_at: null, expires_at: { [Op.gt]: now } }, transaction },
++            );
++        });
++
++        return { email: state.email as string, name: state.name as string };
++    }
++
++    /* Administrator sends a fresh link to a colleague who has not accepted yet. */
++    public static async resend(
++        userUuid: string,
++        caller: { uuid: string; company_uuid: string; first_name?: string; last_name?: string },
++        req: any,
++    ): Promise<{ email: string; expiresAt: Date; sent: boolean }> {
++        await UserInviteService.ensureTable();
++        const user: any = await User.findOne({
++            where: { uuid: userUuid, company_uuid: caller.company_uuid },
++            attributes: ["uuid", "company_uuid", "first_name", "last_name", "email", "status"],
++        });
++        if (!user) {
++            throw new UserInviteError("That person is not in your company.", 404);
++        }
++        const latest = await UserInvite.findOne({
++            where: { user_uuid: user.uuid },
++            order: [["created_at", "DESC"]],
++        });
++        if (latest?.accepted_at) {
++            throw new UserInviteError("This person has already chosen a password. There is nothing to resend.", 409);
++        }
++        if (!latest && String(user.status ?? "") !== "PENDING") {
++            throw new UserInviteError("This person already has a password. There is nothing to resend.", 409);
++        }
++        const wait = resendWaitSeconds(latest?.created_at ?? null);
++        if (wait > 0) {
++            throw new UserInviteError(`An invite was sent a moment ago. Please wait ${wait} seconds.`, 429);
++        }
++        const { token, expiresAt } = await UserInviteService.createInvite(user, caller.uuid);
++        const inviter = `${caller.first_name ?? ""} ${caller.last_name ?? ""}`.trim() || null;
++        const sent = await UserInviteService.sendInviteEmail(user, token, req, inviter);
++        return { email: user.email, expiresAt, sent };
++    }
++
++    /* People in the company whose newest invite has not been accepted. Feeds
++       the "Resend invite" button on the People list. */
++    public static async pendingForCompany(companyUuid: string): Promise<PendingInviteRow[]> {
++        await UserInviteService.ensureTable();
++        const rows = await UserInvite.findAll({
++            where: { company_uuid: companyUuid },
++            order: [["created_at", "DESC"]],
++            attributes: ["user_uuid", "accepted_at", "expires_at", "created_at"],
++        });
++        const newestPerUser = new Map<string, UserInvite>();
++        for (const row of rows) {
++            if (!newestPerUser.has(row.user_uuid)) newestPerUser.set(row.user_uuid, row);
++        }
++        const pendingUuids = [...newestPerUser.values()].filter((r) => !r.accepted_at).map((r) => r.user_uuid);
++        if (!pendingUuids.length) return [];
++        const users: any[] = await User.findAll({
++            where: { uuid: { [Op.in]: pendingUuids }, company_uuid: companyUuid },
++            attributes: ["uuid", "email", "first_name", "last_name"],
++        });
++        return users.map((u) => {
++            const inv = newestPerUser.get(u.uuid)!;
++            return {
++                user_uuid: u.uuid,
++                email: u.email,
++                first_name: u.first_name,
++                last_name: u.last_name,
++                sent_at: inv.created_at,
++                expires_at: inv.expires_at,
++                expired: isInviteExpired(inv.expires_at),
++            };
++        });
++    }
++}

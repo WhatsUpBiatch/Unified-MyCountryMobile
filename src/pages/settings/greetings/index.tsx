@@ -1,4 +1,4 @@
-// import Breadcrumb from '@/components/custom/breadcrumb';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { handleAlert } from '@/lib/utils';
 import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
@@ -6,7 +6,7 @@ import {
   FORWARDING_TAB_CONSTANT,
   greetingsInitialState,
 } from '@/pages/admin-settings/constants';
-import GreetingNotification from '@/pages/admin-settings/people/update-forwarding/greetings';
+import PersonalGreetings from './personal-greetings';
 import { upsertUserSettingsSchema } from '@/pages/admin-settings/people/update-forwarding/schema';
 import { getUserDetails, updateUserSettings } from '@/services/api';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -146,9 +146,15 @@ const Greetings = () => {
         <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
           <div>
             <p className="text-gray-900 font-semibold text-lg">Greetings</p>
+            {/* The switch plays the person's voicemail greeting on a direct
+                call (patch of 3 Sep 2026); the other three slots are still
+                saved and not read, so the subtitle keeps the two apart. */}
             <p className="text-gray-500 text-xs">
-              The recordings callers hear on your extension — welcome message, hold music and
-              voicemail.
+              Your welcome message, hold music, voicemail greeting and ring tone. Callers hear your
+              voicemail greeting today. The other three are saved for when the switch plays them.{' '}
+              <Link to="/admin-settings/phone/media?mine=1" className="text-primary underline-offset-4 hover:underline">
+                Your recordings in the media library
+              </Link>
             </p>
           </div>
         </div>
@@ -158,10 +164,10 @@ const Greetings = () => {
               onSubmit={handleSubmit(onSubmit)}
               className="w-full h-full flex flex-col gap-3 justify-between"
             >
-              <GreetingNotification customClass="h-[calc(100vh_-_13rem)]" />
-              <div className="flex justify-end">
+              <PersonalGreetings customClass="h-[calc(100vh_-_13rem)]" />
+              <div className="mcm-stickyfoot">
                 <Button variant={'primary'} type="submit" disabled={PendingGreetingSetting}>
-                  {PendingGreetingSetting ? 'Please wait...' : 'Submit'}
+                  {PendingGreetingSetting ? 'Please wait...' : 'Save greetings'}
                 </Button>
               </div>
             </form>

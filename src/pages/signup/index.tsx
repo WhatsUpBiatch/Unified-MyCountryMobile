@@ -108,6 +108,15 @@ export const contactValidationSchema = yup.object().shape({
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const [googleSignup] = useState<any>(() => {
+    try {
+      const g = sessionStorage.getItem('google_signup');
+      if (g) { const o = JSON.parse(g); return { email: o.email, name: o.name, credential: o.credential, header: 'x-google-credential' }; }
+      const so = sessionStorage.getItem('sso_signup');
+      if (so) { const o = JSON.parse(so); return { email: o.email, name: o.name, credential: o.token, header: 'x-sso-credential' }; }
+      return null;
+    } catch (e) { return null; }
+  });
   const location = useLocation();
   const { state } = location;
   const [searchParams] = useSearchParams();
@@ -227,6 +236,21 @@ const SignUp = () => {
   const { mutate: mutateAccount, isPending: isPendingAccount } = useMutation({
     mutationFn: validateAccount,
     onSuccess: () => {
+      if (googleSignup) {
+        try { sessionStorage.removeItem('google_signup'); sessionStorage.removeItem('sso_signup'); } catch (e) {}
+        navigate(`/payment`, {
+          state: {
+            planDuration,
+            formData: watch(),
+            rowData: rowData,
+            isTrailPlan,
+            costDetails,
+            googleCredential: googleSignup.credential,
+            credHeader: googleSignup.header,
+          },
+        });
+        return;
+      }
       mutateSendOtp({
         email: watchEmail,
         device_id: getDeviceId(),
@@ -271,6 +295,16 @@ const SignUp = () => {
       handleAlert({ text: res?.message || 'Invalid OTP', type: 'error' });
     },
   });
+
+  useEffect(() => {
+    if (googleSignup) {
+      if (googleSignup.email) setValue('email', googleSignup.email);
+      const parts = String(googleSignup.name || '').trim().split(/\s+/).filter(Boolean);
+      if (parts[0]) setValue('first_name', parts[0]);
+      if (parts.length > 1) setValue('last_name', parts.slice(1).join(' '));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleSignup]);
 
   const handleSubmitForm = async (data: any) => {
     const response = await mutateAsync({
@@ -498,6 +532,7 @@ const SignUp = () => {
                         placeholder="Enter Email"
                         label="Email Address"
                         {...register('email')}
+                        readOnly={!!googleSignup}
                         error={errors?.email?.message}
                       />
                     </div>

@@ -83,6 +83,7 @@ NEW = '''                            "postal_code",
                             companyUuid: findCompany.uuid,
                             clientIp,
                             userUuid: findUser.uuid,
+                            userRole: findUser.role,
                             emailAttempted: normalizedLoginEmail,
                         });
                         if (!allowlistResult.allowed) {

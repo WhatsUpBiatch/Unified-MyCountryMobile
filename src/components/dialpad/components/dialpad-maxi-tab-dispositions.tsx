@@ -1,4 +1,5 @@
 import type { DialpadSession } from '@/context/dialpad-context';
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 import { useDialpad } from '@/hooks/use-dialpad';
 import { useSocketEvents } from '@/hooks/use-socket-events';
 import { useUser } from '@/hooks/use-user';
@@ -272,7 +273,7 @@ const DialpadMaxiTabDispositions = ({ activeSession }: DialpadMaxiTabDisposition
         const campaignDialMethod = String(campaignType || '')
           .trim()
           .toUpperCase();
-        const isPredictiveCampaign = campaignDialMethod === 'PREDICTIVE';
+        const isPredictiveCampaign = isServerDialed(campaignDialMethod);
         const shouldFetchNextContact =
           (campaignDialMethod === 'PROGRESSIVE' ||
             campaignDialMethod === 'PREVIEW' ||

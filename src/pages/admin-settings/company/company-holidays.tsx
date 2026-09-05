@@ -39,6 +39,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, Pencil, Plus, Trash2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import CustomSelect from '@/components/custom/custom-select';
@@ -257,6 +258,7 @@ const CompanyHolidays = forwardRef<CompanyHolidaysHandle>((_props, ref) => {
         uuid: data?.uuid,
         settings: { ...(data?.settings || {}), [SETTINGS_KEY]: calendar },
         greetings: data?.greetings || {},
+        only: [SETTINGS_KEY],
       });
     },
     onSuccess: (response: any) => {
@@ -384,21 +386,12 @@ const CompanyHolidays = forwardRef<CompanyHolidaysHandle>((_props, ref) => {
 
   return (
     <div className="cs-block">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ucass-primary-200 text-primary">
-            <CalendarDays className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-gray-900">Your holiday list</p>
-            <p className="mt-1 text-xs text-gray-600">
-              The days your company is shut, written down once instead of typed again into every
-              menu, queue and person. Callers get your out-of-hours option on these dates.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
+      <SectionHeading
+        icon={<CalendarDays className="h-[18px] w-[18px]" />}
+        title="Holidays"
+        description="The days your company is shut, written down once instead of typed again into every menu, queue and person. Callers get your out-of-hours option on these dates."
+        actions={
+          <>
           {/* Never disabled. While the panel is open this button is the way
               back to it, and a greyed-out control is exactly what made this look
               broken in the first place. */}
@@ -424,8 +417,9 @@ const CompanyHolidays = forwardRef<CompanyHolidaysHandle>((_props, ref) => {
               {isPending ? 'Saving…' : 'Save'}
             </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Presets. The point of the panel: a year of holidays in one click rather
           than twelve rows typed by hand. */}

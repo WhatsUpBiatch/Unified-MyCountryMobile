@@ -23,6 +23,11 @@ export const PREVIW_INITIALS = {
       value: 'min',
     },
     agent_contact_limit: null,
+    /* Pacing, read by the dialer service. 0 lines = no ceiling. */
+    max_lines: 0,
+    max_calls_per_agent: 3,
+    target_abandon_rate: 3,
+    compliance_abandon_seconds: 2,
     answering_detection_machine: {
       enable: false,
       type: 'HANGUP',

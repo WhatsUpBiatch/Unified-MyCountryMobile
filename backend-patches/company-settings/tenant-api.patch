@@ -1,0 +1,1722 @@
+diff --git a/src/routers/api.ts b/src/routers/api.ts
+index 8b97449..c68aab9 100644
+--- a/src/routers/api.ts
++++ b/src/routers/api.ts
+@@ -8,6 +8,7 @@ import { ContactController } from "@/controllers/ContactController";
+ import { CallHandlingController } from "@/controllers/CallHandlingController";
+ import { DepartmentController } from "@/controllers/DepartmentController";
+ import { UserTemplateController } from "@/controllers/UserTemplateController";
++import { CompanySettingsController } from "@/controllers/CompanySettingsController";
+ import { ForwardingActionController } from "@/controllers/ForwardingActionController";
+ import CallController from "@/controllers/Call/CallController";
+ import { UserController } from "@/controllers/UserController";
+@@ -39,6 +40,7 @@ export class ApiRoute implements Routes {
+     public department = new DepartmentController();
+     public user = new UserController();
+     public user_template = new UserTemplateController();
++    public company_settings = new CompanySettingsController();
+     public forwarding_action = new ForwardingActionController();
+     public call_history = new CallController();
+     // public sms = new SmsController();
+@@ -470,6 +472,33 @@ export class ApiRoute implements Routes {
+             this.user_template.info,
+         );
+ 
++        // Company settings: one row per section, versioned, with a change log.
++        this.router.post(
++            `${this.path}/user/company-settings/list`,
++            TenantAuthMiddleware,
++            this.company_settings.list,
++        );
++        this.router.post(
++            `${this.path}/user/company-settings/get`,
++            TenantAuthMiddleware,
++            this.company_settings.get,
++        );
++        this.router.post(
++            `${this.path}/user/company-settings/save`,
++            TenantAuthMiddleware,
++            this.company_settings.save,
++        );
++        this.router.post(
++            `${this.path}/user/company-settings/history`,
++            TenantAuthMiddleware,
++            this.company_settings.history,
++        );
++        this.router.post(
++            `${this.path}/user/company-settings/policy`,
++            TenantAuthMiddleware,
++            this.company_settings.policy,
++        );
++
+         this.router.post(
+             `${this.path}/forwarding-action/type`,
+             TenantAuthMiddleware,
+diff --git a/src/helpers/companyRuleFlags.ts b/src/helpers/companyRuleFlags.ts
+new file mode 100644
+--- /dev/null
++++ b/src/helpers/companyRuleFlags.ts
+@@ -0,0 +1,559 @@
++/* The company's rules, read the way the website reads them.
++ *
++ * This is a straight port of two files from the web portal:
++ *
++ *   src/lib/company-policy.ts      (POLICY_FIELDS - which settings a company may govern,
++ *                                   and where the flag sits in the stored record)
++ *   src/lib/company-rule-flags.ts  (readRuleFlags - what a rule's flags mean, including
++ *                                   how a record that only carries the old `override`
++ *                                   flag is to be understood)
++ *
++ * It must stay faithful to them: the website decides what an admin sees and what a
++ * person's phone gets, and this file decides what the server will refuse. If the two
++ * ever disagree, an admin will be shown a lock the server does not hold, or the
++ * server will refuse a change the screen said was allowed.
++ *
++ * THE MODEL, IN ONE PARAGRAPH
++ *
++ * Each governed setting carries two independent booleans on its node in the company
++ * record: `apply` ("put this company value onto the person") and `locked` ("the
++ * person may not change it themselves"). Older records carry only `override`, which
++ * used to mean both things at once. It is read back like this:
++ *
++ *   override: true                          apply   , open
++ *   override: false (explicitly stored)     skip    , locked
++ *   override absent / undefined / null      skip    , open
++ *
++ * The first two reproduce exactly what the product did before the flags were split.
++ * The third is the "open default" decision: a company that never said anything about
++ * a setting governs nothing there, so a company that never set a single flag locks
++ * nothing at all. Nothing here writes to a database, so every function is testable
++ * on its own with plain objects.
++ *
++ * IDENTICAL COPIES
++ *
++ * The same file is kept in tenant-api and default-api (both under src/helpers/). It
++ * has no imports on purpose so it can be copied byte for byte; the patch bundle's
++ * apply script checks the two copies match.
++ */
++
++/* The settings a company rule can be set on, and where the flag sits in the stored
++   record. Keys are the names callers use; paths are what the company page writes.
++   Anything absent from this map is not governed. Verbatim from company-policy.ts. */
++export const POLICY_FIELDS = {
++    voicemail: "voicemail_pin.override",
++    recording: "recording.override",
++    transcription: "transcription.override",
++    ai_call_monitoring: "ai_call_monitoring.override",
++    display_number: "display_number.override",
++    business_hours: "operational_hours.override",
++    regional: "operational_hours.regional.override",
++    role: "role.override",
++} as const;
++
++export type PolicyField = keyof typeof POLICY_FIELDS;
++
++const LEGACY_FLAG_KEY = "override";
++const APPLY_KEY = "apply";
++const LOCKED_KEY = "locked";
++
++/* The three flag keys never describe a person; they describe the rule. They are
++   dropped whenever a company node is copied onto a person or compared for a lock. */
++export const RULE_FLAG_KEYS: readonly string[] = [APPLY_KEY, LOCKED_KEY, LEGACY_FLAG_KEY];
++
++export interface RuleFlags {
++    /* Put the company's value for this setting onto the person. */
++    apply: boolean;
++    /* The person may not change this setting on their own phone. */
++    locked: boolean;
++}
++
++export interface RuleFlagsRead extends RuleFlags {
++    /* True when the record carries only the old `override` flag, so both values above
++       were inferred rather than read. */
++    isLegacy: boolean;
++}
++
++/* Either a POLICY_FIELDS key ('recording') or a path into the settings object, with or
++   without the trailing flag ('recording', 'recording.override'). */
++export type RuleFieldRef = PolicyField | string;
++
++export const readPath = (source: any, path: string): any =>
++    path.split(".").reduce((value, key) => (value == null ? value : value[key]), source);
++
++/* Clones only the nodes along the path, so the caller's object is never touched and
++   everything off the path stays shared. A non-object on the way down is replaced with
++   an object: there is nowhere else to hang the rest of the path. */
++export const setPath = (source: any, path: string, value: any): any => {
++    const [head, ...rest] = path.split(".");
++    const base: any = Array.isArray(source)
++        ? [...source]
++        : source && typeof source === "object"
++            ? { ...source }
++            : {};
++    base[head] = rest.length ? setPath(source?.[head], rest.join("."), value) : value;
++    return base;
++};
++
++const stripLegacyFlag = (path: string): string =>
++    path.endsWith(`.${LEGACY_FLAG_KEY}`) ? path.slice(0, -(LEGACY_FLAG_KEY.length + 1)) : path;
++
++/* POLICY_FIELDS points at the flag; the flags live on the node that holds it, so the
++   node path is that with the trailing `.override` taken off. */
++export const RULE_NODE_PATHS = Object.fromEntries(
++    Object.entries(POLICY_FIELDS).map(([field, path]) => [field, stripLegacyFlag(path)]),
++) as Record<PolicyField, string>;
++
++export const RULE_FIELDS = Object.keys(POLICY_FIELDS) as PolicyField[];
++
++/* `hasOwnProperty` rather than `in`: a caller passing a raw path of "constructor" or
++   "toString" would otherwise match Object.prototype and read the wrong node. */
++export const ruleNodePath = (field: RuleFieldRef): string =>
++    Object.prototype.hasOwnProperty.call(RULE_NODE_PATHS, field)
++        ? RULE_NODE_PATHS[field as PolicyField]
++        : stripLegacyFlag(field);
++
++/* What an old record means.
++
++   `override: true` - the value was copied onto people and the control stayed enabled:
++   apply, not locked. `override: false` - an admin turned the switch off: nothing
++   copied, control disabled: skip, locked. Both are kept exactly as they were.
++
++   The flag being ABSENT used to read the same as `false`, because the old readers
++   tested `=== true`. That is the case this function now reads differently: absent
++   means the company never said anything about this setting, so nothing is copied and
++   nothing is locked. A value that is not a boolean at all - null from a JSON column,
++   a string from a hand edit - is treated as absent for the same reason: nobody chose
++   it. Verbatim from the website's company-rule-flags.ts. */
++const legacyFlags = (override: unknown): RuleFlags => {
++    if (override === true) return { apply: true, locked: false };
++    if (override === false) return { apply: false, locked: true };
++    return { apply: false, locked: false };
++};
++
++/* What a new record writes back into the old flag: `apply` is the half that changes
++   data, so `apply` is the half `override` carries. See the website file for the full
++   reasoning; it is not repeated here because the server never writes this flag. */
++export const legacyOverrideFor = ({ apply }: RuleFlags): boolean => apply;
++
++/* A settings object of null/undefined means no company record was found at all, which
++   the website treats as "the company governs nothing" - everything editable, nothing
++   copied. That is skip+open. */
++export const readRuleFlags = (settings: any, field: RuleFieldRef): RuleFlagsRead => {
++    if (settings == null) return { apply: false, locked: false, isLegacy: false };
++
++    const nodePath = ruleNodePath(field);
++    const node = readPath(settings, nodePath);
++
++    /* `node` can be a bare boolean: `transcription` and `ai_call_monitoring` were plain
++       booleans before they grew flags and both shapes are still in the data. Indexing a
++       boolean is undefined rather than an error, so it falls through to the legacy read. */
++    const apply = node?.[APPLY_KEY];
++    const locked = node?.[LOCKED_KEY];
++    const explicitApply = typeof apply === "boolean" ? apply : null;
++    const explicitLocked = typeof locked === "boolean" ? locked : null;
++
++    const fallback = legacyFlags(node?.[LEGACY_FLAG_KEY]);
++
++    return {
++        apply: explicitApply ?? fallback.apply,
++        locked: explicitLocked ?? fallback.locked,
++        isLegacy: explicitApply === null && explicitLocked === null,
++    };
++};
++
++/* Returns a new settings object; the input is never mutated. Both new flags and a
++   consistent `override` are written together. Kept for parity with the website;
++   the server does not currently call it. */
++export const writeRuleFlags = (
++    settings: any,
++    field: RuleFieldRef,
++    { apply, locked }: RuleFlags,
++): any => {
++    const nodePath = ruleNodePath(field);
++    const current = readPath(settings, nodePath);
++
++    const node: any =
++        current && typeof current === "object" && !Array.isArray(current)
++            ? { ...current }
++            : current == null
++                ? {}
++                : { enabled: current };
++
++    node[APPLY_KEY] = apply;
++    node[LOCKED_KEY] = locked;
++    node[LEGACY_FLAG_KEY] = legacyOverrideFor({ apply, locked });
++
++    return setPath(settings, nodePath, node);
++};
++
++/* One line of plain English per combination. */
++export const describeRuleFlags = ({ apply, locked }: RuleFlags): string => {
++    if (apply && locked) return "Everyone gets the company setting and cannot change it.";
++    if (apply) return "Everyone starts with the company setting and may change it.";
++    if (locked) return "The company setting is not applied, and people cannot change theirs.";
++    return "The company has no rule here. People keep and may change their own setting.";
++};
++
++/* ---------------------------------------------------------------------------------
++ * Server-side use of the flags: seeding a person, and refusing a change.
++ * ------------------------------------------------------------------------------- */
++
++/* Which rules SEED a value onto a person, and in what order.
++ *
++ * This mirrors `seSettingsData` in the website's people/update-forwarding screen,
++ * which is the one place the product copies company values onto a person today. Two
++ * things about that list are deliberate and must be kept:
++ *
++ *   - `role` is never seeded. A person's role comes from `role_uuid`, and the user
++ *     update path reads `settings.role.label` back into the `users.role` column, so
++ *     copying the company's placeholder role node onto a person would silently
++ *     change what they are allowed to do. `role` is still honoured as a LOCK.
++ *   - `regional` comes before `business_hours`. `regional` sits inside
++ *     `operational_hours`, so when both apply the whole-hours copy lands second and
++ *     carries the regional block with it, exactly as the screen does it.
++ */
++export const APPLY_FIELDS: readonly PolicyField[] = [
++    "regional",
++    "display_number",
++    "business_hours",
++    "voicemail",
++    "recording",
++    "transcription",
++    "ai_call_monitoring",
++];
++
++/* Rules whose company node is `{ enabled, ...flags }` but whose value on a person is
++   the bare boolean. The website writes `settings.transcription = company.transcription
++   .enabled || false`; a person's record has never held the object shape. */
++const BARE_BOOLEAN_FIELDS: readonly PolicyField[] = ["transcription", "ai_call_monitoring"];
++
++const isPlainObject = (value: any): boolean =>
++    !!value && typeof value === "object" && !Array.isArray(value);
++
++/* A company node with the rule flags taken off, recursively, so a copied
++   `operational_hours` does not carry `regional.override` down onto the person. */
++export const stripRuleFlags = (value: any): any => {
++    if (Array.isArray(value)) return value.map(stripRuleFlags);
++    if (!isPlainObject(value)) return value;
++    const out: any = {};
++    Object.keys(value).forEach((key) => {
++        if (RULE_FLAG_KEYS.indexOf(key) !== -1) return;
++        out[key] = stripRuleFlags(value[key]);
++    });
++    return out;
++};
++
++/* The value a person receives for one rule, in the shape the person's record uses.
++   `undefined` when the company has no node there, so a caller can tell "nothing to
++   copy" from "copy a falsy value". */
++export const companyValueForRule = (companySettings: any, field: PolicyField): any => {
++    const node = readPath(companySettings, ruleNodePath(field));
++    if (node === undefined) return undefined;
++    if (BARE_BOOLEAN_FIELDS.indexOf(field) !== -1) {
++        if (typeof node === "boolean") return node;
++        return isPlainObject(node) ? node.enabled === true : false;
++    }
++    return stripRuleFlags(node);
++};
++
++export interface ApplyResult {
++    settings: any;
++    /* The rules that put a value on the person, in the order they were applied. */
++    applied: PolicyField[];
++}
++
++/**
++ * Seed a person's settings from the company's rules.
++ *
++ * `base` is the generated default record. Every APPLY_FIELDS rule with `apply` on
++ * writes the company value over it. `explicit` is whatever the caller actually sent
++ * for the person; anything present there wins over both, because an admin filling in
++ * a new person on purpose is not something the company default should undo. Nothing
++ * passed in is mutated.
++ */
++export const applyCompanyRules = (
++    companySettings: any,
++    base: any,
++    explicit?: any,
++): ApplyResult => {
++    let settings: any = isPlainObject(base) ? { ...base } : {};
++    const applied: PolicyField[] = [];
++
++    if (companySettings != null) {
++        APPLY_FIELDS.forEach((field) => {
++            if (!readRuleFlags(companySettings, field).apply) return;
++            const value = companyValueForRule(companySettings, field);
++            if (value === undefined) return;
++            settings = setPath(settings, ruleNodePath(field), value);
++            applied.push(field);
++        });
++    }
++
++    if (isPlainObject(explicit)) {
++        RULE_FIELDS.forEach((field) => {
++            const path = ruleNodePath(field);
++            const value = readPath(explicit, path);
++            if (value !== undefined) settings = setPath(settings, path, value);
++        });
++    }
++
++    return { settings, applied };
++};
++
++/* Key order must not count as a change: the browser and the server serialise objects
++   in whatever order they were built. */
++const canonical = (value: any): string => {
++    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
++    if (isPlainObject(value)) {
++        return `{${Object.keys(value)
++            .sort()
++            .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
++            .join(",")}}`;
++    }
++    return JSON.stringify(value === undefined ? null : value);
++};
++
++/* ---------------------------------------------------------------------------------
++ * The MATERIAL value of a governed setting.
++ *
++ * The stored record and the record the website posts back are never the same
++ * shape, even when the person changed nothing. The server's default record
++ * (CommonHelper.generateDefaultGeneralSetting) writes `time_format: 12`,
++ * `show_number_if_blocked: "NO"` and a bare `value` on closed_hour_action; the
++ * people screen (update-forwarding onSubmit, and buildTemplatePayload for
++ * templates) posts `"12"`, `"No"`, adds `type_label`/`value_label`, fills the
++ * weekly schedule with CUSTOM_HOURS_SCHEDULE_OPTIONS even when the hours are
++ * "24_hours", turns a missing holiday list into `[]`, and sends `''` where the
++ * server stored nothing. Comparing whole objects therefore refused honest saves.
++ *
++ * So each rule is reduced to the handful of leaves that change what the phone
++ * does, each normalised to one spelling, and only those are compared. Labels,
++ * sound-file names, `is_checked`, `personal`, `users` and anything else the
++ * screen keeps for its own display are not material and never count.
++ * ------------------------------------------------------------------------------- */
++
++/* `{ label, value }` pairs are what select controls bind to; the stored record
++   sometimes keeps the bare value instead. Either way the value is what matters. */
++const leafOf = (value: any): any => (isPlainObject(value) ? value.value : value);
++
++const isPresent = (value: any): boolean => value !== undefined && value !== null;
++
++const asString = (value: any): string => (isPresent(value) ? String(value).trim() : "");
++
++const asUpper = (value: any): string => asString(value).toUpperCase();
++
++const asLower = (value: any): string => asString(value).toLowerCase();
++
++/* true / "true" / "YES" / "Yes" / "Y" / "1" mean on; everything else is off.
++   Covers the switch that writes "Yes"/"No" and the default that stores "NO". */
++const asBool = (value: any): boolean => {
++    if (value === true) return true;
++    if (typeof value === "number") return value !== 0;
++    if (typeof value !== "string") return false;
++    const word = value.trim().toUpperCase();
++    return word === "TRUE" || word === "YES" || word === "Y" || word === "1";
++};
++
++/* transcription / ai_call_monitoring: a bare boolean, `{ enabled }`, or "YES"/"NO". */
++const asEnabled = (value: any): boolean =>
++    isPlainObject(value) ? asBool(value.enabled) : asBool(value);
++
++/* One material reading of a rule's node. `present` says whether the caller sent
++   anything at all for the rule: an incoming node that carries none of the leaves
++   this rule looks at is "not sent", and is never a violation.
++
++   Every reader answers for a node it cannot read (missing, null, wrong type) as if
++   it were `{}`: a person with nothing stored behaves as "off" and "blank", so a
++   save that sends "off" and "blank" back is not a change. */
++interface MaterialValue {
++    present: boolean;
++    value: any;
++}
++
++const asNode = (node: any): any => (isPlainObject(node) ? node : {});
++
++const materialVoicemail = (raw: any): MaterialValue => {
++    const node = asNode(raw);
++    const present = isPresent(node.value) || isPresent(node.voicemail_to_text);
++    return {
++        present,
++        value: {
++            pin: asString(node.value),
++            voicemail_to_text: asBool(node.voicemail_to_text),
++        },
++    };
++};
++
++const materialRecording = (raw: any): MaterialValue => {
++    const node = asNode(raw);
++    const automatic = isPlainObject(node.automatic) ? node.automatic : {};
++    const onDemand = isPlainObject(node.on_demand) ? node.on_demand : {};
++    const present =
++        isPresent(automatic.enabled) || isPresent(automatic.value) || isPresent(onDemand.enabled);
++    const automaticOn = asBool(automatic.enabled);
++    return {
++        present,
++        value: {
++            automatic_enabled: automaticOn,
++            /* The direction only matters while automatic recording is on; the form
++               keeps "incoming" as its idle default where the server keeps "all". */
++            automatic_value: automaticOn ? asLower(automatic.value) : "",
++            on_demand_enabled: asBool(onDemand.enabled),
++        },
++    };
++};
++
++const materialToggle = (node: any): MaterialValue => {
++    const present = isPlainObject(node)
++        ? isPresent(node.enabled)
++        : node !== undefined && node !== null && node !== "";
++    return { present, value: asEnabled(node) };
++};
++
++/* "N" and "None" both mean no masking; a missing type means the same. */
++const NO_MASKING = ["", "N", "NONE"];
++
++const materialDisplayNumber = (raw: any): MaterialValue => {
++    const node = asNode(raw);
++    const masking = isPlainObject(node.masking) ? node.masking : {};
++    const maskingType = asUpper(leafOf(masking.type));
++    const incoming = leafOf(node.incoming);
++    const present =
++        isPresent(leafOf(masking.type)) ||
++        isPresent(masking.value) ||
++        isPresent(incoming) ||
++        isPresent(node.show_number_if_blocked);
++    const masked = NO_MASKING.indexOf(maskingType) === -1;
++    return {
++        present,
++        value: {
++            masking_type: masked ? maskingType : "N",
++            masking_value: masked ? asString(masking.value) : "",
++            incoming: asBool(incoming),
++            show_number_if_blocked: asBool(node.show_number_if_blocked),
++        },
++    };
++};
++
++const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
++
++const ALL_HOURS = "24_hours";
++
++/* The schedule keeps `start`/`end` (CUSTOM_HOURS_SCHEDULE_OPTIONS); `from`/`to` are
++   accepted too. A closed day's times do not matter, so they are blanked. */
++const materialSchedule = (schedule: any): any => {
++    const days: any = {};
++    const source = isPlainObject(schedule) ? schedule : {};
++    WEEKDAYS.forEach((day) => {
++        const entry = isPlainObject(source[day]) ? source[day] : {};
++        const open = asBool(entry.open);
++        days[day] = {
++            open,
++            from: open ? asString(entry.start !== undefined ? entry.start : entry.from) : "",
++            to: open ? asString(entry.end !== undefined ? entry.end : entry.to) : "",
++        };
++    });
++    return days;
++};
++
++/* A holiday is its dates and its name; type/target labels and `personal` are not
++   what decides whether the day is closed. Order and duplicates do not count. */
++const materialHolidays = (holidays: any): string[] => {
++    if (!Array.isArray(holidays)) return [];
++    const seen: Record<string, true> = {};
++    holidays.forEach((item) => {
++        if (!isPlainObject(item)) return;
++        const key = `${asString(item.from)}|${asString(item.to)}|${asString(item.title)}`;
++        if (key === "||") return;
++        seen[key] = true;
++    });
++    return Object.keys(seen).sort();
++};
++
++const materialBusinessHours = (raw: any): MaterialValue => {
++    const node = asNode(raw);
++    const closed = isPlainObject(node.closed_hour_action) ? node.closed_hour_action : {};
++    const present =
++        isPresent(node.type) ||
++        isPresent(node.value) ||
++        isPresent(node.holidays) ||
++        isPresent(leafOf(closed.type)) ||
++        isPresent(leafOf(closed.value)) ||
++        isPresent(closed.enabled);
++    const type = asLower(node.type) || ALL_HOURS;
++    const closedOn = asBool(closed.enabled);
++    return {
++        present,
++        value: {
++            type,
++            /* The week only matters when the clock is consulted at all. */
++            schedule: type === ALL_HOURS ? null : materialSchedule(node.value),
++            holidays: materialHolidays(node.holidays),
++            closed_hour_action: closedOn
++                ? { type: asUpper(leafOf(closed.type)), value: asUpper(leafOf(closed.value)) }
++                : null,
++        },
++    };
++};
++
++const materialRegional = (raw: any): MaterialValue => {
++    const node = asNode(raw);
++    const timezone = leafOf(node.timezone);
++    const country = leafOf(node.country);
++    return {
++        present: isPresent(timezone) || isPresent(country),
++        value: { timezone: asLower(timezone), country: asLower(country) },
++    };
++};
++
++const materialRole = (node: any): MaterialValue => {
++    const value = leafOf(node);
++    return { present: isPresent(value), value: asString(value) };
++};
++
++const MATERIAL_READERS: Record<PolicyField, (node: any) => MaterialValue> = {
++    voicemail: materialVoicemail,
++    recording: materialRecording,
++    transcription: materialToggle,
++    ai_call_monitoring: materialToggle,
++    display_number: materialDisplayNumber,
++    business_hours: materialBusinessHours,
++    regional: materialRegional,
++    role: materialRole,
++};
++
++/* Exported so a test (or a log line) can show what the comparison actually saw. */
++export const materialValueForRule = (settings: any, field: PolicyField): MaterialValue =>
++    MATERIAL_READERS[field](readPath(settings, ruleNodePath(field)));
++
++/**
++ * The locked rules an incoming settings object would change.
++ *
++ * Compares the MATERIAL value (see above) of the incoming node against the stored
++ * node for each locked rule. A rule the incoming object carries nothing for is not
++ * a change - the update path only touches what it is sent. A locked rule where the
++ * person had nothing stored and now sends something that behaves differently from
++ * nothing IS a change: the company said hands off. Sending back the same behaviour
++ * in a different shape is never a change.
++ *
++ * Returns the offending rule names; empty means the update may go ahead.
++ */
++export const lockedFieldViolations = (
++    companySettings: any,
++    storedSettings: any,
++    incomingSettings: any,
++): PolicyField[] => {
++    if (companySettings == null || !isPlainObject(incomingSettings)) return [];
++
++    const violations: PolicyField[] = [];
++    RULE_FIELDS.forEach((field) => {
++        if (!readRuleFlags(companySettings, field).locked) return;
++        const incoming = materialValueForRule(incomingSettings, field);
++        if (!incoming.present) return;
++        const stored = materialValueForRule(storedSettings, field);
++        if (canonical(stored.value) !== canonical(incoming.value)) violations.push(field);
++    });
++
++    return violations;
++};
+diff --git a/src/helpers/companySettingsSections.ts b/src/helpers/companySettingsSections.ts
+new file mode 100644
+index 0000000..2e1bc35
+--- /dev/null
++++ b/src/helpers/companySettingsSections.ts
+@@ -0,0 +1,135 @@
++/* The shape of the `company_settings` table, and how the old record maps onto it.
++ *
++ * WHAT CHANGES
++ *
++ * Every company-wide setting used to live in one row of `user_template` named
++ * "Company Default": a `settings` JSON blob with one top-level key per admin screen
++ * (`operational_hours`, `recording`, `company_security`, ...) and a `greetings` blob
++ * beside it. Ten screens rewrote the whole blob, so two admins saving different
++ * screens at the same time overwrote each other, and nothing recorded who changed
++ * what.
++ *
++ * `company_settings` is one row per section instead: the `settings` key becomes the
++ * section name, the value becomes that row's JSON. `greetings` is a section like any
++ * other. Each row carries a version and every save writes a history row.
++ *
++ * WHAT THIS FILE IS
++ *
++ * The pure part: the section-name rule, the split of an old record into rows, and the
++ * fold of rows back into the object shape the rest of the platform already reads.
++ * No database, no clock, so it can be tested with plain objects.
++ */
++
++/* Lower-case, starts with a letter, underscores and digits allowed, 2 to 64
++   characters. Every existing top-level key in the blob already fits this. */
++export const SECTION_NAME_RE = /^[a-z][a-z0-9_]{1,63}$/;
++
++export const GREETINGS_SECTION = "greetings";
++
++export const isValidSectionName = (section: unknown): section is string =>
++    typeof section === "string" && SECTION_NAME_RE.test(section);
++
++export interface SectionRow {
++    section: string;
++    settings: any;
++}
++
++/* The column is declared as JSON but has been written as a JSON string in places,
++   so both shapes turn up. Anything unreadable becomes an empty object. */
++export const toObject = (value: unknown): Record<string, any> => {
++    if (!value) return {};
++    if (typeof value === "string") {
++        try {
++            const parsed = JSON.parse(value);
++            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
++        } catch (error) {
++            return {};
++        }
++    }
++    if (typeof value === "object" && !Array.isArray(value)) return value as Record<string, any>;
++    return {};
++};
++
++/* A section's value must be JSON that is an object or an array. Scalars and null are
++   refused: a section is a screen's whole record, never a single value. */
++export const isValidSectionSettings = (value: unknown): boolean =>
++    value !== null && typeof value === "object";
++
++export interface SplitResult {
++    rows: SectionRow[];
++    /* Top-level keys of the old blob that could not become a section because their
++       name does not fit the rule. Reported, never silently dropped. */
++    skipped: string[];
++}
++
++/**
++ * Split one "Company Default" record into rows.
++ *
++ * One row per top-level key of `settings`, plus one `greetings` row when the
++ * greetings blob has anything in it. A `settings` key literally named `greetings`
++ * would collide with that row; the greetings blob wins, because that is what the
++ * platform has always read greetings from, and the collision is reported in
++ * `skipped`.
++ */
++export const splitTemplateIntoSections = (settings: unknown, greetings: unknown): SplitResult => {
++    const rows: SectionRow[] = [];
++    const skipped: string[] = [];
++
++    const settingsObject = toObject(settings);
++    const greetingsObject = toObject(greetings);
++    const hasGreetings = Object.keys(greetingsObject).length > 0;
++
++    Object.keys(settingsObject).forEach((key) => {
++        const value = settingsObject[key];
++        if (!isValidSectionName(key) || (key === GREETINGS_SECTION && hasGreetings)) {
++            skipped.push(key);
++            return;
++        }
++        if (!isValidSectionSettings(value)) {
++            skipped.push(key);
++            return;
++        }
++        rows.push({ section: key, settings: value });
++    });
++
++    if (hasGreetings) {
++        rows.push({ section: GREETINGS_SECTION, settings: greetingsObject });
++    }
++
++    return { rows, skipped };
++};
++
++export interface FoldedSettings {
++    settings: Record<string, any>;
++    greetings: Record<string, any>;
++}
++
++/**
++ * The reverse: rows back into the `{ settings, greetings }` pair every existing
++ * reader of the company record expects. Used so the policy code can read
++ * `company_settings` and the old template row through one shape.
++ */
++export const foldSectionsIntoTemplate = (rows: SectionRow[]): FoldedSettings => {
++    const settings: Record<string, any> = {};
++    let greetings: Record<string, any> = {};
++
++    (Array.isArray(rows) ? rows : []).forEach((row) => {
++        if (!row || !isValidSectionName(row.section)) return;
++        const value = typeof row.settings === "string" ? safeParse(row.settings) : row.settings;
++        if (row.section === GREETINGS_SECTION) {
++            greetings = toObject(value);
++            return;
++        }
++        settings[row.section] = value;
++    });
++
++    return { settings, greetings };
++};
++
++const safeParse = (value: string): any => {
++    try {
++        return JSON.parse(value);
++    } catch (error) {
++        return value;
++    }
++};
+diff --git a/src/helpers/companyDefaults.ts b/src/helpers/companyDefaults.ts
+new file mode 100644
+index 0000000..24ea90b
+--- /dev/null
++++ b/src/helpers/companyDefaults.ts
+@@ -0,0 +1,278 @@
++/* The company's own rules, read from the company's own database.
++ *
++ * WHERE THE RULES LIVE
++ *
++ * There was never a table for "the rule for everyone". Rather than add one, the
++ * website keeps company-wide settings on a reserved row of the existing
++ * `user_template` table, named exactly "Company Default". Its `settings` column
++ * is a free-form JSON blob and each screen writes its own named section into it:
++ * `company_policies`, `company_security`, `admin_scopes`, `cost_centres` and so
++ * on. Nothing here invents a column or an endpoint; it reads that row.
++ *
++ * THE BUG THIS FIXES, WHICH IS NOT THEORETICAL
++ *
++ * The list this row is fetched through only ever returns rows the person asking
++ * created. So a second admin opening Company info saw nothing, was told "nothing
++ * saved yet", and saved a second "Company Default" row of their own. The
++ * company's rules then sat split across two records, neither admin able to see
++ * the other's, and nothing able to say which was the real one.
++ *
++ * On 30 August 2026 that had already happened to two of the nineteen live
++ * companies. On one of them the call-recording and voicemail rules were on one
++ * row and the holiday and policy rules were on the other.
++ *
++ * So this file does two things:
++ *
++ *   it reads every row called "Company Default", not just one, and
++ *   it folds them into a single answer, most recently saved wins.
++ *
++ * Nothing is deleted and nothing is written. The older copy simply stops being
++ * consulted, because it always loses the fold. Once an admin saves again from any
++ * screen, the folded answer is written back to one row and the split heals
++ * itself. A human can tidy the leftover row afterwards, at their leisure.
++ *
++ * WHY IT NEVER THROWS
++ *
++ * This is read on the request path. A company record that cannot be read must
++ * mean "no rules have been set", which is how the platform behaves today — never
++ * an error, and never a refusal. Every function below returns a safe empty answer
++ * rather than raising.
++ */
++
++import { QueryTypes } from "sequelize";
++import getSequelizeInstance from "@/config/database";
++
++/** The reserved row name. The website uses this exact string. */
++export const COMPANY_DEFAULT_TEMPLATE_NAME = "Company Default";
++
++/** One "Company Default" row, folded from however many were found. */
++export interface CompanyDefaults {
++    /** The row a save should be written back to: the most recently saved one. */
++    uuid: string;
++    name: string;
++    settings: Record<string, any>;
++    greetings: Record<string, any>;
++    created_by: string | null;
++    updated_at: Date | string | null;
++    /** How many rows were folded together. More than one means a split record. */
++    sourceRowCount: number;
++}
++
++/* How long a company's rules are held before being read again. They change
++   perhaps twice a year and are consulted on every call-log request, so a minute
++   of staleness costs nothing and saves a query per request. Saving from any
++   screen clears this straight away, so an admin never sees their own change
++   arrive late. */
++const CACHE_TTL_MS = 60 * 1000;
++
++/* When the database will not answer, the empty result is held only briefly. Long
++   enough to stop a broken database being asked once per request, short enough
++   that the real rules come back almost as soon as it recovers. */
++const FAILURE_CACHE_TTL_MS = 10 * 1000;
++
++interface CacheEntry {
++    value: CompanyDefaults | null;
++    expiresAt: number;
++}
++
++const cache: { [tenantDbName: string]: CacheEntry } = {};
++
++/* The column is declared as JSON but has been written as a JSON string in places,
++   so both shapes turn up. Anything unreadable becomes an empty object, which
++   every reader already treats as "nothing set". */
++const toObject = (value: unknown): Record<string, any> => {
++    if (!value) return {};
++    if (typeof value === "string") {
++        try {
++            const parsed = JSON.parse(value);
++            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
++        } catch (error) {
++            return {};
++        }
++    }
++    if (typeof value === "object" && !Array.isArray(value)) return value as Record<string, any>;
++    return {};
++};
++
++/* Oldest first, so a plain left-to-right merge leaves the newest value on top.
++   A row with no date sorts oldest, because a row nobody can date is the one least
++   safe to let win. */
++const byUpdatedAtAscending = (left: any, right: any): number => {
++    const leftTime = new Date(left?.updated_at || 0).getTime() || 0;
++    const rightTime = new Date(right?.updated_at || 0).getTime() || 0;
++    return leftTime - rightTime;
++};
++
++/**
++ * Fold however many "Company Default" rows were found into one answer.
++ *
++ * Pure — no database, no clock, no surprises — so the folding rule can be tested
++ * on its own.
++ *
++ * The fold is by top-level section: `company_policies` from the newest row that
++ * has one, `company_security` from the newest row that has one, and so on. It is
++ * deliberately not a deep merge. Each screen owns its whole section and writes it
++ * whole, so mixing two versions of one section field by field would produce a
++ * setting nobody ever chose.
++ */
++export const mergeCompanyDefaultRows = (rows: any[]): CompanyDefaults | null => {
++    if (!Array.isArray(rows) || !rows.length) return null;
++
++    const ordered = rows.slice().sort(byUpdatedAtAscending);
++    const newest = ordered[ordered.length - 1];
++
++    const settings: Record<string, any> = {};
++    const greetings: Record<string, any> = {};
++
++    ordered.forEach((row) => {
++        Object.assign(settings, toObject(row?.settings));
++        Object.assign(greetings, toObject(row?.greetings));
++    });
++
++    return {
++        uuid: String(newest?.uuid || ""),
++        name: COMPANY_DEFAULT_TEMPLATE_NAME,
++        settings,
++        greetings,
++        created_by: newest?.created_by ? String(newest.created_by) : null,
++        updated_at: newest?.updated_at || null,
++        sourceRowCount: ordered.length,
++    };
++};
++
++/**
++ * Read the company's rules straight from its database, skipping the cache.
++ *
++ * Used where an admin must see what they just saved. Returns null when there is
++ * no company record, and also when the database could not be reached — the
++ * caller cannot tell the two apart on purpose, because both mean the same thing
++ * to it: carry on exactly as before.
++ */
++export const fetchCompanyDefaults = async (
++    tenantDbName: string,
++): Promise<CompanyDefaults | null> => {
++    if (!tenantDbName) return null;
++
++    try {
++        const sequelize = getSequelizeInstance(tenantDbName);
++
++        /* A plain query rather than the Sequelize model on purpose. The model
++           class in this service is shared and re-pointed at whichever company's
++           database was used last, which is safe enough inside one request but not
++           worth the risk from a helper that many requests reach. */
++        const rows = (await sequelize.query(
++            "SELECT uuid, name, settings, greetings, created_by, updated_at " +
++                "FROM user_template WHERE name = :name",
++            {
++                replacements: { name: COMPANY_DEFAULT_TEMPLATE_NAME },
++                type: QueryTypes.SELECT,
++            },
++        )) as any[];
++
++        return mergeCompanyDefaultRows(rows);
++    } catch (error) {
++        /* Logged, never raised. A company whose rules cannot be read is treated
++           as a company that has not set any, which is today's behaviour. */
++        console.error(
++            `companyDefaults: could not read the company record for ${tenantDbName}.`,
++            (error as any)?.message || error,
++        );
++        return null;
++    }
++};
++
++/**
++ * The same read, held for a minute.
++ *
++ * This is the one the request path uses.
++ */
++export const readCompanyDefaults = async (
++    tenantDbName: string,
++): Promise<CompanyDefaults | null> => {
++    if (!tenantDbName) return null;
++
++    const cached = cache[tenantDbName];
++    const now = Date.now();
++    if (cached && cached.expiresAt > now) return cached.value;
++
++    const value = await fetchCompanyDefaults(tenantDbName);
++    cache[tenantDbName] = {
++        value,
++        expiresAt: now + (value ? CACHE_TTL_MS : FAILURE_CACHE_TTL_MS),
++    };
++
++    return value;
++};
++
++/**
++ * Forget what was read, so the next read goes to the database.
++ *
++ * Called after anything saves a template, so an admin who changes a rule sees it
++ * take effect on their very next request rather than up to a minute later.
++ * Passing no name forgets every company, which is what a bulk change would want.
++ */
++export const invalidateCompanyDefaults = (tenantDbName?: string): void => {
++    if (tenantDbName) {
++        delete cache[tenantDbName];
++        return;
++    }
++    Object.keys(cache).forEach((key) => delete cache[key]);
++};
++
++/**
++ * Put the one true "Company Default" row into a template list.
++ *
++ * The list query this joins onto only returns rows the person asking created,
++ * which is right for the presets people make for themselves and wrong for the
++ * company's own rules. This adds the folded company row so every admin sees the
++ * same one, and so the next save updates it instead of making another copy.
++ *
++ * It only ever adds or replaces. It never removes anything and never raises, so
++ * if the extra read fails the list comes back exactly as it would have.
++ *
++ * `nameFilter` is whatever the caller asked to filter names by, so a search for
++ * something else does not get the company row pushed into it.
++ */
++export const withCompanyDefaultRow = async (
++    tenantDbName: string,
++    rows: any[],
++    page: number,
++    nameFilter?: string,
++): Promise<{ rows: any[]; added: number }> => {
++    const safeRows = Array.isArray(rows) ? rows : [];
++
++    try {
++        /* Only ever on the first page. Injecting a row into page four would push
++           everything after it along and hand back a duplicate. */
++        if (Number(page || 1) !== 1) return { rows: safeRows, added: 0 };
++
++        /* Respect a name search. The list matches names loosely, so this does too. */
++        const filter = String(nameFilter || "").trim().toLowerCase();
++        if (filter && COMPANY_DEFAULT_TEMPLATE_NAME.toLowerCase().indexOf(filter) === -1) {
++            return { rows: safeRows, added: 0 };
++        }
++
++        const merged = await fetchCompanyDefaults(tenantDbName);
++        if (!merged || !merged.uuid) return { rows: safeRows, added: 0 };
++
++        /* If this admin's own copy is already in the list, swap it for the folded
++           one so they edit the shared record rather than their private half. */
++        const existingIndex = safeRows.findIndex(
++            (row: any) => String(row?.name || "") === COMPANY_DEFAULT_TEMPLATE_NAME,
++        );
++
++        if (existingIndex !== -1) {
++            const next = safeRows.slice();
++            next[existingIndex] = merged;
++            return { rows: next, added: 0 };
++        }
++
++        return { rows: [merged].concat(safeRows), added: 1 };
++    } catch (error) {
++        console.error(
++            `companyDefaults: could not add the company record to the template list for ${tenantDbName}.`,
++            (error as any)?.message || error,
++        );
++        return { rows: safeRows, added: 0 };
++    }
++};
+diff --git a/src/repositories/CompanySettingsRepository.ts b/src/repositories/CompanySettingsRepository.ts
+new file mode 100644
+index 0000000..622e3d9
+--- /dev/null
++++ b/src/repositories/CompanySettingsRepository.ts
+@@ -0,0 +1,490 @@
++/* One row per section, a version on each, and a history row for every save.
++ *
++ * WHY RAW SQL
++ *
++ * The Sequelize model classes in this service are shared and re-pointed at whichever
++ * company's database was used last (`Model.init` is called per request). That is
++ * tolerable inside one request but not for a table that is read on the user update
++ * path of another service. Plain parameterised queries against the per-tenant
++ * `Sequelize` instance avoid the shared class entirely, the same choice
++ * `helpers/companyDefaults.ts` made.
++ *
++ * WHY THE TABLES ARE CREATED HERE
++ *
++ * Tenant migrations only run when a tenant database is first created
++ * (`default-api/src/services/TenantDatabaseService.ts`). Nothing re-runs them on the
++ * nineteen databases that already exist, so a new table has to make itself. The
++ * `CREATE TABLE IF NOT EXISTS` below runs once per process per tenant, the first time
++ * the table is touched. The migration file in default-api carries the same DDL for
++ * new tenants.
++ *
++ * VERSIONS
++ *
++ * `version` starts at 1 and goes up by one on every save. A caller that read version
++ * N and sends `version: N` with its save is refused with a conflict if the row has
++ * moved on, so two admins editing the same screen no longer overwrite each other in
++ * silence. A caller that sends no version gets the old last-writer-wins behaviour,
++ * which every existing screen relies on until it is taught to send one.
++ */
++
++import { QueryTypes, Sequelize, Transaction } from "sequelize";
++import getSequelizeInstance from "@/config/database";
++import {
++    COMPANY_DEFAULT_TEMPLATE_NAME,
++    fetchCompanyDefaults,
++} from "@/helpers/companyDefaults";
++import {
++    FoldedSettings,
++    SectionRow,
++    foldSectionsIntoTemplate,
++    isValidSectionName,
++    isValidSectionSettings,
++    splitTemplateIntoSections,
++} from "@/helpers/companySettingsSections";
++
++export const MIGRATION_ACTOR = "migration";
++
++export interface CompanySettingsRow {
++    section: string;
++    settings: any;
++    version: number;
++    updated_at: Date | string | null;
++    updated_by: string | null;
++    updated_by_name: string | null;
++}
++
++export interface CompanySettingsHistoryRow {
++    id: number;
++    section: string;
++    settings: any;
++    version: number;
++    changed_by: string | null;
++    changed_by_name: string | null;
++    changed_at: Date | string | null;
++}
++
++export interface ListResult {
++    sections: { [section: string]: CompanySettingsRow };
++    migrated_from_template: boolean;
++}
++
++export interface EffectiveSettings extends FoldedSettings {
++    /* Where the answer came from, so a caller can say so in a log or a screen. */
++    source: "company_settings" | "user_template" | "none";
++}
++
++/* Raised for the two outcomes the controller turns into a status code. */
++export class CompanySettingsError extends Error {
++    constructor(
++        message: string,
++        public status: number,
++        public current?: CompanySettingsRow | null,
++        public detail?: any,
++    ) {
++        super(message);
++        this.name = "CompanySettingsError";
++    }
++}
++
++/* utf8mb4_unicode_ci matches the user_template migration this table sits beside. */
++const CREATE_COMPANY_SETTINGS_SQL =
++    "CREATE TABLE IF NOT EXISTS `company_settings` (" +
++    "`id` INT UNSIGNED NOT NULL AUTO_INCREMENT, " +
++    "`section` VARCHAR(64) NOT NULL, " +
++    "`settings` JSON NOT NULL, " +
++    "`version` INT UNSIGNED NOT NULL DEFAULT 1, " +
++    "`updated_by` VARCHAR(36) NULL, " +
++    "`updated_by_name` VARCHAR(120) NULL, " +
++    "`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
++    "`updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
++    "PRIMARY KEY (`id`), " +
++    "UNIQUE KEY `company_settings_section` (`section`)" +
++    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
++
++const CREATE_COMPANY_SETTINGS_HISTORY_SQL =
++    "CREATE TABLE IF NOT EXISTS `company_settings_history` (" +
++    "`id` INT UNSIGNED NOT NULL AUTO_INCREMENT, " +
++    "`section` VARCHAR(64) NOT NULL, " +
++    "`settings` JSON NOT NULL, " +
++    "`version` INT UNSIGNED NOT NULL, " +
++    "`changed_by` VARCHAR(36) NULL, " +
++    "`changed_by_name` VARCHAR(120) NULL, " +
++    "`changed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
++    "PRIMARY KEY (`id`), " +
++    "KEY `company_settings_history_section` (`section`, `changed_at`)" +
++    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
++
++/* Which tenants this process has already checked. A failed check is not remembered,
++   so a database that was briefly unreachable gets checked again next time. */
++const ensured: { [tenantDbName: string]: true } = {};
++
++/**
++ * Make sure both tables exist. Idempotent; safe to call on every request because it
++ * only reaches the database once per tenant per process.
++ */
++export const ensureCompanySettingsTables = async (
++    sequelize: Sequelize,
++    tenantDbName?: string,
++): Promise<void> => {
++    const key = tenantDbName || (sequelize as any)?.config?.database || "";
++    if (key && ensured[key]) return;
++    await sequelize.query(CREATE_COMPANY_SETTINGS_SQL);
++    await sequelize.query(CREATE_COMPANY_SETTINGS_HISTORY_SQL);
++    if (key) ensured[key] = true;
++};
++
++/* MySQL hands a JSON column back as a string on some driver versions and as an
++   object on others. Read both. */
++const parseJson = (value: any): any => {
++    if (typeof value !== "string") return value;
++    try {
++        return JSON.parse(value);
++    } catch (error) {
++        return value;
++    }
++};
++
++const toRow = (raw: any): CompanySettingsRow => ({
++    section: String(raw?.section || ""),
++    settings: parseJson(raw?.settings),
++    version: Number(raw?.version || 0),
++    updated_at: raw?.updated_at ?? null,
++    updated_by: raw?.updated_by ?? null,
++    updated_by_name: raw?.updated_by_name ?? null,
++});
++
++const toHistoryRow = (raw: any): CompanySettingsHistoryRow => ({
++    id: Number(raw?.id || 0),
++    section: String(raw?.section || ""),
++    settings: parseJson(raw?.settings),
++    version: Number(raw?.version || 0),
++    changed_by: raw?.changed_by ?? null,
++    changed_by_name: raw?.changed_by_name ?? null,
++    changed_at: raw?.changed_at ?? null,
++});
++
++const ROW_COLUMNS = "section, settings, version, updated_at, updated_by, updated_by_name";
++
++/* How long the folded answer is held for the policy read on the user update path.
++   Saves clear it straight away, so an admin never sees their own change arrive late. */
++const EFFECTIVE_TTL_MS = 30 * 1000;
++const effectiveCache: { [tenantDbName: string]: { value: EffectiveSettings; expiresAt: number } } = {};
++
++export const invalidateEffectiveSettings = (tenantDbName?: string): void => {
++    if (tenantDbName) {
++        delete effectiveCache[tenantDbName];
++        return;
++    }
++    Object.keys(effectiveCache).forEach((key) => delete effectiveCache[key]);
++};
++
++export class CompanySettingsRepository {
++    private static async connect(tenantDbName: string): Promise<Sequelize> {
++        const sequelize = getSequelizeInstance(tenantDbName);
++        await ensureCompanySettingsTables(sequelize, tenantDbName);
++        return sequelize;
++    }
++
++    private static async selectAll(sequelize: Sequelize, transaction?: Transaction): Promise<CompanySettingsRow[]> {
++        const rows = (await sequelize.query(
++            `SELECT ${ROW_COLUMNS} FROM company_settings ORDER BY section ASC`,
++            { type: QueryTypes.SELECT, transaction },
++        )) as any[];
++        return rows.map(toRow);
++    }
++
++    private static async selectOne(
++        sequelize: Sequelize,
++        section: string,
++        transaction?: Transaction,
++        forUpdate: boolean = false,
++    ): Promise<CompanySettingsRow | null> {
++        const rows = (await sequelize.query(
++            `SELECT ${ROW_COLUMNS} FROM company_settings WHERE section = :section${forUpdate ? " FOR UPDATE" : ""}`,
++            { replacements: { section }, type: QueryTypes.SELECT, transaction },
++        )) as any[];
++        return rows.length ? toRow(rows[0]) : null;
++    }
++
++    private static async insertHistory(
++        sequelize: Sequelize,
++        row: { section: string; settings: any; version: number; changed_by: string | null; changed_by_name: string | null },
++        transaction?: Transaction,
++    ): Promise<void> {
++        await sequelize.query(
++            "INSERT INTO company_settings_history (section, settings, version, changed_by, changed_by_name) " +
++                "VALUES (:section, :settings, :version, :changed_by, :changed_by_name)",
++            {
++                replacements: {
++                    section: row.section,
++                    settings: JSON.stringify(row.settings),
++                    version: row.version,
++                    changed_by: row.changed_by,
++                    changed_by_name: row.changed_by_name,
++                },
++                type: QueryTypes.INSERT,
++                transaction,
++            },
++        );
++    }
++
++    /**
++     * Copy the "Company Default" template row into sections, once.
++     *
++     * Only when the table is empty. The template row is left exactly as it was: the
++     * old screens keep reading it until each is moved over, and nothing is lost if
++     * this has to be rolled back. Returns how many rows were written.
++     */
++    static migrateFromTemplate = async (tenantDbName: string, sequelize: Sequelize): Promise<number> => {
++        const template = await fetchCompanyDefaults(tenantDbName);
++        if (!template) return 0;
++
++        const { rows, skipped } = splitTemplateIntoSections(template.settings, template.greetings);
++        if (skipped.length) {
++            console.warn(
++                `companySettings: ${tenantDbName} template keys not migrated (bad section name): ${skipped.join(", ")}`,
++            );
++        }
++        if (!rows.length) return 0;
++
++        const transaction = await sequelize.transaction();
++        try {
++            /* Somebody may have saved a section while this request was reading the
++               template. Re-check under the transaction and stand down if so. */
++            const existing = (await sequelize.query(
++                "SELECT COUNT(*) AS n FROM company_settings FOR UPDATE",
++                { type: QueryTypes.SELECT, transaction },
++            )) as any[];
++            if (Number(existing?.[0]?.n || 0) > 0) {
++                await transaction.rollback();
++                return 0;
++            }
++
++            for (const row of rows) {
++                await sequelize.query(
++                    "INSERT INTO company_settings (section, settings, version, updated_by, updated_by_name) " +
++                        "VALUES (:section, :settings, 1, :updated_by, :updated_by_name)",
++                    {
++                        replacements: {
++                            section: row.section,
++                            settings: JSON.stringify(row.settings),
++                            updated_by: MIGRATION_ACTOR,
++                            updated_by_name: `Copied from ${COMPANY_DEFAULT_TEMPLATE_NAME}`,
++                        },
++                        type: QueryTypes.INSERT,
++                        transaction,
++                    },
++                );
++                await CompanySettingsRepository.insertHistory(
++                    sequelize,
++                    {
++                        section: row.section,
++                        settings: row.settings,
++                        version: 1,
++                        changed_by: MIGRATION_ACTOR,
++                        changed_by_name: `Copied from ${COMPANY_DEFAULT_TEMPLATE_NAME}`,
++                    },
++                    transaction,
++                );
++            }
++
++            await transaction.commit();
++            invalidateEffectiveSettings(tenantDbName);
++            return rows.length;
++        } catch (error) {
++            await transaction.rollback();
++            throw error;
++        }
++    };
++
++    static list = async (tenantDbName: string): Promise<ListResult> => {
++        const sequelize = await CompanySettingsRepository.connect(tenantDbName);
++
++        let rows = await CompanySettingsRepository.selectAll(sequelize);
++        let migrated = false;
++
++        if (!rows.length) {
++            const written = await CompanySettingsRepository.migrateFromTemplate(tenantDbName, sequelize);
++            if (written > 0) {
++                migrated = true;
++                rows = await CompanySettingsRepository.selectAll(sequelize);
++            }
++        }
++
++        const sections: { [section: string]: CompanySettingsRow } = {};
++        rows.forEach((row) => {
++            sections[row.section] = row;
++        });
++
++        return { sections, migrated_from_template: migrated };
++    };
++
++    static get = async (tenantDbName: string, section: string): Promise<CompanySettingsRow | null> => {
++        if (!isValidSectionName(section)) {
++            throw new CompanySettingsError("Invalid section name", 400);
++        }
++        const sequelize = await CompanySettingsRepository.connect(tenantDbName);
++        return CompanySettingsRepository.selectOne(sequelize, section);
++    };
++
++    /**
++     * Upsert one section.
++     *
++     * With `expectedVersion` set, the save is refused (409, current row attached)
++     * unless the stored version still matches. Without it, the save always lands.
++     * Either way the version goes up by one and a history row is written in the same
++     * transaction, so the log can never disagree with the table.
++     */
++    static save = async (
++        tenantDbName: string,
++        section: string,
++        settings: any,
++        actor: { uuid: string | null; name: string | null },
++        expectedVersion?: number | null,
++    ): Promise<CompanySettingsRow> => {
++        if (!isValidSectionName(section)) {
++            throw new CompanySettingsError("Invalid section name", 400);
++        }
++        if (!isValidSectionSettings(settings)) {
++            throw new CompanySettingsError("settings must be a JSON object or array", 400);
++        }
++        if (
++            expectedVersion !== undefined &&
++            expectedVersion !== null &&
++            (!Number.isInteger(expectedVersion) || expectedVersion < 0)
++        ) {
++            throw new CompanySettingsError("version must be a non-negative integer", 400);
++        }
++
++        const sequelize = await CompanySettingsRepository.connect(tenantDbName);
++        const transaction = await sequelize.transaction();
++
++        try {
++            const current = await CompanySettingsRepository.selectOne(sequelize, section, transaction, true);
++            const currentVersion = current ? current.version : 0;
++
++            if (
++                expectedVersion !== undefined &&
++                expectedVersion !== null &&
++                expectedVersion !== currentVersion
++            ) {
++                await transaction.rollback();
++                throw new CompanySettingsError(
++                    `This section was changed by someone else (you have version ${expectedVersion}, the server has ${currentVersion}). Reload and try again.`,
++                    409,
++                    current,
++                );
++            }
++
++            const nextVersion = currentVersion + 1;
++            const updatedBy = actor.uuid ? String(actor.uuid).slice(0, 36) : null;
++            const updatedByName = actor.name ? String(actor.name).slice(0, 120) : null;
++            const json = JSON.stringify(settings);
++
++            if (current) {
++                await sequelize.query(
++                    "UPDATE company_settings SET settings = :settings, version = :version, " +
++                        "updated_by = :updated_by, updated_by_name = :updated_by_name, updated_at = CURRENT_TIMESTAMP " +
++                        "WHERE section = :section",
++                    {
++                        replacements: { settings: json, version: nextVersion, updated_by: updatedBy, updated_by_name: updatedByName, section },
++                        type: QueryTypes.UPDATE,
++                        transaction,
++                    },
++                );
++            } else {
++                await sequelize.query(
++                    "INSERT INTO company_settings (section, settings, version, updated_by, updated_by_name) " +
++                        "VALUES (:section, :settings, :version, :updated_by, :updated_by_name)",
++                    {
++                        replacements: { section, settings: json, version: nextVersion, updated_by: updatedBy, updated_by_name: updatedByName },
++                        type: QueryTypes.INSERT,
++                        transaction,
++                    },
++                );
++            }
++
++            await CompanySettingsRepository.insertHistory(
++                sequelize,
++                { section, settings, version: nextVersion, changed_by: updatedBy, changed_by_name: updatedByName },
++                transaction,
++            );
++
++            await transaction.commit();
++            invalidateEffectiveSettings(tenantDbName);
++
++            const saved = await CompanySettingsRepository.selectOne(sequelize, section);
++            if (!saved) throw new CompanySettingsError("Saved row could not be read back", 500);
++            return saved;
++        } catch (error) {
++            if (!(error instanceof CompanySettingsError)) {
++                try {
++                    await transaction.rollback();
++                } catch (rollbackError) {
++                    /* already rolled back or committed */
++                }
++            }
++            throw error;
++        }
++    };
++
++    static history = async (
++        tenantDbName: string,
++        section: string,
++        limit: number = 50,
++    ): Promise<CompanySettingsHistoryRow[]> => {
++        if (!isValidSectionName(section)) {
++            throw new CompanySettingsError("Invalid section name", 400);
++        }
++        const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
++        const sequelize = await CompanySettingsRepository.connect(tenantDbName);
++        const rows = (await sequelize.query(
++            "SELECT id, section, settings, version, changed_by, changed_by_name, changed_at " +
++                "FROM company_settings_history WHERE section = :section ORDER BY id DESC LIMIT :limit",
++            { replacements: { section, limit: safeLimit }, type: QueryTypes.SELECT },
++        )) as any[];
++        return rows.map(toHistoryRow);
++    };
++
++    /**
++     * The company's rules as one `{ settings, greetings }` object, for the code that
++     * seeds and locks a person's settings.
++     *
++     * `company_settings` first; when it is empty, the folded "Company Default"
++     * template row; when there is neither, empty objects. Never throws: on the user
++     * update path an unreadable company record must mean "no rules", which is what
++     * the platform did before this existed.
++     */
++    static effective = async (tenantDbName: string): Promise<EffectiveSettings> => {
++        const empty: EffectiveSettings = { source: "none", settings: {}, greetings: {} };
++        if (!tenantDbName) return empty;
++
++        const cached = effectiveCache[tenantDbName];
++        const now = Date.now();
++        if (cached && cached.expiresAt > now) return cached.value;
++
++        let value: EffectiveSettings = empty;
++        try {
++            const sequelize = await CompanySettingsRepository.connect(tenantDbName);
++            const rows = await CompanySettingsRepository.selectAll(sequelize);
++            if (rows.length) {
++                const folded = foldSectionsIntoTemplate(rows as SectionRow[]);
++                value = { source: "company_settings", ...folded };
++            } else {
++                const template = await fetchCompanyDefaults(tenantDbName);
++                if (template) {
++                    value = { source: "user_template", settings: template.settings, greetings: template.greetings };
++                }
++            }
++        } catch (error) {
++            console.error(
++                `companySettings: could not read the company rules for ${tenantDbName}.`,
++                (error as any)?.message || error,
++            );
++            return empty;
++        }
++
++        effectiveCache[tenantDbName] = { value, expiresAt: now + EFFECTIVE_TTL_MS };
++        return value;
++    };
++}
+diff --git a/src/controllers/CompanySettingsController.ts b/src/controllers/CompanySettingsController.ts
+new file mode 100644
+index 0000000..5d5252a
+--- /dev/null
++++ b/src/controllers/CompanySettingsController.ts
+@@ -0,0 +1,177 @@
++/* The company settings endpoints.
++ *
++ *   POST user/company-settings/list      everyone signed in
++ *   POST user/company-settings/get       everyone signed in    { section }
++ *   POST user/company-settings/save      ADMIN only            { section, settings, version? }
++ *   POST user/company-settings/history   everyone signed in    { section, limit? }
++ *   POST user/company-settings/policy    everyone signed in    (the folded rules, for
++ *                                                               the user update path)
++ *
++ * Responses use the same envelope as the rest of this service:
++ * `{ success, data: { message, result } }`. A refused save carries the reason in
++ * `error.message` and, for a version conflict, the current row in `error.current`.
++ *
++ * WHO MAY SAVE
++ *
++ * TenantAuthMiddleware puts the caller's role string on `request.user.roles`, copied
++ * from the `X-User-role` header default-api sends. The only role that manages the
++ * company is ADMIN; the string comparison is what every other authorisation check in
++ * this service does (see DepartmentRepository), so it is what this one does too.
++ */
++
++import express, { Response } from "express";
++import { BaseController } from "@/controllers/BaseController";
++import { ApiErrors } from "@/constants/ApiErrors";
++import { GlobalRequest } from "@/globalRequest";
++import { ResponseModel } from "./ResponseModel";
++import {
++    CompanySettingsError,
++    CompanySettingsRepository,
++} from "@/repositories/CompanySettingsRepository";
++import { isValidSectionName } from "@/helpers/companySettingsSections";
++import { RULE_FIELDS, readRuleFlags } from "@/helpers/companyRuleFlags";
++
++const isAdmin = (roles: unknown): boolean => String(roles || "").trim().toUpperCase() === "ADMIN";
++
++export class CompanySettingsController extends BaseController {
++    private fail(error: any, response: Response): void {
++        if (error instanceof CompanySettingsError) {
++            response.status(error.status).send(
++                new ResponseModel({
++                    success: false,
++                    error: {
++                        message: error.message,
++                        current: error.current ?? undefined,
++                        ...(error.detail ? { detail: error.detail } : {}),
++                    },
++                }),
++            );
++            return;
++        }
++        if (!super.isNull(error?.status)) {
++            super.handleError(error, error, response);
++        } else {
++            super.handleError(ApiErrors.ServerError, error, response);
++        }
++    }
++
++    public list = async (request: express.Request, response: Response): Promise<any> => {
++        try {
++            const globalReq = request as GlobalRequest;
++            const result = await CompanySettingsRepository.list(globalReq.tenantDbName);
++            return response.status(200).send(
++                new ResponseModel({ success: true, data: { message: "Success", result } }),
++            );
++        } catch (error) {
++            this.fail(error, response);
++        }
++    };
++
++    public get = async (request: express.Request, response: Response): Promise<any> => {
++        try {
++            const globalReq = request as GlobalRequest;
++            const section = request.body?.section;
++            if (!isValidSectionName(section)) {
++                throw new CompanySettingsError("Invalid section name", 400);
++            }
++            const row = await CompanySettingsRepository.get(globalReq.tenantDbName, section);
++            if (!row) {
++                throw new CompanySettingsError(`No settings saved for section "${section}"`, 404);
++            }
++            return response.status(200).send(
++                new ResponseModel({ success: true, data: { message: "Success", result: row } }),
++            );
++        } catch (error) {
++            this.fail(error, response);
++        }
++    };
++
++    public save = async (request: express.Request, response: Response): Promise<any> => {
++        try {
++            const globalReq = request as GlobalRequest;
++            const user = globalReq.user;
++
++            if (!isAdmin(user?.roles)) {
++                throw new CompanySettingsError("Only an admin can change company settings", 403);
++            }
++
++            const { section, settings, version } = request.body || {};
++            if (!isValidSectionName(section)) {
++                throw new CompanySettingsError("Invalid section name", 400);
++            }
++
++            /* default-api sends the caller's display name in X-User-name; it is
++               "undefined undefined" when the auth record has no names, which is not a
++               name worth keeping. */
++            const rawName = String(request.headers["x-user-name"] || "").trim();
++            const name = rawName && !/undefined/.test(rawName) ? rawName : null;
++
++            const expectedVersion =
++                version === undefined || version === null || version === "" ? null : Number(version);
++
++            const row = await CompanySettingsRepository.save(
++                globalReq.tenantDbName,
++                section,
++                settings,
++                { uuid: user?.userUuid || null, name },
++                expectedVersion,
++            );
++
++            return response.status(200).send(
++                new ResponseModel({ success: true, data: { message: "Saved", result: row } }),
++            );
++        } catch (error) {
++            this.fail(error, response);
++        }
++    };
++
++    public history = async (request: express.Request, response: Response): Promise<any> => {
++        try {
++            const globalReq = request as GlobalRequest;
++            const { section, limit } = request.body || {};
++            if (!isValidSectionName(section)) {
++                throw new CompanySettingsError("Invalid section name", 400);
++            }
++            const rows = await CompanySettingsRepository.history(globalReq.tenantDbName, section, limit);
++            return response.status(200).send(
++                new ResponseModel({ success: true, data: { message: "Success", result: { section, rows } } }),
++            );
++        } catch (error) {
++            this.fail(error, response);
++        }
++    };
++
++    /**
++     * The folded company rules plus a per-rule flag summary, so another service
++     * can seed or lock a person's settings without reading the tenant database
++     * itself. Never fails on a missing record: that is "no rules".
++     */
++    public policy = async (request: express.Request, response: Response): Promise<any> => {
++        try {
++            const globalReq = request as GlobalRequest;
++            const effective = await CompanySettingsRepository.effective(globalReq.tenantDbName);
++
++            const rules: { [field: string]: { apply: boolean; locked: boolean; isLegacy: boolean } } = {};
++            RULE_FIELDS.forEach((field) => {
++                rules[field] = effective.source === "none" ? { apply: false, locked: false, isLegacy: false } : readRuleFlags(effective.settings, field);
++            });
++
++            return response.status(200).send(
++                new ResponseModel({
++                    success: true,
++                    data: {
++                        message: "Success",
++                        result: {
++                            source: effective.source,
++                            settings: effective.settings,
++                            greetings: effective.greetings,
++                            rules,
++                        },
++                    },
++                }),
++            );
++        } catch (error) {
++            this.fail(error, response);
++        }
++    };
++}

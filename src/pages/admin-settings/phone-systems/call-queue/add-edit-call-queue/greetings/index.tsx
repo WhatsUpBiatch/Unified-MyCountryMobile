@@ -1,4 +1,5 @@
-import { GreetingItem, useGetGreetings } from '@/hooks/common';
+import { useGetGreetings } from '@/hooks/common';
+import { greetingOptionsForSlots } from '@/lib/greeting-slots';
 import CommonGreetingNotification from '@/components/common-greetings';
 import { useFormContext } from 'react-hook-form';
 import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
@@ -6,19 +7,19 @@ import { Input } from '@/components/ui/input';
 import { DELAY_GREETING_DEFAULT_INTERVAL, WAITING_LIMITS } from '../../constant';
 
 const GreetingNotification = () => {
-  const { greetingList } = useGetGreetings();
+  const { allGreetings } = useGetGreetings();
 
   const { watch, setValue } = useFormContext();
 
-  const optionsData: Record<string, GreetingItem[]> = {
-    welcome: greetingList,
-    waiting: greetingList,
-    hold: greetingList,
-    ring_tone: greetingList,
-    no_agent_available: greetingList,
-    all_agent_busy: greetingList,
-    delay: greetingList,
-  };
+  const optionsData = greetingOptionsForSlots(allGreetings, [
+    'welcome',
+    'waiting',
+    'hold',
+    'ring_tone',
+    'no_agent_available',
+    'all_agent_busy',
+    'delay',
+  ]);
 
   const mediaOptionsGreetingNotifications: {
     name: string;
