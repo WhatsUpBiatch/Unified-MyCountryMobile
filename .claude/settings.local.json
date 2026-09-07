@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh mcm-new *)",
+      "Bash(ssh -o BatchMode=yes mcm-new *)",
+      "Bash(scp * mcm-new:*)",
+      "Bash(ssh -o ConnectTimeout=15 -o BatchMode=yes mcm-new 'md5sum /opt/fs-xml-api-1.2.5/dialplan_service.py; systemctl is-active fs-xml-api')"
+    ]
+  }
+}

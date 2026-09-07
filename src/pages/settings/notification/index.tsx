@@ -40,7 +40,10 @@ const SettingsNotification = () => {
 
   useEffect(() => {
     if (userInfoData) {
-      reset(userInfoData?.notification_settings?.notification_settings);
+      /* The column is flat now: {voicemail, missed, sms, forgot_password}. Older
+         saves wrapped it one level deeper, so that shape is still read. */
+      const stored = userInfoData?.notification_settings;
+      reset(stored?.notification_settings ?? stored);
     }
   }, [userInfoData]);
 
@@ -57,15 +60,16 @@ const SettingsNotification = () => {
 
     const payload = {
       key: 'notification_settings',
+      /* Flat, one level: the voicemail sender reads `column[type]` and used to
+         find the wrapper instead of the event, which is why no voicemail email
+         went out after 24 Aug. */
       value: {
-        notification_settings: {
-          ...formattedData,
-          forgot_password: {
-            email: true,
-            socket: false,
-            sms: true,
-            push: false,
-          },
+        ...formattedData,
+        forgot_password: {
+          email: true,
+          socket: false,
+          sms: true,
+          push: false,
         },
       },
     };
@@ -183,7 +187,7 @@ const SettingsNotification = () => {
         </div>
         <div className="flex justify-end mcm-stickyfoot">
           <Button variant={'primary'} type="submit" disabled={isPending}>
-            {isPending ? 'Submitting...' : 'Submit'}
+            {isPending ? 'Submitting...' : 'Save notifications'}
           </Button>
         </div>
       </form>

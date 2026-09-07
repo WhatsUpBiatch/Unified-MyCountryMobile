@@ -2,13 +2,19 @@ import { Plus, SearchLine } from '@/assets/icons';
 import SetupGuide from '@/components/mcm/setup-guide';
 import TableManager from '@/components/custom/table-manager';
 import { Button } from '@/components/ui/button';
-import { deleteMember, getUserList, removeAssignNumber } from '@/services/api';
+import {
+  deleteMember,
+  getUserList,
+  pendingInvites,
+  removeAssignNumber,
+  resendInvite,
+} from '@/services/api';
 import { FC, useState } from 'react';
 import AddUsers from './add-users';
 import { IUSERS } from '@/interfaces/extension-interface';
 import { ColumnDef } from '@tanstack/react-table';
 import UpdateForwarding from './update-forwarding';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { capitalizeFirstLetter, handleAlert } from '@/lib/utils';
 import AlertConfirm from '@/components/custom/alert-confirm';
 import { useUser } from '@/hooks/use-user';
@@ -36,7 +42,7 @@ import MultipleAssignNumber from './add-users/multiple-assign-number';
 import { invalidateNumberLists } from '@/lib/number-list-cache';
 import { useDialpad } from '@/hooks/use-dialpad';
 import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
-import { ListX } from 'lucide-react';
+import { ListX, Send } from 'lucide-react';
 
 const UsersExtension: FC = () => {
   const [open, setOpen] = useState(false);
@@ -80,6 +86,36 @@ const UsersExtension: FC = () => {
 
   const extension = user?.user_info?.extension;
   const isMeOnCall = usersOnlineStatus?.find((user) => user?.userId == extension)?.onCall;
+
+  /* People who were sent an invite link and have not chosen a password yet.
+     Comes from its own endpoint (the list itself does not carry status), so
+     the "Resend invite" button only shows where it can do something. */
+  const { data: pendingInvitesData } = useQuery({
+    queryKey: ['pendingInvites'],
+    queryFn: pendingInvites,
+    enabled: Boolean(userAccess?.add),
+    staleTime: 30 * 1000,
+    retry: false,
+  });
+  const pendingInviteByUuid = new Map<string, { expired: boolean }>(
+    (pendingInvitesData?.data?.data?.result?.pending || []).map((row: any) => [
+      String(row?.user_uuid || ''),
+      { expired: Boolean(row?.expired) },
+    ]),
+  );
+  const { mutate: mutateResendInvite, isPending: isResendingInvite } = useMutation({
+    mutationKey: ['resendInvite'],
+    mutationFn: resendInvite,
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['pendingInvites'] });
+      handleAlert({
+        text:
+          data?.data?.data?.message ||
+          'We sent them a new link to choose a password. It works for 3 days.',
+        type: 'success',
+      });
+    },
+  });
 
   const { mutate: mutateDeleteUser, isPending } = useMutation({
     mutationKey: ['deleteMember'],
@@ -152,6 +188,19 @@ const UsersExtension: FC = () => {
                 <p className="text-gray-500  text-xs flex justify-between">
                   <div>{data?.email}</div>
                 </p>
+                {pendingInviteByUuid.has(data?.uuid) && (
+                  <span
+                    className={`mt-0.5 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      pendingInviteByUuid.get(data?.uuid)?.expired
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {pendingInviteByUuid.get(data?.uuid)?.expired
+                      ? 'Invite link expired'
+                      : 'Invite sent, not accepted yet'}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-2.5 py-1 min-w-[122px]">
                 <div className="w-7 h-7 rounded-lg border border-primary/30 bg-white flex items-center justify-center text-primary text-base font-semibold leading-none">
@@ -316,6 +365,16 @@ const UsersExtension: FC = () => {
               className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
               tooltipText: 'Edit',
               access: isOnCall,
+            },
+          /* Only for people who have not chosen a password yet. */
+          userAccess?.add &&
+            pendingInviteByUuid.has(data?.uuid) && {
+              tooltipText: 'Resend invite',
+              customIcon: Send,
+              iconClass: 'w-4 h-4',
+              className: 'bg-amber-100 text-amber-700 hover:bg-amber-600 hover:text-white',
+              onClick: () => mutateResendInvite({ user_uuid: data?.uuid }),
+              access: isResendingInvite,
             },
           userAccess?.delete &&
             (user?.user_info?.role === 'ADMIN' || data?.role !== 'ADMIN') && {

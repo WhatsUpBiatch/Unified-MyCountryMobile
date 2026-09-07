@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Bundle the two pure helpers to CommonJS and run the unit tests. No database.
+#
+#   bash backend-patches/invites/tests/run.sh
+#
+# esbuild comes from the website's node_modules (vite ships it); the helpers
+# import only node's crypto, so a plain bundle is enough. Falls back to tsc
+# from default-api if esbuild is missing. Output goes to a scratch dir.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPOS="${MCM_REPOS:-/root/UCAAS/mcm-repos}"
+API="$REPOS/default-api"
+WEB="${MCM_WEB:-/root/mycountrymobile-web}"
+ESBUILD="$WEB/node_modules/.bin/esbuild"
+TSC="$API/node_modules/.bin/tsc"
+BUILD_DIR="${BUILD_DIR:-$(mktemp -d /tmp/invites-tests.XXXXXX)}"
+
+HELPERS=(
+  "$API/src/helpers/inviteToken.ts"
+  "$API/src/helpers/inviteEmail.ts"
+)
+
+if [ -x "$ESBUILD" ]; then
+  for f in "${HELPERS[@]}"; do
+    "$ESBUILD" "$f" --bundle --platform=node --format=cjs --target=node18 \
+      --outfile="$BUILD_DIR/$(basename "${f%.ts}").js" --log-level=warning
+  done
+  echo "bundled with esbuild to $BUILD_DIR"
+elif [ -x "$TSC" ]; then
+  "$TSC" "${HELPERS[@]}" --outDir "$BUILD_DIR" --module commonjs --target es2017 \
+    --lib es2017,dom --esModuleInterop --skipLibCheck --types node
+  echo "compiled with tsc to $BUILD_DIR"
+else
+  echo "neither esbuild ($ESBUILD) nor tsc ($TSC) found"; exit 1
+fi
+
+# The migration is plain JS; check it at least loads and has up/down.
+cp "$API/migrations/20260903150000-create-user-invites-table.js" "$BUILD_DIR/migration.js"
+
+BUILD_DIR="$BUILD_DIR" node --test "$HERE"/*.test.cjs

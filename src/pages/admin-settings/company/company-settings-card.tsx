@@ -22,14 +22,17 @@ import {
   fetchCompanyDefaults,
   type CompanyDefaultTemplate,
 } from '@/lib/company-defaults';
+import { readRuleFlags, type RuleFlags } from '@/lib/company-rule-flags';
 import { COMPANY_RULES_PATH } from './company-sections';
 
 interface Row {
   icon: React.ReactNode;
   label: string;
   value: string;
-  /* True when a person may change this on their own phone. */
-  staffMayChange: boolean;
+  /* What the rule says about people: whether they get this value, and whether
+     they may change it. Read through the same reader the editor and the personal
+     settings page use, so this card can never disagree with either. */
+  flags: RuleFlags;
 }
 
 const readPath = (source: any, path: string): any =>
@@ -63,7 +66,7 @@ const CompanySettingsCard = () => {
             : hours?.type === 'weekly'
               ? 'Set per weekday'
               : 'Not set',
-        staffMayChange: readPath(settings, 'operational_hours.override') === true,
+        flags: readRuleFlags(settings, 'business_hours'),
       },
       /* The voicemail row was pulled when the only editor for it was commented
          out: the card read an initial-state default and presented it as the
@@ -85,19 +88,19 @@ const CompanySettingsCard = () => {
             .filter(Boolean)
             .join(' · ');
         })(),
-        staffMayChange: readPath(settings, 'voicemail_pin.override') === true,
+        flags: readRuleFlags(settings, 'voicemail'),
       },
       {
         icon: <Mic className="h-4 w-4" />,
         label: 'Call recording',
         value: toggleState(settings?.recording?.automatic) ? 'Records every call' : 'Off',
-        staffMayChange: readPath(settings, 'recording.override') === true,
+        flags: readRuleFlags(settings, 'recording'),
       },
       {
         icon: <ShieldCheck className="h-4 w-4" />,
         label: 'Transcription',
         value: toggleState(settings?.transcription) ? 'On' : 'Off',
-        staffMayChange: readPath(settings, 'transcription.override') === true,
+        flags: readRuleFlags(settings, 'transcription'),
       },
     ];
   }, [data]);
@@ -110,8 +113,8 @@ const CompanySettingsCard = () => {
         <div className="min-w-0">
           <p className="text-base font-semibold text-gray-900">Company phone rules</p>
           <p className="mt-0.5 text-xs text-gray-600">
-            The settings everyone at your company starts with, and which of them a person may change
-            on their own phone.
+            The company's settings, which of them are given to everyone, and which of them a person
+            may not change on their own phone.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={() => navigate(COMPANY_RULES_PATH)}>
@@ -143,16 +146,26 @@ const CompanySettingsCard = () => {
                   <p className="text-sm font-medium text-gray-900">{row.value}</p>
                 </div>
               </div>
-              {/* Whether staff may override is the half admins forget, so it is
-                  shown next to each rule rather than only inside the editor. */}
-              <span
-                className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
-                  row.staffMayChange
-                    ? 'bg-gray-100 text-gray-600'
-                    : 'bg-ucass-primary-200 text-primary'
-                }`}
-              >
-                {row.staffMayChange ? 'Staff can change' : 'Locked'}
+              {/* The two halves of the rule are the part admins forget, so both are
+                  shown next to each value rather than only inside the editor. A rule
+                  that says neither is said so in words: an empty corner would look
+                  like something failed to load. */}
+              <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                {row.flags.apply ? (
+                  <span className="rounded-sm bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                    Given to everyone
+                  </span>
+                ) : null}
+                {row.flags.locked ? (
+                  <span className="rounded-sm bg-ucass-primary-200 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+                    Locked
+                  </span>
+                ) : null}
+                {!row.flags.apply && !row.flags.locked ? (
+                  <span className="rounded-sm px-1.5 py-0.5 text-[11px] font-medium text-gray-400">
+                    No rule
+                  </span>
+                ) : null}
               </span>
             </div>
           ))}

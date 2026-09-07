@@ -1,4 +1,5 @@
 import type { DialpadSession } from '@/context/dialpad-context';
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 
 export const getMonitoringCallLabel = (numberValue: string): string | null => {
   const normalizedNumber = String(numberValue || '')
@@ -111,7 +112,7 @@ export const getDialpadSessionDisplayInfo = (session: DialpadSession | null | un
   const isCampaignCall = Boolean(
     campaignIdFromSession || liveForwardType === 'CAMPAIGN' || liveCampaignType,
   );
-  const isPredictiveCampaignCall = isCampaignCall && campaignDialMethod.includes('PREDICTIVE');
+  const isPredictiveCampaignCall = isCampaignCall && isServerDialed(campaignDialMethod);
   const predictiveHeaderContactName = decodeHeaderValue(
     getSessionHeaderFirstValue(session, 'x-contactname'),
     true,

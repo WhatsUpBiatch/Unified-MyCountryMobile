@@ -19,6 +19,7 @@ import DialpadCampaignContactCard, {
 import DialpadCountdownRingTimer from './dialpad-countdown-ring-timer';
 import { getHeaderFirstValue } from '../session-display';
 
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 type DialpadScreenState = 'idle' | 'ringing' | 'connected' | 'ended';
 
 type DialpadCampaignOverviewProps = {
@@ -163,6 +164,21 @@ const DialpadCampaignOverview = ({
     shouldRefresh: false,
   });
 
+  /* An administrator pausing or completing the campaign is announced to the
+     whole tenant on "campaign-state-update". Take it here directly: the shared
+     context only forwarded it on a route that no longer exists. */
+  useEffect(() => {
+    if (!socketEventsManager) return;
+    const onState = (payload: any) => {
+      if (!payload || typeof payload !== 'object') return;
+      setOngoingCampaignActivity(payload);
+    };
+    socketEventsManager.on('campaign-state-update', onState);
+    return () => {
+      socketEventsManager.off('campaign-state-update', onState);
+    };
+  }, [socketEventsManager, setOngoingCampaignActivity]);
+
   const cards = Array.isArray(campaignContactCards) ? campaignContactCards : [];
   console.log('🚀 ~ DialpadCampaignOverview ~ campaignContactCards:', campaignContactCards);
   const totalContacts = cards.length;
@@ -179,9 +195,13 @@ const DialpadCampaignOverview = ({
     firstCampaignCard?.campaignDetail?.campaignType?.trim() ||
     'UNKNOWN';
   const normalizedCampaignType = campaignTypeValue.toUpperCase();
-  const isProgressiveDialMethod = normalizedCampaignType === 'PROGRESSIVE';
+  /* Server-dialled modes (predictive, and progressive once the dialer service
+     places its calls) share one runtime: go available, wait for the call.
+     "Progressive" below then only means the browser-dialled variant. */
+  const serverDialed = isServerDialed(normalizedCampaignType);
+  const isProgressiveDialMethod = normalizedCampaignType === 'PROGRESSIVE' && !serverDialed;
   const isPreviewDialMethod = normalizedCampaignType === 'PREVIEW';
-  const isPredictiveDialMethod = normalizedCampaignType.includes('PREDICTIVE');
+  const isPredictiveDialMethod = serverDialed;
   const campaignType = formatCampaignType(campaignTypeValue);
   const normalizedContactNumber = firstCampaignCard?.contactNumber?.trim() || '';
   const campaignId = activeCampaignId || firstCampaignCard?.campaignId?.trim() || '';

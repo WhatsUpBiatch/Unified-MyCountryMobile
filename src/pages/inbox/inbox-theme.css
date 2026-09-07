@@ -41,7 +41,15 @@
   --mcm-r-sm: 8px;
   --mcm-r-lg: 18px;
 
-  --mcm-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* 'Twemoji Country Flags' belongs in the MONO stack too, not only the sans
+     one. Phone numbers are rendered in monospace (`.num`), and that is exactly
+     where the country flags sit — so a stack without it fell back to the bare
+     regional-indicator letters and every number read "IN +91 90045 83988" or
+     "US +1 605 971 3935" instead of showing a flag. Windows has no flag emoji
+     font of its own, so the webfont the polyfill injects is the only thing that
+     draws them; its @font-face carries a unicode-range covering nothing but
+     those codepoints, so listing it first cannot affect the digits. */
+  --mcm-mono: 'Twemoji Country Flags', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --mcm-sans:
     'Twemoji Country Flags', 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', sans-serif;
@@ -95,10 +103,15 @@
   color: var(--mcm-ink-4);
 }
 
+/* NO `border-radius` here. It is an ELEMENT property, not an outline one, so
+   setting it in a :focus-visible rule re-rounds the control itself: click a
+   `rounded-xl` input and its corners snapped from 12px to 4px, which is what
+   made the border look broken the moment a field was focused. Outlines already
+   follow the element's own border-radius in every browser we support, so the
+   ring is correctly shaped without it. */
 .mcm-inbox :focus-visible {
   outline: 2px solid var(--mcm-accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* Console scrollbars: thin, on-surface, invisible track. */
@@ -865,4 +878,285 @@
   .mcm-inbox .mcm-skel {
     animation: none;
   }
+}
+
+/* ============================================================
+   COMPOSER — new message / new fax, rendered in place
+
+   These used to open in a right-hand drawer built from the app's generic form
+   kit, which put two design systems side by side: app chrome in the drawer,
+   Inbox theme in the conversation underneath it. Composing now occupies the
+   same space an open conversation does, and is built from the same parts —
+   mcm-thread-head, mcm-thread, mcm-composer.
+
+   Addressing reads as LINES, not boxes: a labelled full-width row with a
+   bottom rule, the way an email client addresses a message.
+   ============================================================ */
+.mcm-inbox .mcm-addr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--mcm-line);
+  background: var(--mcm-surface);
+  flex: none;
+  min-height: 46px;
+}
+.mcm-inbox .mcm-addr-label {
+  flex: none;
+  width: 42px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mcm-ink-3);
+}
+.mcm-inbox .mcm-addr-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--mcm-ink);
+  outline: none;
+}
+/* Fixed slot so the input does not shift sideways the moment a country is
+   recognised mid-typing. */
+.mcm-inbox .mcm-addr-flag {
+  flex: none;
+  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* The saved contact behind the number being typed. */
+.mcm-inbox .mcm-addr-who {
+  flex: none;
+  max-width: 45%;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--mcm-accent-wash);
+  color: var(--mcm-accent-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcm-inbox .mcm-addr-input::placeholder {
+  color: var(--mcm-ink-4);
+}
+.mcm-inbox .mcm-addr-input.is-error {
+  color: var(--mcm-crit);
+}
+/* Inline at the end of the addressing row. It used to be absolutely positioned
+   below the row, which laid it over the conversation body and across the row's
+   own bottom rule. */
+.mcm-inbox .mcm-addr-err {
+  flex: none;
+  max-width: 45%;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--mcm-crit-wash);
+  color: var(--mcm-crit);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcm-inbox .mcm-addr-err.warn {
+  background: transparent;
+  color: var(--mcm-ink-4);
+  font-weight: 400;
+}
+
+/* the From row hosts a react-select; strip its chrome so it reads as a line */
+.mcm-inbox .mcm-addr-select {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-inbox .mcm-addr-select .custom-react-select__control {
+  min-height: 26px !important;
+  height: 26px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+}
+.mcm-inbox .mcm-addr-select .custom-react-select__value-container {
+  width: auto !important;
+  padding: 0 !important;
+}
+.mcm-inbox .mcm-addr-select .custom-react-select__indicator-separator {
+  display: none !important;
+}
+.mcm-inbox .mcm-addr-select .custom-react-select__indicator {
+  padding: 0 2px !important;
+  color: var(--mcm-ink-4) !important;
+}
+.mcm-inbox .mcm-addr-select .custom-react-select__single-value {
+  color: var(--mcm-ink) !important;
+  font-family: var(--mcm-mono);
+}
+
+/* contact suggestions under the To line */
+.mcm-inbox .mcm-addr-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -6px;
+  right: 0;
+  z-index: 30;
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--mcm-line);
+  border-radius: 10px;
+  background: var(--mcm-surface);
+  box-shadow: var(--mcm-shadow-lg);
+}
+.mcm-inbox .mcm-addr-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.mcm-inbox .mcm-addr-opt:hover:not(:disabled) {
+  background: var(--mcm-accent-wash);
+}
+.mcm-inbox .mcm-addr-opt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mcm-inbox .mcm-addr-opt-n {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--mcm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcm-inbox .mcm-addr-opt-m {
+  display: block;
+  font-size: 11px;
+  color: var(--mcm-ink-3);
+}
+.mcm-inbox .mcm-addr-none {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--mcm-ink-3);
+}
+
+/* the composer body sits on the thread background, so an empty new message
+   looks like the conversation it is about to become */
+.mcm-inbox .mcm-compose-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  background: var(--mcm-ground);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mcm-inbox .mcm-compose-hint {
+  align-self: center;
+  max-width: 320px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--mcm-ink-4);
+}
+
+/* one quiet line of message stats.
+   These were three headings in a justify-between row, which could not fit the
+   drawer and pushed the SMS count off the edge. */
+.mcm-inbox .mcm-compose-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--mcm-ink-4);
+}
+
+/* fax dropzone, on the thread background rather than app white */
+.mcm-inbox .mcm-drop {
+  display: flex;
+  min-height: 168px;
+  width: 100%;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px;
+  text-align: center;
+  border: 1px dashed var(--mcm-line);
+  border-radius: var(--mcm-r);
+  background: var(--mcm-surface);
+  color: var(--mcm-ink-3);
+  transition: all 0.14s;
+}
+.mcm-inbox .mcm-drop:hover,
+.mcm-inbox .mcm-drop.is-dragging {
+  border-color: var(--mcm-accent);
+  background: var(--mcm-accent-wash);
+  color: var(--mcm-accent-ink);
+}
+.mcm-inbox .mcm-drop.is-error {
+  border-color: var(--mcm-crit);
+}
+.mcm-inbox .mcm-drop-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mcm-ink);
+}
+.mcm-inbox .mcm-drop-sub {
+  font-size: 11px;
+  color: var(--mcm-ink-4);
+}
+/* the attached document, once there is one */
+.mcm-inbox .mcm-doc {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--mcm-line);
+  border-radius: var(--mcm-r);
+  background: var(--mcm-surface);
+  text-align: left;
+}
+.mcm-inbox .mcm-doc-ic {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--mcm-accent-wash);
+  color: var(--mcm-accent-ink);
+}
+.mcm-inbox .mcm-doc-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--mcm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcm-inbox .mcm-doc-sub {
+  font-size: 11px;
+  color: var(--mcm-ink-4);
 }

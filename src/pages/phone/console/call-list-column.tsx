@@ -1,15 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { pickCounterpartNumber } from '@/lib/call-number';
 import moment from 'moment';
 import { fetchPhone } from '@/services/api';
 import { useFetchContact } from '@/hooks/common';
 import { useCompanyFeatures } from '@/hooks/rbac';
+import { useSocketEvents } from '@/hooks/use-socket-events';
 import Loader from '@/components/custom/loader';
 import DateDropdown from '@/components/custom/date-dropdown';
 import { dropdownCallInitialVal, handleDate } from '@/components/custom/date-dropdown/constant';
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import { Ic } from './icons';
-import { DialNumber, useConsoleDialer } from './dial-number';
+import {
+  durationSeconds,
+  formatDuration,
+  realNameOrEmpty,
+  talkSeconds,
+  wasAnswered,
+} from './copilot-adapter';
+import { useConsoleDialer } from './dial-number';
+import { useCallerName } from './use-caller-name';
 
 /** The three call-log sources the old phone page exposed, same `tabType` values. */
 export type ConsoleLogSource = 'call' | 'recording' | 'voicemail';
@@ -24,6 +34,8 @@ export type ConsoleCallRow = {
   duration: string;
   topic: string;
   contactId: string | number | null;
+  /** matched against the users directory (an extension), not the contact book */
+  isDirectoryMatch?: boolean;
   hasRecording: boolean;
   /** the shape `LogContent` consumes — matches call-list.tsx's buildLogData */
   logData: {
@@ -51,12 +63,12 @@ const sortStamp = (raw: any): number => {
   return parsed.isValid() ? parsed.valueOf() : 0;
 };
 
-const secondsToClock = (value: unknown) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return '—';
-  const m = Math.floor(n / 60);
-  const s = Math.floor(n % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+/* `billsec`/`duration` arrive as "HH:MM:SS" strings — Number() on those is NaN,
+   which is why every row read "—". durationSeconds parses all the shapes the
+   API uses; an em dash still means "no talk time", not "unparseable". */
+const secondsToClock = (raw: any) => {
+  const seconds = durationSeconds(raw);
+  return seconds > 0 ? formatDuration(seconds) : '—';
 };
 
 const timeLabel = (stamp: unknown) => {
@@ -104,12 +116,21 @@ const findContact = (contactsByNumber: Record<string, any>, rawNumber: string) =
   return match ? contactsByNumber[match] : null;
 };
 
-export const toCallRow = (raw: any, contactsByNumber: Record<string, any>): ConsoleCallRow => {
+export const toCallRow = (
+  raw: any,
+  contactsByNumber: Record<string, any>,
+  /* Extensions are never in the contact book — the users directory is the only
+     place a colleague's name lives, so without this every internal call in the
+     list read "Not in contacts". */
+  resolveName?: (number: string) => string,
+): ConsoleCallRow => {
   const rawDirection = String(raw?.direction || '').toLowerCase();
   const isMissed =
     rawDirection === 'missed' ||
     String(raw?.hangup_cause || '').toUpperCase() === 'NO_ANSWER' ||
-    (rawDirection === 'inbound' && Number(raw?.billsec || raw?.duration || 0) === 0);
+    /* Talk time, not total: an unanswered call still has a `duration`, which is
+       how long it rang, so testing that never found a missed call. */
+    (rawDirection === 'inbound' && talkSeconds(raw) === 0);
   const direction: ConsoleCallRow['direction'] = isMissed
     ? 'miss'
     : rawDirection === 'outbound'
@@ -128,7 +149,19 @@ export const toCallRow = (raw: any, contactsByNumber: Record<string, any>): Cons
      that were never saved as a contact. Only a real saved-contact match earns
      a name here; everyone else reads "Unknown Contact", same as the legacy
      Phone page. */
-  const contactName = savedName;
+  /* The API resolves an extension to its owner's name server-side and returns
+     it on the row. Use the side that is the OTHER party — `from_display_name`
+     is our own extension, so it would caption every call with the agent's own
+     name. Only `phone-call-list` currently omits these (the report endpoint
+     fills them in), so this is a no-op there until the switch's own rows carry
+     them; the directory lookup below still covers real extensions. */
+  const apiName = realNameOrEmpty(
+    rawDirection === 'outbound'
+      ? raw?.to_display_name
+      : raw?.caller_id_display_name || raw?.to_display_name,
+  );
+  const directoryName = savedName ? '' : resolveName?.(number) || '';
+  const contactName = savedName || apiName || directoryName;
 
   const accLogs = getEntryLogs(raw);
   const hasRecording = accLogs.some((log: any) =>
@@ -142,9 +175,14 @@ export const toCallRow = (raw: any, contactsByNumber: Record<string, any>): Cons
     name: contactName || 'Unknown Contact',
     number,
     time: timeLabel(raw?.start_stamp),
-    duration: secondsToClock(raw?.billsec ?? raw?.duration),
+    /* A call nobody answered has no length worth showing — printing its ring
+       time reads as a conversation that never happened. */
+    duration: wasAnswered(raw) ? secondsToClock(raw) : '—',
     topic: String(raw?.disposition || raw?.queue_name || '').trim(),
     contactId: contact?.id || null,
+    /* A directory match is a real identity even though it has no contact
+       record, so the row must not offer to "add" it as one. */
+    isDirectoryMatch: Boolean(directoryName || apiName),
     hasRecording,
     logData: {
       main: raw,
@@ -173,6 +211,7 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
     value: handleDate('Today'),
   }));
   const { data: contactsByNumber } = useFetchContact();
+  const { resolveName } = useCallerName();
   const { features } = useCompanyFeatures();
   const callAccess = features?.plan_features?.advance_call_management?.access;
 
@@ -189,7 +228,7 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
   const directionFilter =
     source === 'voicemail' || filterMissedLocally ? [] : activeDirection.filter;
 
-  const { data, isPending, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
+  const { data, isPending, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
     useInfiniteQuery({
       queryKey: [
         'console-call-list',
@@ -216,6 +255,19 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
       },
     });
 
+  /* Live update: cdr-ingest (server 121) pushes one event per call it writes
+     or merges. Re-running the existing query on that signal - rather than
+     splicing the pushed row into the cache by hand - means pagination and
+     whatever filter/date-range is active stay exactly as correct as a normal
+     fetch, with no separate de-dup logic to get wrong. This fires once per
+     real call, so it's far cheaper than any polling interval would be. */
+  const { callHistoryLiveUpdate } = useSocketEvents();
+  useEffect(() => {
+    if (!callHistoryLiveUpdate) return;
+    refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callHistoryLiveUpdate?.receivedAt]);
+
   const rows = useMemo(() => {
     const flat =
       data?.pages.flatMap((page: any) => page?.data?.data?.result?.rows || []) || ([] as any[]);
@@ -237,7 +289,7 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
 
     const mapped = expanded
       .map((raw: any, index: number) => {
-        const row = toCallRow(raw, contactsByNumber || {});
+        const row = toCallRow(raw, contactsByNumber || {}, resolveName);
         /* Two calls a second apart can share every field the id is built
            from. A positional suffix keeps React keys unique so neither row
            disappears. */
@@ -253,7 +305,7 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
     return visible.filter((r) =>
       `${r.name} ${r.number} ${r.topic}`.toLowerCase().includes(q.replace(/^\+/, '')),
     );
-  }, [data, contactsByNumber, search, filterMissedLocally]);
+  }, [data, contactsByNumber, search, filterMissedLocally, resolveName]);
 
   /* liveNumber is just the other party's number on the in-progress session —
      it has no call id to match against, so every past call to/from that same
@@ -274,23 +326,24 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
   return (
     <div className="col calls">
       <div className="col-head">
+        {/* The column heading said "Calls" directly above a "Calls" tab, which
+            named the tab twice and the column not at all. The date range sits
+            here now, in place of an icon button that was a Refresh action
+            drawn with a merge glyph — it read as an unexplained filter icon,
+            and the list already refetches whenever the date or tab changes. */}
         <div className="col-title">
-          <h2>
-            {source === 'call' ? 'Calls' : source === 'recording' ? 'Recordings' : 'Voicemails'}
-          </h2>
-          <button
-            type="button"
-            className="thumb"
-            aria-label="Refresh"
-            title="Refresh"
-            onClick={() => refetch()}
-          >
-            <Ic n={isFetching ? 'clock' : 'merge'} size={14} />
-          </button>
+          <h2>Phone</h2>
+          <div className="console-datefilter">
+            <DateDropdown
+              dropdownVal={dropdownVal}
+              setDropdownVal={setDropdownVal}
+              customPickerPlacement="bottom"
+            />
+          </div>
         </div>
 
         {/* source tabs — same tabType values the old phone page sent */}
-        <div className="panel-tabs" style={{ padding: 0, margin: '0 0 2px' }}>
+        <div className="panel-tabs source-tabs" style={{ padding: 0, margin: '0 0 2px' }}>
           {sources
             .filter((s) => s.show)
             .map((s) => (
@@ -329,14 +382,6 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search calls"
-          />
-        </div>
-
-        <div className="console-datefilter">
-          <DateDropdown
-            dropdownVal={dropdownVal}
-            setDropdownVal={setDropdownVal}
-            customPickerPlacement="bottom"
           />
         </div>
       </div>
@@ -392,14 +437,21 @@ const CallListColumn = ({ selectedId, onSelect, source, onSourceChange, liveNumb
                   <div className="cr-body">
                     <div className="cr-top">
                       <span className="cr-name">
-                        {/* an unsaved number is its own title — don't print it twice */}
-                        {row.contactId ? row.name : <DialNumber number={row.number} className="num" />}
+                        {/* an unsaved number is its own title — don't print it twice.
+                            Plain text, not a dial action: scanning the list used to
+                            place a call the moment a number was brushed. The phone
+                            button on the right is the only thing that dials. */}
+                        {row.contactId || row.isDirectoryMatch ? (
+                          row.name
+                        ) : (
+                          <NumberWithFlag number={row.number} className="num" />
+                        )}
                       </span>
                       <span className="cr-time num">{row.time}</span>
                     </div>
                     <div className="cr-num">
-                      {row.contactId ? (
-                        <DialNumber number={row.number} className="num" />
+                      {row.contactId || row.isDirectoryMatch ? (
+                        <NumberWithFlag number={row.number} className="num" />
                       ) : (
                         <span style={{ color: 'var(--ink-4)' }}>Not in contacts</span>
                       )}

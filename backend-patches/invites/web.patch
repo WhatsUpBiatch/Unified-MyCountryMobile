@@ -1,0 +1,657 @@
+diff -ruN a/src/interfaces/extension-interface.ts b/src/interfaces/extension-interface.ts
+--- a/src/interfaces/extension-interface.ts	2026-09-03 08:36:15.670022120 +0000
++++ b/src/interfaces/extension-interface.ts	2026-09-03 08:40:13.269031185 +0000
+@@ -35,5 +35,5 @@
+   }[];
+   password: string;
+   confirm_password: string;
+-  password_type: 'common' | 'individual';
++  password_type: 'common' | 'individual' | 'email';
+ }
+diff -ruN a/src/pages/admin-settings/constants.ts b/src/pages/admin-settings/constants.ts
+--- a/src/pages/admin-settings/constants.ts	2026-09-03 08:36:15.678022151 +0000
++++ b/src/pages/admin-settings/constants.ts	2026-09-03 08:36:15.680022158 +0000
+@@ -27,7 +27,8 @@
+   users: [userInitialState],
+   password: '',
+   confirm_password: '',
+-  password_type: 'common',
++  /* Default: an invite link. The person chooses their own password. */
++  password_type: 'email',
+ };
+ 
+ export const TAB_CONSTANT = {
+diff -ruN a/src/pages/admin-settings/people/add-users/index.tsx b/src/pages/admin-settings/people/add-users/index.tsx
+--- a/src/pages/admin-settings/people/add-users/index.tsx	2026-09-03 08:36:15.627021953 +0000
++++ b/src/pages/admin-settings/people/add-users/index.tsx	2026-09-03 08:36:15.629021960 +0000
+@@ -32,7 +32,8 @@
+   const [isPaymentRequired, setIspaymentRequired] = useState<any>(false);
+   const [orderSummary, setOrderSummary] = useState<any>(null);
+   const [currentStep, setCurrentStep] = useState(1);
+-  const [typeOfPassword, setTypeOfPassword] = useState('common');
++  /* Default: an invite link; the person chooses their own password. */
++  const [typeOfPassword, setTypeOfPassword] = useState('email');
+   const [isUserValidatorError, setIsUserValidatorError] = useState(false);
+   const [alertAssignNumber, setAlertAssignNumber] = useState(false);
+   const [showAssignNumber, setShowAssignNumber] = useState(false);
+@@ -98,12 +99,17 @@
+     setStatus('');
+     setPaymentCalculation(null);
+     queryClient.invalidateQueries(['fetchUsersList'], { exact: true });
++    queryClient.invalidateQueries({ queryKey: ['pendingInvites'] });
+     queryClient.invalidateQueries(['getMyPlanDetails'], { exact: true });
+     invalidateGlobalUsersDirectory(queryClient);
+ 
+     refetchUserApi();
++    /* The server says what happened to the invite e-mails; this is the
++       fallback wording when it does not. No password is ever e-mailed. */
+     handleAlert({
+-      text: data?.data?.message || 'Person added',
++      text:
++        data?.data?.message ||
++        'People added. We sent them a link to choose a password. It works for 3 days.',
+       type: 'success',
+     });
+ 
+diff -ruN a/src/pages/admin-settings/people/add-users/setup-options/index.tsx b/src/pages/admin-settings/people/add-users/setup-options/index.tsx
+--- a/src/pages/admin-settings/people/add-users/setup-options/index.tsx	2026-09-03 08:36:15.619021922 +0000
++++ b/src/pages/admin-settings/people/add-users/setup-options/index.tsx	2026-09-03 08:36:15.621021929 +0000
+@@ -56,11 +56,32 @@
+             setValue('password_type', value, { shouldValidate: true });
+           }}
+         >
+-          <div className="flex items-center gap-3">
+-            <RadioGroupItem value="common" id="password-common" className="cursor-pointer" />
+-            <Label htmlFor="password-common" className="cursor-pointer">
+-              Give Common Password
+-            </Label>
++          {/* The invite link is the default. Nothing on this screen ever
++              e-mails a password: the person chooses their own on the page the
++              link opens (see /accept-invite). */}
++          <div className="flex items-start gap-3">
++            <RadioGroupItem value="email" id="password-email" className="mt-1 cursor-pointer" />
++            <div className="flex flex-col gap-0.5">
++              <Label htmlFor="password-email" className="cursor-pointer">
++                Send them an invite link
++              </Label>
++              <p className="text-xs text-grey-800">
++                They get an e-mail with a link to choose their own password. The link works for 3
++                days. You can send it again from the People list.
++              </p>
++            </div>
++          </div>
++          <div className="flex items-start gap-3">
++            <RadioGroupItem value="common" id="password-common" className="mt-1 cursor-pointer" />
++            <div className="flex flex-col gap-0.5">
++              <Label htmlFor="password-common" className="cursor-pointer">
++                Set one password for everyone now
++              </Label>
++              <p className="text-xs text-grey-800">
++                You tell them the password yourself. They also get the invite link, in case they
++                want to choose their own.
++              </p>
++            </div>
+           </div>
+ 
+           {passwordType === 'common' && (
+@@ -87,15 +108,20 @@
+               </div>
+             </div>
+           )}
+-          <div className="flex items-center gap-3">
++          <div className="flex items-start gap-3">
+             <RadioGroupItem
+               value="individual"
+               id="password-individual"
+-              className="cursor-pointer"
++              className="mt-1 cursor-pointer"
+             />
+-            <Label htmlFor="password-individual" className="cursor-pointer">
+-              Individual Password
+-            </Label>
++            <div className="flex flex-col gap-0.5">
++              <Label htmlFor="password-individual" className="cursor-pointer">
++                Set a password for each person now
++              </Label>
++              <p className="text-xs text-grey-800">
++                You tell each person their password yourself. They also get the invite link.
++              </p>
++            </div>
+           </div>
+ 
+           {passwordType === 'individual' && (
+@@ -126,12 +152,6 @@
+               })}
+             </div>
+           )}
+-          <div className="flex items-center gap-3">
+-            <RadioGroupItem value="email" id="password-email" className="cursor-pointer" />
+-            <Label htmlFor="password-email" className="cursor-pointer">
+-              Send via Email
+-            </Label>
+-          </div>
+         </RadioGroup>
+       )}
+     </div>
+diff -ruN a/src/pages/admin-settings/people/index.tsx b/src/pages/admin-settings/people/index.tsx
+--- a/src/pages/admin-settings/people/index.tsx	2026-09-03 08:36:15.636021988 +0000
++++ b/src/pages/admin-settings/people/index.tsx	2026-09-03 08:36:15.638021995 +0000
+@@ -2,13 +2,19 @@
+ import SetupGuide from '@/components/mcm/setup-guide';
+ import TableManager from '@/components/custom/table-manager';
+ import { Button } from '@/components/ui/button';
+-import { deleteMember, getUserList, removeAssignNumber } from '@/services/api';
++import {
++  deleteMember,
++  getUserList,
++  pendingInvites,
++  removeAssignNumber,
++  resendInvite,
++} from '@/services/api';
+ import { FC, useState } from 'react';
+ import AddUsers from './add-users';
+ import { IUSERS } from '@/interfaces/extension-interface';
+ import { ColumnDef } from '@tanstack/react-table';
+ import UpdateForwarding from './update-forwarding';
+-import { useMutation, useQueryClient } from '@tanstack/react-query';
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+ import { capitalizeFirstLetter, handleAlert } from '@/lib/utils';
+ import AlertConfirm from '@/components/custom/alert-confirm';
+ import { useUser } from '@/hooks/use-user';
+@@ -36,7 +42,7 @@
+ import { invalidateNumberLists } from '@/lib/number-list-cache';
+ import { useDialpad } from '@/hooks/use-dialpad';
+ import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
+-import { ListX } from 'lucide-react';
++import { ListX, Send } from 'lucide-react';
+ 
+ const UsersExtension: FC = () => {
+   const [open, setOpen] = useState(false);
+@@ -81,6 +87,36 @@
+   const extension = user?.user_info?.extension;
+   const isMeOnCall = usersOnlineStatus?.find((user) => user?.userId == extension)?.onCall;
+ 
++  /* People who were sent an invite link and have not chosen a password yet.
++     Comes from its own endpoint (the list itself does not carry status), so
++     the "Resend invite" button only shows where it can do something. */
++  const { data: pendingInvitesData } = useQuery({
++    queryKey: ['pendingInvites'],
++    queryFn: pendingInvites,
++    enabled: Boolean(userAccess?.add),
++    staleTime: 30 * 1000,
++    retry: false,
++  });
++  const pendingInviteByUuid = new Map<string, { expired: boolean }>(
++    (pendingInvitesData?.data?.data?.result?.pending || []).map((row: any) => [
++      String(row?.user_uuid || ''),
++      { expired: Boolean(row?.expired) },
++    ]),
++  );
++  const { mutate: mutateResendInvite, isPending: isResendingInvite } = useMutation({
++    mutationKey: ['resendInvite'],
++    mutationFn: resendInvite,
++    onSuccess: (data: any) => {
++      queryClient.invalidateQueries({ queryKey: ['pendingInvites'] });
++      handleAlert({
++        text:
++          data?.data?.data?.message ||
++          'We sent them a new link to choose a password. It works for 3 days.',
++        type: 'success',
++      });
++    },
++  });
++
+   const { mutate: mutateDeleteUser, isPending } = useMutation({
+     mutationKey: ['deleteMember'],
+     mutationFn: deleteMember,
+@@ -152,6 +188,19 @@
+                 <p className="text-gray-500  text-xs flex justify-between">
+                   <div>{data?.email}</div>
+                 </p>
++                {pendingInviteByUuid.has(data?.uuid) && (
++                  <span
++                    className={`mt-0.5 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${
++                      pendingInviteByUuid.get(data?.uuid)?.expired
++                        ? 'bg-red-50 text-red-600'
++                        : 'bg-amber-50 text-amber-700'
++                    }`}
++                  >
++                    {pendingInviteByUuid.get(data?.uuid)?.expired
++                      ? 'Invite link expired'
++                      : 'Invite sent, not accepted yet'}
++                  </span>
++                )}
+               </div>
+               <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-2.5 py-1 min-w-[122px]">
+                 <div className="w-7 h-7 rounded-lg border border-primary/30 bg-white flex items-center justify-center text-primary text-base font-semibold leading-none">
+@@ -317,6 +366,16 @@
+               tooltipText: 'Edit',
+               access: isOnCall,
+             },
++          /* Only for people who have not chosen a password yet. */
++          userAccess?.add &&
++            pendingInviteByUuid.has(data?.uuid) && {
++              tooltipText: 'Resend invite',
++              customIcon: Send,
++              iconClass: 'w-4 h-4',
++              className: 'bg-amber-100 text-amber-700 hover:bg-amber-600 hover:text-white',
++              onClick: () => mutateResendInvite({ user_uuid: data?.uuid }),
++              access: isResendingInvite,
++            },
+           userAccess?.delete &&
+             (user?.user_info?.role === 'ADMIN' || data?.role !== 'ADMIN') && {
+               icon: 'TrashBin',
+diff -ruN a/src/pages/login/accept-invite/index.tsx b/src/pages/login/accept-invite/index.tsx
+--- a/src/pages/login/accept-invite/index.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/pages/login/accept-invite/index.tsx	2026-09-03 08:36:15.687022186 +0000
+@@ -0,0 +1,314 @@
++/* Accept an invite: the public page a new person lands on from the e-mail link.
++ *
++ * URL: /accept-invite?token=...  (registered next to /reset-password in
++ * router/index.tsx). The page asks the server what the link is, shows the
++ * person's name and e-mail, and lets them choose a password. Rule: 12 or more
++ * characters, not their e-mail address, typed twice the same.
++ *
++ * Accepting does not sign them in - the login screen has its own checks
++ * (code by e-mail, device memory) that the invite endpoint does not repeat.
++ * After success they are sent to the login screen with their e-mail shown.
++ */
++import LogoIcon from '@/assets/images/LogoIcon.svg';
++import Desktop from '@/assets/images/Desktop.svg';
++import { useLocation, useNavigate } from 'react-router-dom';
++import { useForm } from 'react-hook-form';
++import { yupResolver } from '@hookform/resolvers/yup';
++import { useMutation, useQuery } from '@tanstack/react-query';
++import { useEffect, useState } from 'react';
++import { EyeLine, EyeLineOff } from '@/assets/icons';
++import { Input } from '@/components/ui/input';
++import { Button } from '@/components/ui/button';
++import * as yup from 'yup';
++import { acceptInvite, inspectInvite } from '@/services/api';
++import { getEnv, handleAlert } from '@/lib/utils';
++import Loader from '@/components/custom/loader';
++import { useOrganization } from '@/hooks/use-organisation';
++import CheckIcon from '@/assets/images/Check.svg';
++
++export const INVITE_MIN_PASSWORD_LENGTH = 12;
++
++type InviteState = 'loading' | 'ok' | 'invalid' | 'expired' | 'accepted' | 'error';
++
++interface InviteInfo {
++  ok?: boolean;
++  state?: InviteState;
++  expired?: boolean;
++  name?: string;
++  email?: string;
++  min_password_length?: number;
++  ttl_hours?: number;
++}
++
++const buildSchema = (email: string) =>
++  yup.object({
++    password: yup
++      .string()
++      .required('Please choose a password')
++      .min(
++        INVITE_MIN_PASSWORD_LENGTH,
++        `Your password must be at least ${INVITE_MIN_PASSWORD_LENGTH} characters long`,
++      )
++      .test(
++        'not-email',
++        'Your password cannot be your e-mail address',
++        (value) => !email || String(value || '').toLowerCase() !== email.toLowerCase(),
++      ),
++    confirm_password: yup
++      .string()
++      .required('Please type your password again')
++      .oneOf([yup.ref('password')], 'Both passwords must be the same'),
++  });
++
++const RuleLine = ({ met, text }: { met: boolean; text: string }) => (
++  <li
++    className={`flex items-center gap-2 transition-all ${met ? 'text-green-400' : 'text-gray-300'}`}
++  >
++    <img
++      src={CheckIcon}
++      alt=""
++      className={`w-4 h-4 transition-opacity ${met ? 'opacity-100' : 'opacity-30'}`}
++    />
++    {text}
++  </li>
++);
++
++const AcceptInvite = () => {
++  const location = useLocation();
++  const navigate = useNavigate();
++  const { mainSiteInfo } = useOrganization();
++  const token = new URLSearchParams(location.search).get('token') || '';
++  const [showPassword, setShowPassword] = useState<{ password: boolean; confirm: boolean }>({
++    password: false,
++    confirm: false,
++  });
++  const [largeLogoError, setLargeLogoError] = useState(false);
++
++  useEffect(() => {
++    setLargeLogoError(false);
++  }, [mainSiteInfo?.large_logo]);
++
++  const {
++    data: inspectData,
++    isLoading: isInspecting,
++    isError: inspectFailed,
++  } = useQuery({
++    queryKey: ['inspectInvite', token],
++    queryFn: () => inspectInvite({ token }),
++    enabled: Boolean(token),
++    retry: false,
++    refetchOnWindowFocus: false,
++  });
++
++  const info: InviteInfo = inspectData?.data?.data?.result || {};
++  const email = info.email || '';
++  const days = Math.max(1, Math.round((info.ttl_hours || 72) / 24));
++
++  let state: InviteState = 'loading';
++  if (!token) state = 'invalid';
++  else if (inspectFailed) state = 'error';
++  else if (!isInspecting) state = info.ok ? 'ok' : (info.state as InviteState) || 'invalid';
++
++  const {
++    register,
++    handleSubmit,
++    watch,
++    formState: { errors },
++  } = useForm({
++    defaultValues: { password: '', confirm_password: '' },
++    resolver: yupResolver(buildSchema(email)),
++    mode: 'onChange',
++  });
++
++  const password = watch('password');
++  const confirm = watch('confirm_password');
++
++  const { mutate: accept, isPending } = useMutation({
++    mutationFn: acceptInvite,
++    onSuccess: (response: any) => {
++      handleAlert({
++        text: response?.data?.data?.message || 'Your password is set. You can log in now.',
++        type: 'success',
++      });
++      navigate('/', { replace: true, state: { email } });
++    },
++  });
++
++  const onSubmit = (values: { password: string }) => {
++    accept({ token, password: values.password });
++  };
++
++  const renderBody = () => {
++    if (state === 'loading') {
++      return (
++        <div className="flex flex-col items-center gap-3 py-10">
++          <Loader variant="blue" />
++          <p className="text-sm text-grey-800">Checking your link...</p>
++        </div>
++      );
++    }
++
++    if (state === 'ok') {
++      return (
++        <form
++          className="flex flex-col gap-6"
++          onSubmit={handleSubmit(onSubmit)}
++          data-testid="accept-invite-form"
++        >
++          <div className="flex flex-col gap-3">
++            <h1 className="text-4xl text-black font-semibold">Welcome, {info.name || 'there'}</h1>
++            <h6 className="text-base text-grey-800 font-normal">
++              Choose a password for <span className="font-semibold text-black">{email}</span>.
++              You will use it to log in.
++            </h6>
++          </div>
++          <div className="flex flex-col gap-5">
++            <div className="flex flex-col gap-1.5">
++              <Input
++                onIconClick={() => setShowPassword((p) => ({ ...p, password: !p.password }))}
++                Icon={showPassword.password ? <EyeLineOff /> : <EyeLine />}
++                placeholder="Choose a password"
++                label="Password"
++                type={showPassword.password ? 'text' : 'password'}
++                autoComplete="new-password"
++                {...register('password')}
++                error={errors?.password?.message}
++              />
++              <ul className="list-inside text-sm font-medium flex flex-col gap-2 pb-1.5">
++                <RuleLine
++                  met={(password || '').length >= INVITE_MIN_PASSWORD_LENGTH}
++                  text={`At least ${INVITE_MIN_PASSWORD_LENGTH} characters`}
++                />
++                <RuleLine
++                  met={Boolean(password) && password.toLowerCase() !== email.toLowerCase()}
++                  text="Not your e-mail address"
++                />
++                <RuleLine
++                  met={Boolean(password) && password === confirm}
++                  text="Both passwords are the same"
++                />
++              </ul>
++            </div>
++            <Input
++              onIconClick={() => setShowPassword((p) => ({ ...p, confirm: !p.confirm }))}
++              Icon={showPassword.confirm ? <EyeLineOff /> : <EyeLine />}
++              placeholder="Type it again"
++              label="Confirm password"
++              type={showPassword.confirm ? 'text' : 'password'}
++              autoComplete="new-password"
++              {...register('confirm_password')}
++              error={errors?.confirm_password?.message}
++            />
++          </div>
++          <Button type="submit" disabled={isPending}>
++            {isPending ? <Loader variant="blue" /> : 'Set my password'}
++          </Button>
++          <p className="text-xs text-grey-800 text-center">
++            This link works for {days} day{days === 1 ? '' : 's'} from when it was sent.
++          </p>
++        </form>
++      );
++    }
++
++    const copy: Record<Exclude<InviteState, 'loading' | 'ok'>, { title: string; text: string }> = {
++      invalid: {
++        title: 'This link is not valid',
++        text: 'Check that you opened the full link from your e-mail. If it still does not work, ask the person who added you to send a new one.',
++      },
++      expired: {
++        title: 'This link has expired',
++        text: `An invite link works for ${days} day${days === 1 ? '' : 's'}. Ask the person who added you to send a new one.`,
++      },
++      accepted: {
++        title: 'This link has already been used',
++        text: 'You have already chosen a password. You can log in with it.',
++      },
++      error: {
++        title: 'We could not check your link',
++        text: 'Please try again in a moment. If it keeps failing, ask the person who added you to send a new link.',
++      },
++    };
++    const { title, text } = copy[state];
++
++    return (
++      <div className="flex flex-col gap-6" data-testid={`accept-invite-${state}`}>
++        <div className="flex flex-col gap-3">
++          <h1 className="text-4xl text-black font-semibold">{title}</h1>
++          {info.name && (
++            <p className="text-base text-grey-800">
++              This link was for {info.name}
++              {email ? ` (${email})` : ''}.
++            </p>
++          )}
++          <h6 className="text-base text-grey-800 font-normal">{text}</h6>
++        </div>
++        <Button type="button" onClick={() => navigate('/')}>
++          Go to log in
++        </Button>
++      </div>
++    );
++  };
++
++  return (
++    <div className="w-full flex md:min-h-screen xs:min-h-0">
++      <section className="sm:w-5/12 xs:w-full">
++        <div className="container mx-auto p-8 max-w-full">
++          <div className="h-8 cursor-pointer" onClick={() => navigate('/')}>
++            <img
++              src={
++                mainSiteInfo?.small_logo
++                  ? `${getEnv().VITE_API_BASE_URL}/${mainSiteInfo?.small_logo}`
++                  : LogoIcon
++              }
++              alt="Logo"
++              className="h-full"
++            />
++          </div>
++          <div className="pt-16 sm:min-h-[calc(100vh_-_6rem)] xs:min-h-0 flex flex-col justify-center items-center">
++            <div className="flex flex-col xxl:w-2/3 xl:w-3/4 lg:w-4/5 md:w-11/12 xs:w-full gap-8">
++              {renderBody()}
++              <p className="text-sm text-grey-800 font-normal text-center">
++                Already have a password?
++                <span
++                  className="text-primary hover:text-primary/80 font-semibold cursor-pointer"
++                  onClick={() => navigate('/')}
++                >
++                  &nbsp;Log in&nbsp;
++                </span>
++              </p>
++            </div>
++          </div>
++        </div>
++      </section>
++      <section className="w-7/12 bg-ucass-gray overflow-hidden sm:block xs:hidden">
++        <div className="flex flex-col justify-between h-screen xl:gap-10 xs:gap-8">
++          <div className="container m-auto pt-8 md:px-24 sm:px-8">
++            <div className="flex flex-col gap-6">
++              <h2 className="text-gray-900 font-medium text-3xl leading-10">
++                One password, chosen by you. Nobody else ever sees it.
++              </h2>
++            </div>
++          </div>
++          <div className="container ml-auto md:pl-24 sm:pl-8">
++            <div className="flex justify-end">
++              <div className="w-full">
++                <img
++                  src={
++                    mainSiteInfo?.login_image && !largeLogoError
++                      ? `${getEnv().VITE_API_BASE_URL}/${mainSiteInfo?.login_image}`
++                      : Desktop
++                  }
++                  alt="Desktop"
++                  className="w-full"
++                  onError={() => setLargeLogoError(true)}
++                />
++              </div>
++            </div>
++          </div>
++        </div>
++      </section>
++    </div>
++  );
++};
++
++export default AcceptInvite;
+diff -ruN a/src/router/index.tsx b/src/router/index.tsx
+--- a/src/router/index.tsx	2026-09-03 08:36:15.644022019 +0000
++++ b/src/router/index.tsx	2026-09-03 08:36:15.646022026 +0000
+@@ -138,6 +138,7 @@
+ const RecordingDetails = lazy(() => import('@/pages/video-meetings/recordings/recording-details'));
+ const ForgotPassword = lazy(() => import('@/pages/login/forget-password'));
+ const ResetPassword = lazy(() => import('@/pages/login/reset-password'));
++const AcceptInvite = lazy(() => import('@/pages/login/accept-invite'));
+ const SocialMediaChannels = lazy(() => import('@/pages/admin-settings/social-media-channels'));
+ const Integration = lazy(() => import('@/pages/integration'));
+ const CRMIntegration = lazy(() => import('@/pages/integration/crm'));
+@@ -321,6 +322,11 @@
+         element: <ResetPassword />,
+       },
+       {
++        /* Public: a new person lands here from the invite e-mail. */
++        path: 'accept-invite',
++        element: <AcceptInvite />,
++      },
++      {
+         path: 'renew-plan',
+         element: <RenewPlan />,
+       },
+diff -ruN a/src/services/api/index.tsx b/src/services/api/index.tsx
+--- a/src/services/api/index.tsx	2026-09-03 08:36:15.653022054 +0000
++++ b/src/services/api/index.tsx	2026-09-03 08:36:15.655022061 +0000
+@@ -43,6 +43,42 @@
+   });
+ };
+ 
++/* Invite links for new people. inspect/accept are public (the link is the
++   secret); resend/pending are administrators only. */
++export const inspectInvite = (data: { token: string }) => {
++  return apiClient({
++    method: routes.INVITE_INSPECT.METHOD,
++    url: routes.INVITE_INSPECT.URL,
++    data,
++    hideToastOnError: true,
++  } as CustomAxiosRequestConfig);
++};
++
++export const acceptInvite = (data: { token: string; password: string }) => {
++  return apiClient({
++    method: routes.INVITE_ACCEPT.METHOD,
++    url: routes.INVITE_ACCEPT.URL,
++    data,
++  });
++};
++
++export const resendInvite = (data: { user_uuid: string }) => {
++  return apiClient({
++    method: routes.INVITE_RESEND.METHOD,
++    url: routes.INVITE_RESEND.URL,
++    data,
++  });
++};
++
++export const pendingInvites = () => {
++  return apiClient({
++    method: routes.INVITE_PENDING.METHOD,
++    url: routes.INVITE_PENDING.URL,
++    data: {},
++    hideToastOnError: true,
++  } as CustomAxiosRequestConfig);
++};
++
+ //Billing
+ export const billingList = (data: any) => {
+   return apiClient({
+diff -ruN a/src/services/api/routes.tsx b/src/services/api/routes.tsx
+--- a/src/services/api/routes.tsx	2026-09-03 08:36:15.663022092 +0000
++++ b/src/services/api/routes.tsx	2026-09-03 08:36:15.664022096 +0000
+@@ -19,6 +19,23 @@
+     METHOD: 'POST',
+     URL: '/api/verify-password',
+   },
++  /* Invite links for new people (backend-patches/invites). */
++  INVITE_INSPECT: {
++    METHOD: 'POST',
++    URL: '/api/invite/inspect',
++  },
++  INVITE_ACCEPT: {
++    METHOD: 'POST',
++    URL: '/api/invite/accept',
++  },
++  INVITE_RESEND: {
++    METHOD: 'POST',
++    URL: '/api/invite/resend',
++  },
++  INVITE_PENDING: {
++    METHOD: 'POST',
++    URL: '/api/invite/pending',
++  },
+ 
+   DASHBOARD_STATS: {
+     METHOD: 'POST',

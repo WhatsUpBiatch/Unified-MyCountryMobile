@@ -5,7 +5,8 @@ import { useDialpad } from '@/hooks/use-dialpad';
 import type { DialpadSession } from '@/context/dialpad-context';
 import { Ic } from '../icons';
 import { DialNumber } from '../dial-number';
-import { contactDisplayName, initialsOf } from '../copilot-adapter';
+import { initialsOf } from '../copilot-adapter';
+import { useCallerName } from '../use-caller-name';
 import type { ConsoleCallRow } from '../call-list-column';
 import { DEMO_ENABLED, demoProfile } from '../demo-data';
 import DemoChip from './demo-chip';
@@ -29,8 +30,9 @@ const ContactPane = ({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
 
+  const { callerName } = useCallerName();
   const number = session?.remoteNumber || selectedCall?.number || '';
-  const name = session ? contactDisplayName(session) : selectedCall?.name || '';
+  const name = session ? callerName(session) : selectedCall?.name || '';
   const contact = session?.contactInfo;
 
   const formContactData = useMemo(() => {

@@ -1,4 +1,5 @@
 import NumberWithFlag from '@/components/custom/number-with-flag';
+import { TabRail } from '@/components/mcm/tab-rail';
 import { parseForwardActions } from '@/lib/call-standard';
 import TableManager from '@/components/custom/table-manager';
 import { AdminPage } from '@/pages/admin-settings/page-shell';
@@ -642,6 +643,11 @@ const NumberList = () => {
   return (
     <>
       <AdminPage
+        crumbs={[
+          { label: 'Admin settings', to: '/admin-settings' },
+          { label: 'Numbers', to: VIEWS.all.path },
+          { label: view.tab },
+        ]}
         section="Numbers"
         title={view.title}
         description={view.description}
@@ -668,37 +674,31 @@ const NumberList = () => {
           />
         }
       >
-        <div className="flex flex-col gap-3">
-          {/* One list, three views. Each keeps its own address so a view can be
-              linked to and reloaded. */}
-          <nav
-            className="flex items-center gap-1 border-b border-gray-200"
-            aria-label="Number views"
-          >
-            {Object.values(VIEWS).map((item) => {
-              const isActive = item.key === view.key;
-              return (
-                <Link
-                  key={item.key}
-                  to={item.path}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
-                    isActive
-                      ? 'border-primary font-semibold text-primary'
-                      : 'border-transparent text-gray-500 hover:text-gray-900'
-                  }`}
-                >
-                  {item.tab}
-                </Link>
-              );
-            })}
-          </nav>
+        {/* The panel the company settings tabs sit on, so the two areas are the
+            same shape: one surface, its own hairline, and the views, the note
+            and the table as sections of it rather than three things stacked on
+            the page with gaps between them. */}
+        <section className="cs-section flex w-full flex-col">
+          {/* One list, five views. Each keeps its own address so a view can be
+              linked to and reloaded.
+
+              The same strip the company settings tabs use, rather than a second
+              one built to look nearly like it: one control, one active state,
+              and the marker, sideways scrolling and overflow chevron come with
+              it. */}
+          <TabRail
+            items={Object.values(VIEWS).map((item) => ({ to: item.path, label: item.tab }))}
+            ariaLabel="Number views"
+          />
 
           {view.key === 'all' && (
-            <p className="text-gray-900 text-sm">
-              Adding an additional number to an existing user/plan will only incur a charge for the
-              phone number itself. This action does not create a new subscription or user plan. Your
-              monthly recurring total will be updated based on the quantity of numbers added.
+            /* Was three sentences saying one thing twice: that a number is
+               charged as a number, that it is not a new subscription, and that
+               the monthly total goes up. The first two are the same fact from
+               either side. */
+            <p className="text-sm text-gray-600">
+              Adding a number to an existing plan charges for the number only, not a new
+              subscription. Your monthly total updates to match.
             </p>
           )}
 
@@ -734,7 +734,7 @@ const NumberList = () => {
               content={<AddNumber handleClose={() => setOpenDrawer(false)} />}
             />
           )}
-        </div>
+        </section>
       </AdminPage>
 
       {numberState.updateForwarding && (

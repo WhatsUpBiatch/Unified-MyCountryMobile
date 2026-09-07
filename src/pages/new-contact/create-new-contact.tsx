@@ -447,14 +447,18 @@ const CreateContactNew: React.FC<CreateNewContactProps> = ({
       // notes,
       ...rest
     } = data;
-    console.log(belongsTo, 'belongsTobelongsTo');
-
     const selectedBelongsTo = Array.isArray(belongsTo)
       ? belongsTo
           ?.map((item: any) => item?.value)
           ?.filter((value: string) => Boolean(value))
           ?.join(',')
       : belongsTo?.value || '';
+
+    const socialHandles = Object.fromEntries(
+      Object.entries({ twitter, facebook, linkedin, whatsapp, instagram, telegram })
+        .map(([key, value]) => [key, String(value ?? '').trim()])
+        .filter(([, value]) => Boolean(value)),
+    );
 
     const payload: Record<string, any> = {
       name: {
@@ -480,27 +484,20 @@ const CreateContactNew: React.FC<CreateNewContactProps> = ({
         zipcode: zipcode || '',
         ...(country?.value ? { country: country } : {}),
       },
-      social: {
-        twitter: twitter || '',
-        facebook: facebook || '',
-        linkedin: linkedin || '',
-        whatsapp: whatsapp || '',
-        instagram: instagram || '',
-        telegram: telegram || '',
-      },
+      /* Only handles that were actually filled in. Sending every key with an
+         empty string made the API reject the whole save with `"social.whatsapp"
+         is not allowed`, so no contact could be created at all — with or
+         without a WhatsApp. When none are filled the key is omitted entirely. */
+      ...(Object.keys(socialHandles).length ? { social: socialHandles } : {}),
       type: isLead ? 'LEAD' : 'CONTACT',
       ...(selectedBelongsTo ? { belongsTo: selectedBelongsTo } : {}),
     };
-
-    console.log(payload, 'payloadpayload');
 
     if (contactData?._id) payload.contact_uuid = contactData._id;
     try {
       setShowLoader(true);
 
-      console.log('add chla', contactData?.contactPic, contactData);
       if ((!contactData?.contactPic && avatar) || avatar instanceof File) {
-        console.log('add chla   1', contactData?.contactPic, contactData);
         const uploadMediaResponse = await uploadMediaMutate({
           uuid: user?.company_info?.uuid,
           type: 'contact',
@@ -522,8 +519,6 @@ const CreateContactNew: React.FC<CreateNewContactProps> = ({
           }
         }
       } else if (contactData?.contactPic && !avatar) {
-        console.log('update chla');
-
         payload.profile.contactPic = null;
         if (contactData?._id) {
           upsertUserContact(payload);
@@ -547,7 +542,12 @@ const CreateContactNew: React.FC<CreateNewContactProps> = ({
       onSubmit={handleSubmit(onSubmit)}
     >
       {/* <div className={`flex flex-col gap-4 ${isDisable?'h-[calc(100vh_-_10rem)]':'h-[calc(100vh_-_14rem)]'} overflow-auto pr-3`}> */}
-      <div className="flex flex-col flex-1 min-h-0 overflow-auto gap-4 pt-2 pr-1 pb-4">
+      {/* px-1.5 is not decoration: this container scrolls, so it clips anything
+          that reaches outside it. The focus ring sits 2px off a field and is
+          2px wide, and with no left padding at all its left edge was sliced
+          straight off. 6px each side clears the ring and makes the two sides
+          symmetric — it used to have 4px on the right and none on the left. */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-auto gap-4 px-1.5 pt-2 pb-4">
         {!isDisable && (
           <label
             htmlFor="file-upload"

@@ -29,13 +29,33 @@
  *   apply / locked  →  everyone gets it and it stays that way   (impossible until now)
  *   apply / open    →  a starting point people may change       (old `override: true`)
  *   skip  / locked  →  hands off; whatever they have is frozen  (old `override: false`)
- *   skip  / open    →  the company has no opinion at all        (was unsayable too)
+ *   skip  / open    →  the company has no opinion at all        (old flag ABSENT)
  *
  * The flags live beside `override` in the same rule node — `recording.apply`,
  * `recording.locked`, `recording.override` — so no migration is needed and a record
  * can be understood by old and new readers at the same time. Nothing here is a React
  * hook or does any I/O; it is pure reading and writing of the settings object, so it
  * can be used from a component, a hook, or a form submit handler alike.
+ *
+ * HOW A RECORD IS READ, in full. New keys win whenever they are present; the old flag
+ * is consulted only for a half that is missing. This table is shared with the server
+ * copy in default-api (src/helpers/companyRuleFlags.ts) and the two must not drift:
+ *
+ *   stored                                  apply   locked
+ *   ------------------------------------    -----   ------
+ *   apply / locked present (either value)   as stored, each on its own
+ *   override: true                          true    false
+ *   override: false (explicitly stored)     false   true
+ *   override absent / undefined / null      false   false
+ *   no company record at all                false   false
+ *
+ * The last two rows are the same on purpose, and the ABSENT row is the one that was
+ * decided. It used to read as locked, so the moment the company record came into
+ * being for any reason — an admin saving a holiday, say — every governed setting on
+ * every person's phone locked at once, and stayed locked until somebody found each
+ * switch. A flag nobody has set means the company has said nothing, and a company
+ * that has said nothing does not lock anything. Only a `false` an admin actually
+ * stored is a lock.
  */
 
 import { POLICY_FIELDS, type PolicyField } from '@/lib/company-policy';
@@ -70,7 +90,9 @@ export interface RuleFlagsRead extends RuleFlags {
    cover, and this model works there unchanged. */
 export type RuleFieldRef = PolicyField | string;
 
-const readPath = (source: any, path: string): any =>
+/* Exported so a screen holding a form can pull the one node `writeRuleFlags` changed
+   back out and set just that node, rather than replacing its whole settings object. */
+export const readPath = (source: any, path: string): any =>
   path.split('.').reduce((value, key) => (value == null ? value : value[key]), source);
 
 /* Clones only the nodes along the path, so the caller's object is never touched and
@@ -105,19 +127,24 @@ export const ruleNodePath = (field: RuleFieldRef): string =>
     ? RULE_NODE_PATHS[field as PolicyField]
     : stripLegacyFlag(field);
 
-/* WHAT AN OLD RECORD MEANS, derived from the two call sites rather than guessed.
+/* WHAT AN OLD RECORD MEANS.
  *
- * With `override: true`, today: `seSettingsData` copies the company value onto the
- * person (apply), and `allows()` returns true so the control stays enabled (not
- * locked). With `override: false` or the key absent, today: nothing is copied (not
- * apply), and `allows()` returns false so the control is disabled (locked) — absent
- * and false behave identically because `allows` tests `=== true`.
+ * `override: true` — the value was copied onto people and the control stayed enabled:
+ * apply, not locked. `override: false` — an admin turned the switch off: nothing
+ * copied, control disabled: skip, locked. Both are kept exactly as they were.
  *
- * So a legacy record can only ever say apply XOR locked, which is exactly why the
- * other two combinations were unsayable. Reading it back this way reproduces today's
- * behaviour for both values, and nobody's phone changes on deploy.
+ * The flag being ABSENT used to read the same as `false`, because the old readers
+ * tested `=== true`. That is the case this function now reads differently: absent
+ * means the company never said anything about this setting, so nothing is copied and
+ * nothing is locked. The decision and the reason are in the header. A value that is
+ * not a boolean at all — null from a JSON column, a string from a hand edit — is
+ * treated as absent for the same reason: nobody chose it.
  */
-const legacyFlags = (override: boolean): RuleFlags => ({ apply: override, locked: !override });
+const legacyFlags = (override: unknown): RuleFlags => {
+  if (override === true) return { apply: true, locked: false };
+  if (override === false) return { apply: false, locked: true };
+  return { apply: false, locked: false };
+};
 
 /* WHAT A NEW RECORD WRITES BACK INTO THE OLD FLAG.
  *
@@ -137,11 +164,17 @@ const legacyFlags = (override: boolean): RuleFlags => ({ apply: override, locked
  * being fixed. `true` is the safer half to keep.
  *
  * skip+open ("no opinion") follows the same rule and lands on `false`. That is the
- * conservative direction there too: `false` only over-disables a control in the UI —
- * which is already what a tenant sees today for an untouched field, so no regression
- * and no data change — while `true` would seed an uncurated company value onto real
- * phones. `apply` is the half that changes data, so `apply` is the half `override`
- * carries.
+ * conservative direction there too: to an old reader `false` only over-disables a
+ * control in the UI — which is what those readers always showed for an untouched
+ * field — while `true` would seed an uncurated company value onto real phones.
+ * `apply` is the half that changes data, so `apply` is the half `override` carries.
+ *
+ * One consequence to be aware of: this module's own reader treats a stored `false`
+ * as a lock and only an ABSENT flag as "no opinion". So skip+open round-trips only
+ * while `apply` and `locked` travel with the record. Anything that copies a rule node
+ * and keeps just `override` — a form helper rebuilding the node field by field — turns
+ * skip+open into skip+locked on the way back. The cure is to carry the two new keys,
+ * never to write a different `override`: the server reads the same table.
  */
 export const legacyOverrideFor = ({ apply }: RuleFlags): boolean => apply;
 
@@ -164,14 +197,15 @@ export const readRuleFlags = (settings: any, field: RuleFieldRef): RuleFlagsRead
   const explicitApply = typeof apply === 'boolean' ? apply : null;
   const explicitLocked = typeof locked === 'boolean' ? locked : null;
 
-  const fallback = legacyFlags(node?.[LEGACY_FLAG_KEY] === true);
+  const fallback = legacyFlags(node?.[LEGACY_FLAG_KEY]);
 
   return {
     apply: explicitApply ?? fallback.apply,
     locked: explicitLocked ?? fallback.locked,
-    /* Only when neither new flag is there. A half-written node — one flag present,
-       from an interrupted save or a hand edit — is not legacy; the flag that is there
-       is honoured and the missing one comes from `override`. */
+    /* Only when neither new flag is there — including a node with no flags at all,
+       which has never been looked at since the split either. A half-written node —
+       one flag present, from an interrupted save or a hand edit — is not legacy; the
+       flag that is there is honoured and the missing one comes from `override`. */
     isLegacy: explicitApply === null && explicitLocked === null,
   };
 };

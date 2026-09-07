@@ -9,6 +9,7 @@ import { AlertTriangle, MapPinIcon, PhoneCall } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { BackButton } from './section-actions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -344,6 +345,7 @@ const CompanyEmergencyAddress = () => {
       uuid: companyDefaultRow?.uuid,
       settings: nextSettings,
       greetings: storedGreetings,
+      only: [EMERGENCY_ADDRESS_KEY],
     });
   };
 
@@ -364,17 +366,12 @@ const CompanyEmergencyAddress = () => {
     <section className="cs-section flex w-full flex-col gap-4">
       {/* On a panel, like the heading block every other section opens with. It
           was the one section whose title sat bare on the page ground. */}
-      <div className="cs-block flex items-start gap-3">
-        <MapPinIcon className="mt-0.5 h-4.5 w-4.5 text-primary" />
-        <div className="flex flex-col gap-0.5">
-          <h5 className="text-base font-semibold tracking-wide text-gray-900">
-            Emergency address (E911)
-          </h5>
-          <p className="text-xs font-medium text-gray-700">
-            The street address emergency responders would be sent to, and the number they would call
-            back on.
-          </p>
-        </div>
+      <div className="cs-block">
+        <SectionHeading
+          icon={<MapPinIcon className="h-[18px] w-[18px]" />}
+          title="Emergency address (E911)"
+          description="The street address emergency responders would be sent to, and the number they would call back on."
+        />
       </div>
 
       {/* Small, but still a warning and still amber - not the plain grey note

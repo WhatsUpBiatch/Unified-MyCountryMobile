@@ -157,3 +157,31 @@ control reproduces the stale-list bug so the fix is not taken on trust.
 
     npx esbuild src/lib/queue-members.ts --format=cjs --outfile=tests/queue-members.build.cjs
     node tests/queue-members-test.cjs
+
+What a company rule says about a person — whether they get the company value
+and whether they may change it — including how a record that only carries the
+old one-flag `override` is read: `true` applies and leaves it open, a stored
+`false` locks, and a flag nobody ever set locks nothing. The same table is
+implemented on the server (default-api `src/helpers/companyRuleFlags.ts`) and
+must not drift from this one.
+
+    npx esbuild src/lib/company-rule-flags.ts --bundle --platform=node --format=cjs \
+      --outfile=tests/company-rule-flags.build.cjs \
+      --alias:@/services/api=./tests/company-settings-stubs/api.cjs \
+      --alias:@/lib/utils=./tests/company-settings-stubs/utils.cjs --alias:@=./src \
+      --external:@tanstack/react-query
+    node --test tests/company-rule-flags-test.cjs
+
+Company settings, two stores behind one door — that the old {settings, greetings}
+shape survives a round trip through the per-section store, that the first call
+of a session decides which store speaks and decides it the safe way (a 404 is
+"old store", a 500 is "tell me", never "old store"), that a save touches only
+the sections it names with the version it last saw, and that a stale tab is
+refused in plain words rather than allowed to overwrite. The network and the
+toast are stood in for by tests/company-settings-stubs/.
+
+    npx esbuild tests/company-settings.entry.cjs --bundle --platform=node \
+      --format=cjs --outfile=tests/company-settings.build.cjs \
+      --alias:@/services/api=./tests/company-settings-stubs/api.cjs \
+      --alias:@/lib/utils=./tests/company-settings-stubs/utils.cjs --alias:@=./src
+    node --test tests/company-settings-test.cjs

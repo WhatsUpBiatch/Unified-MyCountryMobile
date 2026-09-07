@@ -1,4 +1,5 @@
 import { SearchLine } from '@/assets/icons';
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 import { Icon } from '@/assets/icons/icon';
 import Loader from '@/components/custom/loader';
 import type { DialpadSession } from '@/context/dialpad-context';
@@ -12,7 +13,6 @@ import { useSocketEvents } from '@/hooks/use-socket-events';
 import { useDialpad } from '@/hooks/use-dialpad';
 import { useUser } from '@/hooks/use-user';
 import { handleAlert } from '@/lib/utils';
-import { DIALER_TYPE } from '@/pages/auto-dialer/campaign/add-edit-campaign/consts';
 import { CAMPAIGN_STATUS_CONST, CAMPAIGN_TYPE_NAME } from '@/pages/auto-dialer/campaign/const';
 import CallQueueCard from '@/pages/dashboard/call-dashboard/Call-queue-content/call-queue-card';
 import NotFound from '@/assets/images/not-found-img.svg';
@@ -377,10 +377,10 @@ const MyCampaignListStandalone = () => {
       },
     });
 
-    const isPredictiveCampaign =
-      String(campaign?.dialMethod || '')
-        .trim()
-        .toUpperCase() === DIALER_TYPE.PREDICTIVE;
+    /* Predictive and (once the server dials it) progressive: the agent goes
+       available in the campaign's queue and waits for the dialer to ring them.
+       Preview: the agent pulls records and dials from their own phone. */
+    const isPredictiveCampaign = isServerDialed(campaign?.dialMethod);
 
     if (isPredictiveCampaign) {
       try {
@@ -565,10 +565,7 @@ const MyCampaignListStandalone = () => {
         caller_id: campaign?.callerId,
       },
     });
-    const isPredictiveCampaign =
-      String(campaign?.dialMethod || '')
-        .trim()
-        .toUpperCase() === DIALER_TYPE.PREDICTIVE;
+    const isPredictiveCampaign = isServerDialed(campaign?.dialMethod);
 
     try {
       if (isPredictiveCampaign) {

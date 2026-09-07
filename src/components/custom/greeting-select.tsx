@@ -35,6 +35,9 @@ interface IGREETINGPROPS {
 
 interface GreetingSelectValue extends ISELECTVALUE {
   uuid?: string;
+  /* Straight off the recording's own row. See `isDefaultRecording` below for
+     why this is preferred over matching the uuid against a list. */
+  is_default?: boolean | number;
 }
 
 const SelectGreeting: FC<IGREETINGPROPS> = ({
@@ -71,8 +74,26 @@ const SelectGreeting: FC<IGREETINGPROPS> = ({
   });
   const selectedGreeting = options.find((option) => option.value === value?.value) as
     GreetingSelectValue | undefined;
-  const greetingUuid = (value as GreetingSelectValue | null)?.uuid ?? selectedGreeting?.uuid;
-  const recordingUrl = DEFAULT_RECORDING_UUIDS.includes(greetingUuid ?? '')
+  const selectedValue = value as GreetingSelectValue | null;
+
+  /* Which of the two places this recording lives in: a company's own uploads
+     are at `<company>/greeting/<file>`, the ones the platform ships for
+     everybody are at `default/recording/<file>`. Guess wrong and the request
+     404s at the storage layer and the player says "Unable to load this audio".
+   *
+   * `is_default` comes from the recording's own row and is the reliable
+   * answer. The uuid list is kept only as a fallback for a value that was
+   * saved before `is_default` was carried through — matching on it was the
+   * ONLY test before, which made playback depend on a hardcoded list being in
+   * step with the database AND on the saved value still carrying its uuid.
+   * Neither holds for a value saved by an older build, and every stock
+   * recording chosen that way failed to play. */
+  const flag = selectedValue?.is_default ?? selectedGreeting?.is_default;
+  const greetingUuid = selectedValue?.uuid ?? selectedGreeting?.uuid;
+  const isDefaultRecording =
+    flag === true || flag === 1 || DEFAULT_RECORDING_UUIDS.includes(greetingUuid ?? '');
+
+  const recordingUrl = isDefaultRecording
     ? `${getEnv().VITE_API_BASE_URL}/api/media/default/recording/${value?.value}`
     : `${MEDIA_URL}/${company_info?.uuid}/greeting/${value?.value}`;
 

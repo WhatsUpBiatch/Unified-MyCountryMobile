@@ -98,6 +98,10 @@ import ScheduleEventModal from '@/pages/video-meetings/Calender/Modal/ScheduleEv
 import { SCHEDULEMEETING } from '@/pages/video-meetings/Calender/constants';
 import { useUsersDirectory } from '@/hooks/use-users-directory';
 import AiAssist from '../content/ai-assist';
+import AiWriting from '@/components/custom/ai-writing';
+import AiConversationInsights from '@/components/custom/ai-conversation-insights';
+import AiReplySuggestions from '@/components/custom/ai-reply-suggestions';
+import AiInlineReplySuggestions from '@/components/custom/ai-inline-reply-suggestions';
 import { AI_SETTINGS_TYPES } from '../constants';
 
 // const MESSAGE_LIMIT = 30;
@@ -1025,8 +1029,36 @@ export const ChatHeader = ({
     socketEventsManager,
     meetWindows,
     meetingAcceptingChatId,
+    messageList,
     // handleMeetInitiate
   } = useSocketEvents();
+
+  /* Flattened, sender-resolved transcript for AI Conversation Insights. Built
+     from the same messageList the rest of this header already reads, so it
+     always reflects what's actually loaded - no separate fetch. */
+  const conversationInsightMessages = useMemo(() => {
+    const chatMessages = (Array.isArray(messageList) ? messageList : []).find(
+      (chatItem: any) => chatItem?.chatId === currentChat?.chatId,
+    )?.messages;
+    return (Array.isArray(chatMessages) ? chatMessages : [])
+      .filter(
+        (item: any) =>
+          !item?.isDeleted && item?.messageType !== 'prompt' && item?.messageType !== 'meet',
+      )
+      .map((item: any) => {
+        const text = getMessagePreviewText(item?.message || '').trim();
+        if (!text) return null;
+        const senderId = item?.senderId;
+        const sender =
+          senderId === user?.uuid
+            ? 'You'
+            : (Array.isArray(currentChat?.users) ? currentChat.users : []).find(
+                (chatUser: any) => chatUser?.uuid === senderId,
+              )?.name || 'Someone';
+        return { sender, text };
+      })
+      .filter(Boolean);
+  }, [messageList, currentChat?.chatId, currentChat?.users, user?.uuid]);
 
   const handleEndChat = () => {
     if (socketEventsManager && currentChat?.chatId) {
@@ -1677,6 +1709,16 @@ export const ChatHeader = ({
                   onOtherClick={() => onOpenSidebarMode('members')}
                 />
               )}
+
+              {!isMessageSelectionMode && !fromMeetChat ? (
+                <CustomTooltip text="Summarize & ask AI" side="top">
+                  <AiConversationInsights
+                    messages={conversationInsightMessages}
+                    disabled={!conversationInsightMessages.length}
+                    className="w-9 h-9 rounded-full bg-gray-100 hover:bg-ucass-active hover:text-white"
+                  />
+                </CustomTooltip>
+              ) : null}
 
               {!isMessageSelectionMode ? (
                 <CustomTooltip text="Search" side="top">
@@ -2466,6 +2508,35 @@ export const ChatFooter = ({
   ]);
 
   const plainText = useMemo(() => getMessagePreviewText(message || []), [message]);
+
+  /* Sender-resolved transcript for AI Reply Suggestions. Same shape the chat
+     header builds for Conversation Insights, rebuilt here because the two
+     live in different components and neither owns the other's scope. */
+  const replySuggestionMessages = useMemo(() => {
+    const chatMessages = (Array.isArray(messageList) ? messageList : []).find(
+      (chatItem: any) => chatItem?.chatId === currentChat?.chatId,
+    )?.messages;
+    return (Array.isArray(chatMessages) ? chatMessages : [])
+      .filter(
+        (item: any) =>
+          !item?.isDeleted && item?.messageType !== 'prompt' && item?.messageType !== 'meet',
+      )
+      .map((item: any) => {
+        const text = getMessagePreviewText(item?.message || '').trim();
+        if (!text) return null;
+        const senderId = item?.senderId;
+        /* "You" rather than the person's own name: the model is being asked
+           what You should say next, so the label has to match the prompt. */
+        const sender =
+          senderId === meetingActorUuid
+            ? 'You'
+            : (Array.isArray(currentChat?.users) ? currentChat.users : []).find(
+                (chatUser: any) => chatUser?.uuid === senderId,
+              )?.name || 'Someone';
+        return { sender, text };
+      })
+      .filter(Boolean);
+  }, [messageList, currentChat?.chatId, currentChat?.users, meetingActorUuid]);
   const lastIncomingPrefill = useMemo(() => {
     const chatMessages = ((Array.isArray(messageList) ? messageList : []).find(
       (chatItem: any) => chatItem?.chatId === currentChat?.chatId,
@@ -3617,6 +3688,27 @@ export const ChatFooter = ({
               {typingText ? (
                 <div className="text-xs text-ucass-active px-1 py-1">{typingText}</div>
               ) : null}
+
+              {/* Sits directly above the input rather than in a panel: these
+                  are offered rather than asked for, so they belong where the
+                  eye already is. Fills the composer on click, same as every
+                  other AI surface here - it never sends. */}
+              {!isGuestRestrictedFooter ? (
+                <AiInlineReplySuggestions
+                  messages={replySuggestionMessages}
+                  chatId={currentChat?.chatId}
+                  draftText={plainText}
+                  disabled={isComposerBusy}
+                  onSelect={(text) => {
+                    const value = String(text)
+                      .split('\n')
+                      .map((line) => ({ type: 'paragraph', children: [{ text: line }] }));
+                    setMessage(value);
+                    editorRef.current?.replaceEditorValue?.(value);
+                  }}
+                />
+              ) : null}
+
               <div className={baseComposerClasses}>{renderComposerEditor()}</div>
               <div className="absolute right-0 bottom-1 z-[12]">
                 <div className="flex gap-1.5 items-center px-2  pointer-events-auto rounded-full">
@@ -3698,6 +3790,41 @@ export const ChatFooter = ({
                   ) : null}
 
                   {renderEmojiButton()}
+
+                  {/* Rewrites what is already typed. Separate from the AI
+                      Assist button beside it, which opens a conversational
+                      agent and needs one configured; this needs no setup and
+                      only ever hands text back. Insert is the sole path that
+                      touches the draft, and it rebuilds the editor value from
+                      plain text - so a rewrite drops bold/italic, which is the
+                      honest trade for the model returning prose rather than
+                      Slate nodes. */}
+                  <AiWriting
+                    draftText={plainText}
+                    disabled={isComposerBusy}
+                    onInsert={(text) => {
+                      const value = String(text)
+                        .split('\n')
+                        .map((line) => ({ type: 'paragraph', children: [{ text: line }] }));
+                      setMessage(value);
+                      editorRef.current?.replaceEditorValue?.(value);
+                    }}
+                  />
+
+                  {/* Fills the composer the same way AI Writing does, and for
+                      the same reason: a suggestion is a starting point someone
+                      can edit, never a message that has been sent. */}
+                  <AiReplySuggestions
+                    messages={replySuggestionMessages}
+                    disabled={isComposerBusy}
+                    onSelect={(text) => {
+                      const value = String(text)
+                        .split('\n')
+                        .map((line) => ({ type: 'paragraph', children: [{ text: line }] }));
+                      setMessage(value);
+                      editorRef.current?.replaceEditorValue?.(value);
+                    }}
+                  />
 
                   {showAiAssistTrigger ? (
                     hasAiAssistAgent ? (

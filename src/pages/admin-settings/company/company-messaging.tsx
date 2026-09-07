@@ -3,10 +3,11 @@ import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { count } from 'sms-length';
-import { LifeBuoy, MessageSquare, ShieldAlert } from 'lucide-react';
+import { LifeBuoy, MessageSquare, MessageSquareText, ShieldAlert } from 'lucide-react';
 
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Switch } from '@/components/ui/switch';
 import { handleAlert } from '@/lib/utils';
@@ -250,6 +251,7 @@ const CompanyMessaging = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [MESSAGING_KEY],
     });
   };
 
@@ -267,11 +269,11 @@ const CompanyMessaging = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Messaging</p>
-        <p className="text-xs text-gray-500">
-          SMS and MMS rules for the whole company — whether texting is on, what happens on
-          unregistered US numbers, and the reply someone gets when they text HELP.
-        </p>
+        <SectionHeading
+          icon={<MessageSquareText className="h-[18px] w-[18px]" />}
+          title="Messaging"
+          description="SMS and MMS rules for the whole company — whether texting is on, what happens on unregistered US numbers, and the reply someone gets when they text HELP."
+        />
       </div>
 
       <div className="w-full">

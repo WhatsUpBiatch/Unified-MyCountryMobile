@@ -75,6 +75,7 @@ NEW = '''            if (
                     companyUuid: user.company_uuid,
                     clientIp,
                     userUuid: sessionUserUuid,
+            userRole: user.role,
                 });
                 if (!allowlistResult.allowed) {
                     // Refuse this request AND end the session, so the next

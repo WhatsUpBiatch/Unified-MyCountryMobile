@@ -43,7 +43,7 @@ const queryClient = new QueryClient({
 const GoogleOAuthProviderWrapper = ({ children }: { children: React.ReactNode }) => {
   const { user } = useUser();
   const DEFAULT_CLIENT_ID =
-    '285675733526-2rrr5cskrljog7f9s6mdm95l90d5es29.apps.googleusercontent.com';
+    '285675733526-2o55qj8ogir1d5qfl9jugpccmg4o96mb.apps.googleusercontent.com';
   const googleClientId = user?.google_client_id || DEFAULT_CLIENT_ID;
 
   return (

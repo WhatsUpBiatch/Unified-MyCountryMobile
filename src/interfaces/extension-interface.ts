@@ -35,5 +35,5 @@ export interface IADDUSER {
   }[];
   password: string;
   confirm_password: string;
-  password_type: 'common' | 'individual';
+  password_type: 'common' | 'individual' | 'email';
 }

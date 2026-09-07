@@ -166,6 +166,12 @@ const buildDialerSettingsPayload = (dialerSetting: any) => {
     default_retry_period_type:
       typeof retryPeriodType === 'string' ? retryPeriodType : retryPeriodType?.value,
     agent_contact_limit: dialerSetting?.agent_contact_limit ?? null,
+    /* Pacing for the server-side dialer. Progressive only reads the line
+       ceiling; predictive reads all four. Preview ignores them. */
+    max_lines: Number(dialerSetting?.max_lines ?? 0) || 0,
+    max_calls_per_agent: Number(dialerSetting?.max_calls_per_agent ?? 3) || 3,
+    target_abandon_rate: Number(dialerSetting?.target_abandon_rate ?? 3) || 3,
+    compliance_abandon_seconds: Number(dialerSetting?.compliance_abandon_seconds ?? 2) || 0,
     answering_detection_machine: {
       /* The switch was never sent. The UI writes to `enabled`, the read-back at
          line ~321 looks for `enabled ?? enable`, and this builder omitted both —
@@ -330,6 +336,10 @@ export const mapCampaignToFormDefaults = ({
         value: selectedCampaign?.dialerSetting?.default_retry_period_type || '',
       },
       max_attempt_per_record: selectedCampaign?.dialerSetting?.max_attempt_per_record,
+      max_lines: selectedCampaign?.dialerSetting?.max_lines ?? 0,
+      max_calls_per_agent: selectedCampaign?.dialerSetting?.max_calls_per_agent ?? 3,
+      target_abandon_rate: selectedCampaign?.dialerSetting?.target_abandon_rate ?? 3,
+      compliance_abandon_seconds: selectedCampaign?.dialerSetting?.compliance_abandon_seconds ?? 2,
       answering_detection_machine: {
         enabled: toBoolean(answeringMachine?.enabled ?? answeringMachine?.enable, false),
         type: answeringMachine?.type,

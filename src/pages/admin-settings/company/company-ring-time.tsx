@@ -7,6 +7,7 @@ import { ArrowRight, PhoneCall, Timer, Users } from 'lucide-react';
 import CustomSelect from '@/components/custom/custom-select';
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Switch } from '@/components/ui/switch';
 import { handleAlert } from '@/lib/utils';
@@ -247,6 +248,7 @@ const CompanyRingTime = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [RING_TIME_KEY],
     });
   };
 
@@ -261,11 +263,11 @@ const CompanyRingTime = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Ring time</p>
-        <p className="text-xs text-gray-500">
-          How long a phone rings before the call stops ringing and moves on. One number for the
-          whole company, so a new person is not set up by hand.
-        </p>
+        <SectionHeading
+          icon={<Timer className="h-[18px] w-[18px]" />}
+          title="Ring time"
+          description="How long a phone rings before the call stops ringing and moves on. One number for the whole company, so a new person is not set up by hand."
+        />
       </div>
 
       <div className="w-full">

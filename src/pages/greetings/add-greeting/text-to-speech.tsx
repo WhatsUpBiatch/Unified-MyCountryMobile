@@ -8,9 +8,20 @@ import { COMPANY_DEFAULTS_QUERY_KEY, fetchCompanyDefaults } from '@/lib/company-
 import { getGreetingVoiceList } from '@/services/api';
 import ReadyAudio from '@/components/custom/ready-audio';
 
+/* The voices this screen can reach.
+ *
+ * The list of voices comes from the server, but only for a locale asked for by
+ * name — so a locale missing here is a locale whose voices nobody can choose,
+ * however many the provider offers. British English was missing, which is why
+ * an account could end up holding a British recording it had no way to make a
+ * second of, and why every voice on offer was American.
+ *
+ * British English added for that reason. The two are listed together, most
+ * asked-for first. */
 const LANGUAGE_OPTIONS = [
-  { label: 'Hindi (India)', value: 'hi-IN' },
   { label: 'English (United States)', value: 'en-US' },
+  { label: 'English (United Kingdom)', value: 'en-GB' },
+  { label: 'Hindi (India)', value: 'hi-IN' },
   { label: 'Spanish (Spain)', value: 'es-ES' },
   { label: 'Arabic (Saudi Arabia)', value: 'ar-SA' },
 ];
@@ -21,6 +32,10 @@ const sanitizeTextByLocale = (text: string, locale: string) => {
   const filters: Record<string, RegExp> = {
     'hi-IN': /[^\p{Script=Devanagari}0-9\s.,!?;:'"()\-_/&@#%+*=]/gu,
     'en-US': /[^A-Za-z0-9\s.,!?;:'"()\-_/&@#%+*=]/g,
+    /* Same alphabet as en-US. Without an entry the filter is skipped entirely
+       and whatever is typed goes to the provider unchecked, which is the one
+       thing this function exists to prevent. */
+    'en-GB': /[^A-Za-z0-9\s.,!?;:'"()\-_/&@#%+*=]/g,
     'es-ES':
       /[^A-Za-z0-9\u00C1\u00C9\u00CD\u00D3\u00DA\u00DC\u00D1\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC\u00F1\s.,!?;:'"()\-_/&@#%+*=]/g,
     'ar-SA': /[^\p{Script=Arabic}0-9\s.,!?;:'"()\-_/&@#%+*=]/gu,
@@ -29,6 +44,44 @@ const sanitizeTextByLocale = (text: string, locale: string) => {
   const filter = filters[locale];
   if (!filter) return text;
   return text.replace(filter, '');
+};
+
+/* Which language a voice actually speaks.
+ *
+ * The provider's own field is `Locale`, capitalised, and whatever hands it to
+ * this screen may pass it through as-is, lower-case it, or drop it. The filter
+ * used to read `voice.locale` alone and let anything without that exact key
+ * through, so on a response where the key is spelled any other way NOTHING was
+ * ever filtered: choosing English (United Kingdom) returned the American list,
+ * and the voice picked from it did not sound British because it was not.
+ *
+ * The identifier is the reliable answer. Every voice name from this provider
+ * starts with its locale — `en-GB-RyanNeural` — so when no field carries it,
+ * the name does. */
+const voiceLocale = (voice: any): string => {
+  const named = voice?.locale || voice?.Locale || voice?.locale_name || voice?.LocaleName;
+  if (typeof named === 'string' && named) return named;
+
+  const id = voice?.short_name || voice?.ShortName || voice?.voice_name || voice?.name || '';
+  const match = /^([a-z]{2}-[A-Z]{2})/.exec(String(id));
+  return match ? match[1] : '';
+};
+
+const voiceGender = (voice: any): string =>
+  String(voice?.gender || voice?.Gender || '').toLowerCase();
+
+/* One female and one male per language, named.
+ *
+ * Asked for a British voice a customer means a British-sounding one, and the
+ * provider's list for a locale runs to dozens — most of them variants, some
+ * multilingual models that carry an accent from wherever the text came from.
+ * These are the plain neural voices for each locale, one of each gender.
+ *
+ * It is a preference, not a whitelist: anything not on this list still shows if
+ * the preferred ones are absent, so a provider change cannot empty the picker. */
+const PREFERRED_VOICES: Record<string, string[]> = {
+  'en-US': ['en-US-JennyNeural', 'en-US-GuyNeural'],
+  'en-GB': ['en-GB-SoniaNeural', 'en-GB-RyanNeural'],
 };
 
 const getVoiceOptions = (response: any, locale: string) => {
@@ -41,8 +94,14 @@ const getVoiceOptions = (response: any, locale: string) => {
 
   if (!Array.isArray(voices)) return [];
 
-  return voices
-    .filter((voice: any) => !locale || !voice?.locale || voice?.locale === locale)
+  const mapped = voices
+    .filter((voice: any) => {
+      if (!locale) return true;
+      const its = voiceLocale(voice);
+      /* Only a voice whose language cannot be established at all is given the
+         benefit of the doubt. One that says it speaks another is dropped. */
+      return !its || its === locale;
+    })
     .map((voice: any, index: number) => {
       const baseLabel =
         voice?.display_name ||
@@ -50,21 +109,45 @@ const getVoiceOptions = (response: any, locale: string) => {
         voice?.label ||
         voice?.name ||
         `Voice ${index + 1}`;
-      const genderSuffix = voice?.gender ? ` (${voice.gender})` : '';
+      const gender = voice?.gender || voice?.Gender;
+      const genderSuffix = gender ? ` (${gender})` : '';
       const value =
         voice?.short_name ||
+        voice?.ShortName ||
         voice?.voice_name ||
         voice?.value ||
         voice?.id ||
         voice?.uuid ||
         String(index);
 
-      return {
-        ...voice,
-        label: `${baseLabel}${genderSuffix}`,
-        value,
-      };
+      return { ...voice, label: `${baseLabel}${genderSuffix}`, value };
     });
+
+  /* The provider ships several variants under one display name — Jenny and
+     Jenny Multilingual are both "Jenny (Female)" — so the picker showed the
+     same name twice with no way to tell which was which. One entry per name. */
+  const seen = new Set<string>();
+  const unique = mapped.filter((option: any) => {
+    const key = option.label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const preferred = PREFERRED_VOICES[locale];
+  if (!preferred) return unique;
+
+  const chosen = preferred
+    .map((name) => unique.find((option: any) => option.value === name))
+    .filter(Boolean);
+  if (chosen.length === preferred.length) return chosen;
+
+  /* Not the named ones — take the first of each gender instead, so the list is
+     still one voice each rather than the whole catalogue. */
+  const female = unique.find((option: any) => voiceGender(option) === 'female');
+  const male = unique.find((option: any) => voiceGender(option) === 'male');
+  const fallback = [female, male].filter(Boolean);
+  return fallback.length ? fallback : unique;
 };
 
 const TextToSpeech: FC<UploadGreetingProps> = ({ handleTextToSpeech, isPendingTextToSpeech }) => {

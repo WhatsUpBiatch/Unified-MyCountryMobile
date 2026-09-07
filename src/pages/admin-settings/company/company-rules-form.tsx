@@ -13,7 +13,10 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { yupResolver } from '@hookform/resolvers/yup';
 
+import { AudioLines, SlidersHorizontal } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { useUser } from '@/hooks/use-user';
 import { handleAlert } from '@/lib/utils';
@@ -101,6 +104,27 @@ const CompanyRulesForm = ({ tab }: { tab: string }) => {
     },
   });
 
+  const isRules = tab === TAB_CONSTANT.SETTING_PERMISSIONS;
+
+  /* These two screens are the only ones in the area that never named
+     themselves: the tab strip said Phone rules or Greetings and the panel below
+     it started straight in on the settings, so on arrival the page had no title
+     at all while its seven neighbours did. One component renders both tabs, so
+     the heading comes from which one is open. */
+  const heading = isRules
+    ? {
+        icon: <SlidersHorizontal className="h-[18px] w-[18px]" />,
+        title: 'Phone rules',
+        description:
+          'What everybody at your company starts with — where the company works, when it is open, and what a caller hears.',
+      }
+    : {
+        icon: <AudioLines className="h-[18px] w-[18px]" />,
+        title: 'Greetings',
+        description:
+          'The recordings a caller hears: the welcome message, hold music, the voicemail greeting and the ringback tone.',
+      };
+
   const onSubmit = () => {
     const { settings = {}, greetings = {} } = watch();
     const payload = buildTemplatePayload({
@@ -113,10 +137,14 @@ const CompanyRulesForm = ({ tab }: { tab: string }) => {
       uuid: companyDefaults?.uuid,
       settings: payload.settings,
       greetings: payload.greetings,
+      /* Each tab replaces only the keys it edits. The other tab's keys, and every
+         other company screen's, are re-read at save time rather than written
+         back from this form's possibly stale copy. */
+      only: isRules
+        ? ['operational_hours', 'recording', 'display_number', 'transcription', 'ai_call_monitoring']
+        : ['greetings'],
     });
   };
-
-  const isRules = tab === TAB_CONSTANT.SETTING_PERMISSIONS;
 
   /* Handed to the screen below rather than rendered here, so it sits inside that
      screen's own scrolling box. Rendered here it would be a sibling of that box
@@ -192,12 +220,14 @@ const CompanyRulesForm = ({ tab }: { tab: string }) => {
             <SettingPermission
               data={companyDefaults}
               company_info={user?.company_info}
+              intro={<SectionHeading {...heading} />}
               footer={footer}
               containerClass={SECTION_COLUMN}
             />
           ) : (
             <GreetingNotification
               company_info={user?.company_info}
+              intro={<SectionHeading {...heading} />}
               footer={footer}
               containerClass={`user-settings-template-greetings ${SECTION_COLUMN}`}
             />

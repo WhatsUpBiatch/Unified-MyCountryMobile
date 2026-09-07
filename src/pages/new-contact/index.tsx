@@ -20,6 +20,8 @@ import { SearchLine } from '@/assets/icons/index.tsx';
 import useDebounce from '@/hooks/use-debounce.tsx';
 // import { IContact } from '../leads/index.tsx';
 import CreateContactNew from './create-new-contact.tsx';
+import ContactDetailDrawer, { type ContactRecord } from './contact-detail-drawer.tsx';
+import { McmIconSprite } from '@/components/mcm/icons';
 import SendWhatsappMessage from '../messenger/drawers/send-whatsapp-message/index.tsx';
 import { useGoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import { useUser } from '@/hooks/use-user';
@@ -67,12 +69,15 @@ const NewContact: FC = () => {
     updateContacts: false,
     exportContacts: false,
   });
-  console.log(drawerState?.selectedContact, 'drawerStatedrawerState');
   const { state } = useLocation();
   const { defaultTab } = state || {};
   const [notesOpen, setNotesOpen] = useState(false);
   const [whatsappDrawerOpen, setWhatsappDrawerOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
+  /* Opening a contact is a read, not an edit. The panel shows everything stored
+     about them with the four ways to reach them; Edit is one press further on,
+     for the times you actually wanted the form. */
+  const [openContact, setOpenContact] = useState<ContactRecord | null>(null);
   const [selectedGroupForContactLogs, setSelectedGroupForContactLogs] = useState<any>(null);
   const [tabName, setTabName] = useState<string>(defaultTab || CONTACT_TABS_CONST.CONTACT_LIST);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -187,8 +192,7 @@ const NewContact: FC = () => {
         const fromGoogle = connections.map((conn: any) => {
           const nameObj = conn.names?.[0] || {};
           return {
-            name:
-              `${nameObj.givenName || nameObj.displayName || ''} ${nameObj.familyName || ''}`.trim(),
+            name: `${nameObj.givenName || nameObj.displayName || ''} ${nameObj.familyName || ''}`.trim(),
             phone: conn.phoneNumbers?.[0]?.canonicalForm || conn.phoneNumbers?.[0]?.value || '',
             email: conn.emailAddresses?.[0]?.value || '',
             externalId: conn.resourceName || '',
@@ -275,9 +279,43 @@ const NewContact: FC = () => {
           />
         ) : (
           <>
+            {/* The page says what it is. Without this the screen opened straight
+                onto a tab strip whose first tab is also called "Contact view",
+                which named the tab twice and the page not at all. */}
+            <div className="contacts-page-head">
+              <McmIconSprite />
+              <div className="contacts-page-head-text">
+                <h1>Contacts</h1>
+                <p>
+                  People outside the organisation — who they work for, how to reach them, and every
+                  channel you can use.
+                </p>
+              </div>
+              {canAddContact ? (
+                /* The primary action belongs where somebody looks for it. It
+                   was a bare "+" in a row of icon buttons, which does not say
+                   what it adds. */
+                <Button
+                  type="button"
+                  className="btn primary contacts-page-head-add"
+                  onClick={() =>
+                    tabName === CONTACT_TABS_CONST.CONTACT_GROUP_LIST
+                      ? handleAddLeadGroup()
+                      : handleAddContact()
+                  }
+                >
+                  <Icon name="Plus" className="h-3 w-3 shrink-0" />
+                  {addActionLabel}
+                </Button>
+              ) : null}
+            </div>
+
             {/* Header bar */}
             <div className="border-b border-gray-200 bg-white">
-              <div className="flex flex-col gap-3 px-3 py-3 sm:py-0 lg:flex-row lg:items-center lg:justify-between">
+              <div /* 16px to line the toolbar up with the page heading above it, which
+                   sits at 16px — at 12px the two edges disagreed. */
+                className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+              >
                 <div className="w-full shrink-0 overflow-x-auto lg:w-auto lg:min-w-0 lg:shrink lg:flex-1">
                   <Tabs
                     value={tabName}
@@ -301,19 +339,21 @@ const NewContact: FC = () => {
                   </Tabs>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 pb-3 sm:flex-row sm:items-center sm:justify-end sm:pb-0 md:max-lg:flex-row md:max-lg:flex-nowrap md:max-lg:items-center md:max-lg:pb-3 lg:w-auto lg:min-w-0 lg:flex-none lg:pb-0">
+                <div className="flex w-full flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-end sm:pb-0 md:max-lg:flex-row md:max-lg:flex-nowrap md:max-lg:items-center md:max-lg:pb-3 lg:w-auto lg:min-w-0 lg:flex-none lg:pb-0">
                   <Button
                     onClick={() => login()}
                     variant="outline"
-                    className="btn ghost w-full sm:w-auto md:max-lg:shrink-0"
+                    /* Every control on this row is 40px. Left at the Button
+                       default it sat 4px short of the search box beside it. */
+                    className="btn ghost min-h-10 w-full rounded-xl sm:w-auto md:max-lg:shrink-0"
                   >
                     Sync With Google
                   </Button>
 
-                  <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center md:max-lg:min-w-0 md:max-lg:flex-1 md:max-lg:flex-nowrap lg:w-auto lg:min-w-0 lg:flex-nowrap">
+                  <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center md:max-lg:min-w-0 md:max-lg:flex-1 md:max-lg:flex-nowrap lg:w-auto lg:min-w-0 lg:flex-nowrap">
                     <Input
                       placeholder="Search"
-                      className="min-h-10 w-full rounded-lg pl-10 sm:min-w-[6rem] md:min-w-[8rem] md:max-lg:min-w-0 md:max-lg:flex-1 lg:min-w-[12rem] xl:min-w-[18rem]"
+                      className="min-h-10 w-full rounded-xl pl-10 sm:min-w-[6rem] md:min-w-[8rem] md:max-lg:min-w-0 md:max-lg:flex-1 lg:min-w-[12rem] xl:min-w-[18rem]"
                       IconPosition="left-0 pl-2 inset-y-0"
                       value={search}
                       onChange={(e) => {
@@ -374,11 +414,11 @@ const NewContact: FC = () => {
                         </div>
                       </>
                     )}
-                    <div className="flex items-center gap-2 md:max-lg:shrink-0">
+                    <div className="flex items-center gap-3 md:max-lg:shrink-0">
                       {canAddContact ? (
                         <>
                           <Button
-                            className="cursor-pointer flex items-center justify-center min-h-9 min-w-9 max-w-9 max-h-9 rounded-lg w-9 h-9 bg-white border border-primary text-primary hover:bg-primary hover:text-white"
+                            className="cursor-pointer flex items-center justify-center min-h-10 min-w-10 max-w-10 max-h-10 rounded-xl w-10 h-10 bg-white border border-primary text-primary hover:bg-primary hover:text-white"
                             type="button"
                             onClick={() =>
                               setDrawerState((prev) => ({ ...prev, updateContacts: true }))
@@ -390,7 +430,7 @@ const NewContact: FC = () => {
                           {tabName === CONTACT_TABS_CONST.CONTACT_LIST && (
                             <>
                               <Button
-                                className="cursor-pointer flex items-center justify-center min-h-9 min-w-9 max-w-9 max-h-9 rounded-lg w-9 h-9 bg-white border border-primary text-primary hover:bg-primary hover:text-white"
+                                className="cursor-pointer flex items-center justify-center min-h-10 min-w-10 max-w-10 max-h-10 rounded-xl w-10 h-10 bg-white border border-primary text-primary hover:bg-primary hover:text-white"
                                 type="button"
                                 onClick={() =>
                                   setDrawerState((prev) => ({ ...prev, exportContacts: true }))
@@ -401,18 +441,6 @@ const NewContact: FC = () => {
                               </Button>
                             </>
                           )}
-                          <Button
-                            className="cursor-pointer flex min-h-9 items-center justify-center gap-2 rounded-lg border border-primary bg-white px-3 text-primary hover:bg-primary hover:text-white sm:h-9 sm:w-9 sm:px-0"
-                            type="button"
-                            onClick={() =>
-                              tabName === CONTACT_TABS_CONST.CONTACT_GROUP_LIST
-                                ? handleAddLeadGroup()
-                                : handleAddContact()
-                            }
-                          >
-                            <Icon name="Plus" className="h-3 w-3 shrink-0" />
-                            <span className="sm:hidden">{addActionLabel}</span>
-                          </Button>
                         </>
                       ) : null}
                     </div>
@@ -447,6 +475,7 @@ const NewContact: FC = () => {
                           setWhatsappDrawerOpen(true);
                           setSelectedContact(contact);
                         }}
+                        onOpenContact={setOpenContact}
                       />
                     );
                   case CONTACT_TABS_CONST.CONTACT_GROUP_LIST:
@@ -486,6 +515,7 @@ const NewContact: FC = () => {
                           setWhatsappDrawerOpen(true);
                           setSelectedContact(contact);
                         }}
+                        onOpenContact={setOpenContact}
                       />
                     );
                 }
@@ -497,6 +527,25 @@ const NewContact: FC = () => {
         </div> */}
           </>
         )}
+
+        {/* Inside `.mcm-page`: the drawer's styles are scoped to it, and it is
+            position:fixed so it still covers the viewport from here. */}
+        <ContactDetailDrawer
+          contact={openContact}
+          onClose={() => setOpenContact(null)}
+          onEdit={
+            canEditContact
+              ? (contact) => {
+                  setOpenContact(null);
+                  setDrawerState((prev) => ({
+                    ...prev,
+                    addContact: true,
+                    selectedContact: contact,
+                  }));
+                }
+              : undefined
+          }
+        />
       </section>
 
       <AlertConfirm

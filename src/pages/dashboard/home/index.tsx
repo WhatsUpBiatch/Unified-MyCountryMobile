@@ -20,6 +20,7 @@ import {
 import { handleDate } from '@/components/custom/date-dropdown/constant';
 import { buildAttentionItems } from './attention';
 import '@/components/mcm/mcm-page.css';
+import '@/pages/dashboard/dashboard.css';
 
 /**
  * MCM Unified Console — Home.
@@ -153,6 +154,16 @@ const Home = () => {
       pct: Math.round(((counts.get(state) || 0) / total) * 100),
     }));
   }, [liveAgents]);
+
+  /* The bar is a picture, so it needs saying in words for anyone who cannot see
+     it — the same split, read out. */
+  const rosterSummary = useMemo(
+    () =>
+      stateDistribution.length
+        ? `Roster: ${stateDistribution.map((s) => `${s.state} ${s.count} (${s.pct}%)`).join(', ')}`
+        : 'Nobody on the roster',
+    [stateDistribution],
+  );
 
   /* Busiest first: on a call, then ringing, then everyone else by handled. */
   const agentsByActivity = useMemo(
@@ -311,6 +322,11 @@ const Home = () => {
       label: 'Service level',
       value: avgSla === null ? '—' : `${Math.round(slaAnimated)}%`,
       sub: 'target 80% in 20s',
+      /* The one figure on the strip with a number to be judged against, so it
+         is the one that gets a track. Both values are real: the level comes
+         from the same feed as the figure above it, the target is the 80% the
+         sub-line already quotes. */
+      meter: avgSla === null ? undefined : { value: Math.round(slaAnimated), target: 80 },
       tone: avgSla === null ? undefined : avgSla >= 80 ? 'good' : avgSla >= 60 ? 'warnv' : 'bad',
     },
     { key: 'answered', label: 'Answered today', value: round(answeredAnimated), sub: 'all queues' },
@@ -348,7 +364,7 @@ const Home = () => {
     : 'You are not assigned to a queue right now — direct calls only.';
 
   return (
-    <div className="mcm-page">
+    <div className="mcm-page home-v2">
       <McmIconSprite />
       <div className="page">
         {/* ── hero ─────────────────────────────────────────────────────── */}
@@ -385,6 +401,19 @@ const Home = () => {
             <div key={kpi.key} className={`kpi${kpi.tone === 'bad' ? ' alert' : ''}`}>
               <div className="k">{kpi.label}</div>
               <div className={`v num${kpi.tone ? ` ${kpi.tone}` : ''}`}>{kpi.value}</div>
+              {kpi.meter ? (
+                <div
+                  className="kpi-meter"
+                  role="img"
+                  aria-label={`${kpi.meter.value}% against a ${kpi.meter.target}% target`}
+                >
+                  <span style={{ width: `${Math.min(100, Math.max(0, kpi.meter.value))}%` }} />
+                  {/* Where the target sits on the same rail, so the gap between
+                      the two is the thing you read rather than a number you
+                      have to hold in your head. */}
+                  <i style={{ left: `${Math.min(100, kpi.meter.target)}%` }} />
+                </div>
+              ) : null}
               {kpi.sub ? <div className="d">{kpi.sub}</div> : null}
             </div>
           ))}
@@ -670,6 +699,25 @@ const Home = () => {
             </span>
           </div>
           <div className="pc-body">
+            {/* The whole roster as one bar, before the states are listed out.
+                Four separate bars each measured against its own empty track say
+                how big each state is; one bar divided between them says how the
+                team is split, which is the question this panel exists to
+                answer. The rows below stay as the detail. */}
+            {stateDistribution.length ? (
+              <div className="rosterbar" role="img" aria-label={rosterSummary}>
+                {stateDistribution.map((slice) => (
+                  <span
+                    key={slice.state}
+                    style={{
+                      width: `${slice.pct}%`,
+                      background: slice.state === 'Offline' ? 'var(--ink-4)' : 'var(--accent)',
+                    }}
+                    title={`${slice.state} · ${slice.count} · ${slice.pct}%`}
+                  />
+                ))}
+              </div>
+            ) : null}
             {stateDistribution.length ? (
               stateDistribution.map((slice) => (
                 <div className="hbar" key={slice.state}>

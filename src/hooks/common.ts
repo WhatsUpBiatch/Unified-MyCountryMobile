@@ -47,6 +47,15 @@ export const useGetGreetings = (params?: any) => {
     queryKey: ['greetings', params],
     queryFn: () => getGreetings({ page: 1, limit: 1000, search: '', type: 'all', ...params }),
     select: (res) => res?.data?.data?.result?.rows ?? [],
+    /* The recording library is asked for by six different screens, several of
+       which sit on the same page, and it is a thousand-row request. Without a
+       stale time every one of them refetched on mount and the pickers sat
+       empty while it came back. Five minutes is well inside how often a
+       library changes, and an upload invalidates this key explicitly (see
+       add-greeting), so a new recording still appears at once. */
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const greetingList = useMemo(() => {

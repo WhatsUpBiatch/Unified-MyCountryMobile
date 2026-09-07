@@ -45,7 +45,7 @@ const UserDepartment = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['getDepartmentList'] });
       handleAlert({
-        text: data?.data?.data?.message || 'Department deleted successfully',
+        text: data?.data?.data?.message || 'Group deleted',
         type: 'success',
       });
       setOpen(false);
@@ -59,7 +59,7 @@ const UserDepartment = () => {
       cell: ({ getValue }: any) => <div className="text-gray-600">{formatDate(getValue())}</div>,
     },
     {
-      header: 'Department Name',
+      header: 'Group',
       accessorKey: 'name',
       cell: (props: any) => {
         const data = props?.row?.original;
@@ -100,7 +100,7 @@ const UserDepartment = () => {
       },
     },
     {
-      header: 'Site',
+      header: 'Location',
       accessorKey: 'site',
       cell: ({ getValue }: any) => {
         const isJsonString = (str: string): boolean => {
@@ -112,7 +112,7 @@ const UserDepartment = () => {
       },
     },
     {
-      header: 'Members',
+      header: 'People',
       accessorKey: 'members',
       cell: ({ getValue }: any) => {
         let members = [];
@@ -157,7 +157,7 @@ const UserDepartment = () => {
             {members?.length > 5 && (
               <div
                 onClick={() => {
-                  setModalState({ open: true, data: members || [], type: 'Total Members' });
+                  setModalState({ open: true, data: members || [], type: 'People in this group' });
                 }}
                 className="w-9 h-9 flex items-center justify-center border border-gray-500 !space-x-10 rounded-full bg-gray-500 text-white font-medium cursor-pointer"
               >
@@ -166,7 +166,7 @@ const UserDepartment = () => {
             )}
           </div>
         ) : (
-          <div>No members</div>
+          <div>Nobody yet</div>
         );
       },
     },
@@ -232,11 +232,11 @@ const UserDepartment = () => {
     <section className="w-full bg-gray-200/15 flex flex-col overflow-x-auto overflow-y-hidden overflow-x-auto overflow-y-hidden">
       <div className="flex flex-col sm:flex-row items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
         <p className="text-gray-900 font-semibold text-lg flex items-center gap-1">
-          Users
+          Phone System
           <div className="-rotate-90 text-gray-800">
             <Icon name="ChevronIcon" className="w-5 h-5" />
           </div>
-          <span className="text-primary text-md">Department</span>
+          <span className="text-primary text-md">Groups</span>
         </p>
         {!showInfo && (
           <div className="flex gap-2 filters">
@@ -260,7 +260,7 @@ const UserDepartment = () => {
                   handleNewDepartment();
                 }}
               >
-                <Plus className="w-3 h-3" /> New Department
+                <Plus className="w-3 h-3" /> New group
               </Button>
             )}
           </div>
@@ -270,8 +270,8 @@ const UserDepartment = () => {
         <div className="w-full p-3 flex flex-col gap-2">
           <p className="text-gray-900 text-sm">
             {isSharedLine
-              ? 'Multi-Department Sharing, this feature to link one or more departments to a single shared line. This creates a unified communication point where all assigned departments can manage calls from the same number simultaneously.'
-              : 'Create a department to organize your company’s workflow. This allows you to route calls to specific teams (e.g., Support or Billing) and assign multiple users to a single extension so they can handle incoming calls together.'}
+              ? 'A shared line links one or more groups to a single number, so every group on it can take calls from the same number at the same time.'
+              : 'A group is a team that answers calls together: Support, Billing, Sales. Give it an extension, put people in it, and route calls to it.'}
           </p>
           <TableManager
             {...{
@@ -282,8 +282,8 @@ const UserDepartment = () => {
               extraParams: {
                 filter: [{ key: 'name', value: debouncedSearch }],
               },
-              emptyTablePlaceholder: 'No departments created yet',
-              descriptionEmptyTable: 'Create a department to see here.',
+              emptyTablePlaceholder: 'No groups yet',
+              descriptionEmptyTable: 'Create a group and it will appear here.',
             }}
           />
         </div>
@@ -297,7 +297,7 @@ const UserDepartment = () => {
         <SideDrawer
           isOpen={drawerState}
           title={
-            getObjectLength(rowData) ? `Update Department (${rowData?.name})` : 'Create Department'
+            getObjectLength(rowData) ? `Update group (${rowData?.name})` : 'Create group'
           }
           handleClose={() => setDrawerState(false)}
           isTab={false}

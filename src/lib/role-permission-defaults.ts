@@ -215,10 +215,12 @@ export const TIERS: TierInfo[] = [
     tier: 'agent',
     label: 'Agent',
     scope: 'self',
-    description:
-      'Takes and makes calls as part of a department, with the tools that go with it — the dialler, campaigns, messaging and the shared inbox.',
-    boundary:
-      'Sees their own calls and nobody else’s. No live supervision, no other people’s recordings, no settings.',
+    /* Two sentences, not four clauses and a list. The dialler, campaigns,
+       messaging and the shared inbox are what "a department's tools" means, and
+       naming all four under every Role dropdown on a form of ten people is more
+       words than the choice needs. */
+    description: 'Takes and makes calls with a department\u2019s tools.',
+    boundary: 'Sees only their own calls. No supervision, recordings or settings.',
     aliases: ['agent', 'contact centre agent', 'contact center agent', 'operator'],
   },
   {

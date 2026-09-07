@@ -82,7 +82,7 @@ const CapabilityMatrixPage = () => {
         <SettingCard
           title="The six kinds of person"
           icon={<Table2 className="h-4 w-4" />}
-          description="Each one is named after how far it reaches, not after how senior anybody is. A Department Admin is not a junior administrator — they are an administrator of one department."
+          description="Each one is named after how far it reaches, not after how senior anybody is. A Group admin is not a junior administrator — they are an administrator of one group."
           status="app-only"
           note={
             <>
@@ -102,7 +102,7 @@ const CapabilityMatrixPage = () => {
                   {tier.scope === 'location' || tier.scope === 'department' ? (
                     <>
                       {' '}
-                      Which {tier.scope === 'location' ? 'locations' : 'departments'} is not stored
+                      Which {tier.scope === 'location' ? 'locations' : 'groups'} is not stored
                       yet, so today this reaches all of them.
                     </>
                   ) : null}

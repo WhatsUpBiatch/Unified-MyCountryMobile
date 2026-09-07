@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
@@ -12,6 +12,8 @@ import { capitalizeFirstLetter, convertDateFormateApis, handleAlert } from '@/li
 import { campaignAnalytics, campaignList, deleteCampaign, playPauseCampaign } from '@/services/api';
 import { useCompanyFeatures } from '@/hooks/rbac';
 import useDebounce from '@/hooks/use-debounce';
+import { SocketEvents } from '@/context/socket-events-context';
+import { HEALTH_LABEL } from '@/lib/campaign-dial-mode';
 import type { IAutoDialer } from '../power-predictive/campaign-list';
 
 import AddEditCampaign from './add-edit-campaign';
@@ -90,6 +92,39 @@ const Campaign = ({ embedded = false }: { embedded?: boolean }) => {
     selectedCampaign: null,
   });
   const [refreshingCampaignIds, setRefreshingCampaignIds] = useState<Record<string, boolean>>({});
+  const { socketEventsManager } = useContext(SocketEvents);
+  /* The dialer service pushes a board per running campaign every few seconds
+     on "campaign-live-stats". Kept here by campaign id so each row can show
+     what it is doing right now; a board older than 30 s is treated as gone. */
+  const [liveBoards, setLiveBoards] = useState<Record<string, { board: any; at: number }>>({});
+  useEffect(() => {
+    if (!socketEventsManager) return;
+    const onLive = (payload: any) => {
+      const id = String(payload?.campaignId || '');
+      if (!id) return;
+      setLiveBoards((prev) => ({ ...prev, [id]: { board: payload, at: Date.now() } }));
+    };
+    const onState = () => {
+      queryClient.invalidateQueries({ queryKey: ['getCampaignListForPreview'] });
+      queryClient.invalidateQueries({ queryKey: ['campaignListForKpis'] });
+    };
+    const onAnalytics = (payload: any) => {
+      const id = String(payload?.campaignId || '');
+      if (id) mutateCampaignAnalytics({ campaignId: id });
+    };
+    socketEventsManager.on('campaign-live-stats', onLive);
+    socketEventsManager.on('campaign-state-update', onState);
+    socketEventsManager.on('campaign-analytics-updated', onAnalytics);
+    return () => {
+      socketEventsManager.off('campaign-live-stats', onLive);
+      socketEventsManager.off('campaign-state-update', onState);
+      socketEventsManager.off('campaign-analytics-updated', onAnalytics);
+    };
+  }, [socketEventsManager]);
+  const liveBoardFor = (id: string) => {
+    const entry = liveBoards[String(id)];
+    return entry && Date.now() - entry.at < 30000 ? entry.board : null;
+  };
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<IAutoDialer | null>(null);
 
   /* ── aggregates for the KPI strip ────────────────────────────────────
@@ -222,7 +257,24 @@ const Campaign = ({ embedded = false }: { embedded?: boolean }) => {
     {
       header: 'Status',
       accessorKey: 'campaignStatus',
-      cell: ({ row }: any) => <StatusPill status={row?.original?.campaignStatus} />,
+      cell: ({ row }: any) => {
+        const board = liveBoardFor(row?.original?._id);
+        const health = board?.health?.state ? HEALTH_LABEL[board.health.state] : null;
+        if (!board || !health) return <StatusPill status={row?.original?.campaignStatus} />;
+        const tone = health.tone === 'good' ? 'pos' : health.tone === 'crit' ? 'neg' : health.tone === 'warn' ? 'warn' : 'neu';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+            <span className={`tag ${tone}`} title={board?.health?.reason || ''}>
+              {health.tone === 'good' ? <span className="dot green" /> : null}
+              {health.label}
+            </span>
+            <span className="src num">
+              {num(board?.calls?.linesInUse)} call{num(board?.calls?.linesInUse) === 1 ? '' : 's'} up ·{' '}
+              {num(board?.agents?.idle)} idle of {num(board?.agents?.total)}
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'Campaign',
@@ -615,10 +667,14 @@ const Campaign = ({ embedded = false }: { embedded?: boolean }) => {
         <div className="panel-card">
           <div className="pc-head">
             <h3>All campaigns</h3>
-            <span className="src live pc-right">
-              <Ic n="spark" size={10} />
-              live
-            </span>
+            {Object.keys(liveBoards).length ? (
+              <span className="src live pc-right">
+                <Ic n="spark" size={10} />
+                live
+              </span>
+            ) : (
+              <span className="src pc-right">refreshes on change</span>
+            )}
           </div>
 
           <TableManager
@@ -646,8 +702,8 @@ const Campaign = ({ embedded = false }: { embedded?: boolean }) => {
           <div className="pc-foot">
             <OutcomeLegend />
             <span className="pc-right">
-              Pacing metrics — abandon rate, idle agents, line allocation — need a live campaign
-              stats endpoint that does not exist yet.
+              Running campaigns show what is holding them back and how many calls are up. Open one
+              for the live board.
             </span>
           </div>
         </div>

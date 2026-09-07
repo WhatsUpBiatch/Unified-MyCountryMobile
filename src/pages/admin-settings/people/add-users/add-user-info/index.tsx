@@ -341,7 +341,7 @@ const AddUserInfo = ({
   const handleAddUser = () => {
     if (isPlanExpired) {
       handleAlert({
-        text: 'You cannot add users until your subscription is renewed.',
+        text: 'You cannot add people until your subscription is renewed.',
         type: 'error',
       });
       return;
@@ -381,7 +381,7 @@ const AddUserInfo = ({
         text:
           availableLicensesToPurchase !== 'Unlimited' && currentCount >= availableLicensesToPurchase
             ? `You have reached the maximum limit of available licenses.`
-            : `Maximum of 10 users can be added at once.`,
+            : `You can add up to 10 people at once.`,
         type: 'warning',
       });
       return;
@@ -391,8 +391,8 @@ const AddUserInfo = ({
       handleAlert({
         text:
           availableLicensesToPurchase !== 'Unlimited' && userAddCount > availableLicensesToPurchase
-            ? `You can only add up to ${availableLicensesToPurchase} users based on available licenses.`
-            : `Maximum of 10 users can be added at once.`,
+            ? `You can only add up to ${availableLicensesToPurchase} people with the licences you have.`
+            : `You can add up to 10 people at once.`,
         type: 'warning',
       });
       return;
@@ -408,8 +408,8 @@ const AddUserInfo = ({
         handleAlert({
           text:
             availableLicensesToPurchase !== 'Unlimited' && remainingSlots < MAX_USERS - currentCount
-              ? `You can only add ${remainingSlots} more user${remainingSlots === 1 ? '' : 's'} based on available licenses.`
-              : `You can only add ${remainingSlots} more user${remainingSlots === 1 ? '' : 's'}.`,
+              ? `You can only add ${remainingSlots} more ${remainingSlots === 1 ? 'person' : 'people'} with the licences you have.`
+              : `You can only add ${remainingSlots} more ${remainingSlots === 1 ? 'person' : 'people'}.`,
           type: 'warning',
         });
         return;
@@ -475,87 +475,124 @@ const AddUserInfo = ({
 
   return (
     <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
-      <div className="flex flex-col gap-1 mt-3">
-        <p className="text-gray-900 text-center mb-2">
-          Licenses available to purchase:{' '}
-          {plan_info?.dataValues?.licenses !== 0
-            ? plan_info?.dataValues?.licenses - dataGetMyPlanDetails?.license_detail?.total_licenses
-            : 'Unlimited'}
-        </p>
-
-        <div className="flex flex-col items-stretch justify-center gap-3 md:flex-row md:items-start lg:justify-center">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="w-34">
+      {/* The licence panel.
+ 
+          This was five centred sentences with the controls buried in the middle
+          of them — "Licenses available to purchase: 2988", then the field, then
+          "Unused licenses: 0", then "New licenses purchased: 1", then a
+          paragraph about roles, each its own centred line. Centred text reads as
+          prose, so three separate figures looked like a paragraph and the one
+          thing to DO on the row was the hardest part to find.
+ 
+          Now: what you do on the left, what it costs you on the right, and the
+          notes underneath. Everything left-aligned, because a column of figures
+          is read down its left edge. */}
+      {/* No box. A tinted, bordered panel sitting inside a bordered drawer above
+          a row of bordered cards was three frames deep before any content — the
+          layering the screen was accused of. Spacing and a rule where one is
+          actually needed do the same job. */}
+      {/* The same 12px the list of people below is inset by, so the controls,
+          the figures and the cards all start on one left edge. */}
+      <div className="mt-3 ps-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          {/* Aligned to the bottom of the fields so the button stands level
+              with the boxes rather than with their labels. */}
+          {/* The hint is taken out of the flow below, so all three controls are
+              label-plus-box and nothing else. Aligned on their bottom edge the
+              boxes then line up with each other and with the button, which was
+              the misalignment: the select was sitting level with the hint text
+              under the number field rather than with the field itself. */}
+          <div className="flex flex-wrap items-end gap-2 pb-5">
+            <div className="relative w-32">
               <Input
+                label="How many people"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                placeholder="Enter no."
+                placeholder="e.g. 3"
                 value={String(userAddCountRaw ?? '')}
                 onChange={handleUserAddCountChange}
                 maxLength={2}
               />
-              <p className="text-[10px] ps-[2px] pt-1 text-gray-500">
-                Enter number between 1-{MAX_USERS}
+              <p className="absolute left-0 top-full mt-1 ps-[2px] text-[10px] text-gray-500">
+                Between 1 and {MAX_USERS}
               </p>
             </div>
             <Button variant={'outline'} type="button" onClick={handleAddUser}>
               <Plus className="w-3 h-3" />
-              Add Users
+              Add people
             </Button>
+            <div className="w-full sm:w-[220px]">
+              <CustomSelect
+                label="Location"
+                options={companySiteList?.map((site: { name: string; uuid: string }) => ({
+                  label: site?.name,
+                  value: site?.uuid,
+                }))}
+                placeholder="Select location"
+                isLoading={isLoading}
+                handleChange={(e: ISELECTVALUE | null) => {
+                  setValue(`site`, e || { label: '', value: '' }, { shouldValidate: true });
+                }}
+                value={watch('site')}
+                error={errors?.site?.value?.message}
+              />
+            </div>
           </div>
-          <div className="w-full md:max-w-[260px] lg:max-w-none lg:w-auto">
-            <CustomSelect
-              options={companySiteList?.map((site: { name: string; uuid: string }) => ({
-                label: site?.name,
-                value: site?.uuid,
-              }))}
-              placeholder="Select location"
-              isLoading={isLoading}
-              handleChange={(e: ISELECTVALUE | null) => {
-                setValue(`site`, e || { label: '', value: '' }, { shouldValidate: true });
-              }}
-              value={watch('site')}
-              error={errors?.site?.value?.message}
-            />
-          </div>
+
+          {/* Three figures, set as figures: the number large enough to read at a
+              glance with what it counts under it, rather than three sentences
+              of the same weight as everything else on the screen. */}
+          {/* The same 20px the controls row reserves under its boxes for the
+              hint. Both sides then end on one line, which puts the figures level
+              with the fields instead of level with "Between 1 and 10". */}
+          <dl className="flex gap-6 pb-5">
+            <div>
+              <dd className="text-lg font-semibold leading-tight text-gray-900">
+                {plan_info?.dataValues?.licenses !== 0
+                  ? plan_info?.dataValues?.licenses -
+                    dataGetMyPlanDetails?.license_detail?.total_licenses
+                  : 'Unlimited'}
+              </dd>
+              <dt className="text-[11px] text-gray-500">Available to buy</dt>
+            </div>
+            <div>
+              <dd className="flex items-center gap-1 text-lg font-semibold leading-tight text-gray-900">
+                {licenseInfo?.available || 0}
+                <CustomTooltip text="License purchased" side="top">
+                  <InfoIcon className="w-3.5 h-3.5 cursor-pointer text-gray-400" />
+                </CustomTooltip>
+              </dd>
+              <dt className="text-[11px] text-gray-500">Unused</dt>
+            </div>
+            <div>
+              <dd className="text-lg font-semibold leading-tight text-gray-900">
+                {licenseInfo?.extraUnits || 0}
+              </dd>
+              <dt className="text-[11px] text-gray-500">Buying now</dt>
+            </div>
+          </dl>
         </div>
 
-        {/* {licenseInfo.extraCharge && (
-        <p className="text-grey-700 text-center text-sm">
-          Additional licenses to purchase: {licenseInfo.extraUnits}
-        </p>
-      )} */}
-        <p className="text-gray-700 text-center text-sm mt-1 flex items-center justify-center gap-1">
-          Unused licenses: {licenseInfo?.available || 0}
-          <CustomTooltip text="License purchased" side="top">
-            <InfoIcon className="w-4 h-4 text-gray-500 cursor-pointer" />
-          </CustomTooltip>
-        </p>
         {licenseInfo?.hasLicenseMismatch ? (
-          <p className="text-amber-600 text-center text-xs">
+          <p className="mt-3 text-xs text-amber-700">
             Your plan lists {licenseInfo?.reportedFree} unused licence
             {licenseInfo?.reportedFree === 1 ? '' : 's'}, but billing can only confirm{' '}
             {licenseInfo?.enforcedFree}. We use the lower number so you are not blocked at checkout.
           </p>
         ) : null}
-        <p className="text-gray-700 text-center text-sm">
-          New licenses purchased: {licenseInfo?.extraUnits || 0}
-        </p>
 
         {/* Which role everybody on this form starts on, and why that one. Said
-            once at the top rather than repeated on every row: it is the same
-            answer for all of them, and it is a company-wide setting somebody
-            can go and change. */}
+            once here rather than repeated on every row: it is the same answer
+            for all of them, and it is a company-wide setting somebody can go
+            and change. */}
         {roleDecision.reason ? (
-          <p className="mx-auto mt-1 max-w-3xl text-center text-xs text-gray-600">
+          <p className="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-600">
             {roleDecision.reason}
           </p>
         ) : null}
         {roleDecision.warning ? (
-          <p className="mx-auto max-w-3xl text-center text-xs font-medium text-amber-600">
-            {roleDecision.warning}
-          </p>
+          <p className="mt-1 text-xs font-medium text-amber-700">{roleDecision.warning}</p>
         ) : null}
 
         {/* One line saying what is wrong with the list as a whole, so somebody
@@ -569,12 +606,58 @@ const AddUserInfo = ({
           </p>
         ) : null}
       </div>
-      <div className="flex flex-col my-2 gap-3 pr-0 md:pr-3 lg:gap-2">
+      <div className="mcm-invitee-list flex flex-col my-2 gap-3 pr-0 md:pr-3 lg:gap-2">
         {fields?.map((_, index) => (
-          <div
-            key={index}
-            className="mcm-invitee grid grid-cols-1 gap-3 rounded-xl border border-gray-200 p-3 md:grid-cols-2 xl:grid-cols-3"
-          >
+          /* Each person is now a named block rather than a run of fields.
+ 
+             With the card around each of them gone, ten people were one long
+             column of First Name / Last Name / Email repeating and nothing said
+             where one ended and the next began — a rule alone is a join, not a
+             heading. Numbering them says how many there are, which one you are
+             on, and which row the delete button belongs to. */
+          <section key={index} className="mcm-invitee-block">
+            <header className="mcm-invitee-head">
+              <span className="mcm-invitee-n">{index + 1}</span>
+              <h4>
+                {/* Their name once they have one, so a long list reads as people
+                    rather than as "Person 4". */}
+                {[watch(`users.${index}.first_name`), watch(`users.${index}.last_name`)]
+                  .filter(Boolean)
+                  .join(' ') || `Person ${index + 1}`}
+              </h4>
+              {/* Both of this person's actions, on the heading line.
+ 
+                  They were two more cells in the field grid, so they landed
+                  wherever the flow put them — one under Phone, one under Role —
+                  reading as controls belonging to those fields rather than to
+                  the person. On the heading they are unmistakably theirs, and
+                  the heading gains the weight that tells one block from the
+                  next. */}
+              <div className="mcm-invitee-acts">
+                <CustomTooltip text="Give this person a new extension" side="top">
+                  <button
+                    type="button"
+                    aria-label={`Give person ${index + 1} a new extension`}
+                    onClick={() => generateNewExtension(index)}
+                  >
+                    <Icon name="Refresh" className="h-4 w-4" />
+                  </button>
+                </CustomTooltip>
+                {fields.length > 1 && (
+                  <CustomTooltip text="Remove this person" side="top">
+                    <button
+                      type="button"
+                      className="is-remove"
+                      aria-label={`Remove person ${index + 1}`}
+                      onClick={() => remove(index)}
+                    >
+                      <TrashBin className="h-4 w-4" />
+                    </button>
+                  </CustomTooltip>
+                )}
+              </div>
+            </header>
+            <div className="mcm-invitee grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             <div className="w-full">
               <Input
                 label="First Name"
@@ -713,24 +796,8 @@ const AddUserInfo = ({
               />
             </div>
 
-            <Button
-              type="button"
-              variant={'outline'}
-              className="w-10 h-10 self-end rounded-xl bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white border-0 lg:self-auto"
-              onClick={() => generateNewExtension(index)}
-            >
-              <Icon name="Refresh" className="w-5 h-5" />
-            </Button>
-
-            {fields.length > 1 && (
-              <div
-                className="border-0 cursor-pointer self-end min-w-10 w-10 h-10 rounded-xl bg-red-100 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center lg:self-auto"
-                onClick={() => remove(index)}
-              >
-                <TrashBin className="w-5 h-5" />
-              </div>
-            )}
-          </div>
+            </div>
+          </section>
         ))}
       </div>
 

@@ -93,7 +93,7 @@ const AssignCallerIdModal: FC<AssignCallerIdModalProps> = ({
     !isLoadingGetAllNumbers && purchasedLicenses > dataGetAllNumbers.length;
   const fullName =
     `${capitalizeFirstLetter(userData?.first_name || '')}${userData?.last_name ? ` ${userData?.last_name}` : ''}`.trim() ||
-    'User';
+    'this person';
 
   const filteredNumbers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -212,10 +212,12 @@ const AssignCallerIdModal: FC<AssignCallerIdModalProps> = ({
                       {isAssigned ? (
                         <p className="text-xs font-medium flex items-center gap-1 text-gray-500">
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
-                          Assigned to User
+                          Assigned to
                           {assignedName ? (
-                            <span className="text-gray-700">- {assignedName}</span>
-                          ) : null}
+                            <span className="text-gray-700">{assignedName}</span>
+                          ) : (
+                            <span className="text-gray-700">someone else</span>
+                          )}
                         </p>
                       ) : isForwarded ? (
                         <p className="text-primary text-xs font-medium flex items-center gap-1">
@@ -240,7 +242,7 @@ const AssignCallerIdModal: FC<AssignCallerIdModalProps> = ({
                           setReassignData({
                             open: true,
                             didNumber: item?.did_number || '',
-                            assignedTo: assignedName || 'another user',
+                            assignedTo: assignedName || 'someone else',
                           });
                         }}
                       >
@@ -358,8 +360,8 @@ const AssignCallerIdModal: FC<AssignCallerIdModalProps> = ({
             <p className="text-gray-500 text-sm leading-6">
               The number{' '}
               <span className="text-gray-800 font-semibold">{reassignData.didNumber}</span> is
-              currently assigned to User{' '}
-              <span className="text-primary font-semibold">- {reassignData.assignedTo}</span>.{' '}
+              currently assigned to{' '}
+              <span className="text-primary font-semibold">{reassignData.assignedTo}</span>.{' '}
               Re-assigning it will remove it from them and assign it to{' '}
               <span className="text-green-600 font-semibold">{fullName}</span>. Proceed?
             </p>

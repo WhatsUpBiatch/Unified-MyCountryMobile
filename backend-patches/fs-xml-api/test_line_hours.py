@@ -486,9 +486,11 @@ class J_NothingElseMoved(unittest.TestCase):
 
     def test_an_unhandled_closed_type_still_takes_the_unhandled_path(self):
         use(company=OPEN)
-        xml = build(did_row(number=number_hours(CLOSED, action("DEPARTMENT", "dep-1"))))
+        # DEPARTMENT used to be the example here; it has been routable since the
+        # ivr-transfers patch (3 Sep 2026), so a type nobody handles stands in.
+        xml = build(did_row(number=number_hours(CLOSED, action("PAGER", "pg-1"))))
         self.assertEqual(xml, dps.NOT_FOUND_TPL)
-        self.assertEqual(logged("unhandled route type")[0]["route_type"], "DEPARTMENT")
+        self.assertEqual(logged("unhandled route type")[0]["route_type"], "PAGER")
 
     def test_no_forward_actions_is_still_not_found(self):
         use(company=OPEN)

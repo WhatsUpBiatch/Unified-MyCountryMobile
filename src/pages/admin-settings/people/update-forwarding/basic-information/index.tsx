@@ -138,8 +138,8 @@ const BasicInformation: FC<any> = ({
         <div className="mcm-fsec-h">
           <div className="mcm-fsec-t">Workplace</div>
           <div className="mcm-fsec-d">
-            Which site this user belongs to. The extension is assigned when the user is created and
-            cannot be changed here.
+            Which location this person belongs to. The extension is set when the person is added
+            and cannot be changed here.
           </div>
         </div>
         <div className="mcm-fgrid">
@@ -166,7 +166,7 @@ const BasicInformation: FC<any> = ({
               <span className="mcm-lock">Read only</span>
             </div>
             <Input placeholder="—" type="number" disabled value={watch('basic.extension')} />
-            <span className="mcm-field-note">Set when the user was created.</span>
+            <span className="mcm-field-note">Set when the person was added.</span>
           </div>
         </div>
       </section>
@@ -175,7 +175,7 @@ const BasicInformation: FC<any> = ({
         <div className="mcm-fsec-h">
           <div className="mcm-fsec-t">Contact</div>
           <div className="mcm-fsec-d">
-            How this person is reached. Both are managed on the user&rsquo;s own account and are
+            How this person is reached. Both are managed on the person&rsquo;s own account and are
             shown here for reference.
           </div>
         </div>

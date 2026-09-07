@@ -175,6 +175,9 @@ const GroupAssignCell: FC<{ contact: any; groupList: any[] }> = ({ contact, grou
         <PopoverContent
           align="start"
           className="w-56 p-2 flex flex-col gap-2 bg-white border border-gray-200 shadow-md rounded-md z-50"
+          /* Portalled, but React events still bubble up the React tree — see the
+             note on the row menus below. */
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="text-xs font-semibold text-gray-500 px-2 py-1 border-b border-gray-100">
             Assign Groups
@@ -275,6 +278,7 @@ const AllNewContactsList: FC<any> = ({
   // actionMode = 'full',
   handleNotesOpen = () => {},
   handleWhatsappOpen = () => {},
+  onOpenContact,
 }) => {
   const navigate = useNavigate();
   const tableRef = useRef<any>(null);
@@ -578,7 +582,11 @@ const AllNewContactsList: FC<any> = ({
       id: 'assignGroup',
       cell: ({ row }) => {
         const contact = row.original;
-        return <GroupAssignCell contact={contact} groupList={groupList} />;
+        return (
+          <span onClick={(e) => e.stopPropagation()}>
+            <GroupAssignCell contact={contact} groupList={groupList} />
+          </span>
+        );
       },
     },
     {
@@ -610,9 +618,12 @@ const AllNewContactsList: FC<any> = ({
         }
 
         return (
+          /* Interactive cell: a click here changes the tag, it does not open
+             the contact. */
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <span
+                onClick={(e) => e.stopPropagation()}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border cursor-pointer hover:opacity-80 transition-all shadow-3xs',
                   bgColor,
@@ -624,7 +635,15 @@ const AllNewContactsList: FC<any> = ({
                 <ChevronDown className="w-3.5 h-3.5 opacity-80" />
               </span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuContent
+              align="start"
+              className="w-44"
+              /* Radix portals this menu into document.body, but React events still
+                 bubble up the REACT tree — so without this a click on any item
+                 reached the row underneath and opened the contact panel on top
+                 of whatever the menu item just did. */
+              onClick={(e) => e.stopPropagation()}
+            >
               <DropdownMenuItem
                 onClick={() =>
                   setTagUpdateState({
@@ -686,11 +705,14 @@ const AllNewContactsList: FC<any> = ({
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <span className="cursor-pointer flex items-center justify-center rounded-full w-8 h-8 bg-gray-100 text-gray-900/80 hover:bg-gray-200">
+              <span
+                onClick={(e) => e.stopPropagation()}
+                className="cursor-pointer flex items-center justify-center rounded-full w-8 h-8 bg-gray-100 text-gray-900/80 hover:bg-gray-200"
+              >
                 <MoreHorizontal className="w-5 h-5" />
               </span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
               {canViewContact && (
                 <>
                   <DropdownMenuItem
@@ -811,6 +833,7 @@ const AllNewContactsList: FC<any> = ({
             ...payloadExtraParams,
           },
           getSelectedRows: handleSelectedRowsChange,
+          onRowClick: onOpenContact,
           emptyTablePlaceholder: payloadExtraParams?.search
             ? 'No contacts match your search.'
             : 'No contacts found',

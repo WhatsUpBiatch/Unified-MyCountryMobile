@@ -1944,9 +1944,25 @@ export const DialpadProvider = ({ children }: { children: ReactNode }) => {
 
           sessionRef.current[sessionId] = session;
           speakerStateRef.current[sessionId] = true;
-          const hasActiveSession =
-            !!activeSessionIdRef.current && !!sessionRef.current[activeSessionIdRef.current];
-          const shouldSetAsActive = originator === 'local' || !hasActiveSession;
+          /* A new incoming call must always surface unless the agent is
+             genuinely mid-conversation on another call. The old check only
+             asked "is some session tracked as active" - a ringing-but-
+             unanswered session (this device's own earlier incoming leg that
+             hasn't resolved yet, a stale reference, anything short of a real
+             connected call) counted as "active" and silently blocked the new
+             call from ever becoming visible: it rang (ringtone plays
+             unconditionally above) but the UI kept showing whatever was
+             already active, on that one device, while every other device
+             with no such leftover state correctly showed it. */
+          const currentActiveSessionId = activeSessionIdRef.current;
+          const currentActiveSessionStatus = currentActiveSessionId
+            ? String(sessionsStateRef.current[currentActiveSessionId]?.status || '').toLowerCase()
+            : '';
+          const isActiveSessionTrulyConnected =
+            !!currentActiveSessionId &&
+            !!sessionRef.current[currentActiveSessionId] &&
+            ['accepted', 'confirmed'].includes(currentActiveSessionStatus);
+          const shouldSetAsActive = originator === 'local' || !isActiveSessionTrulyConnected;
           if (shouldSetAsActive) {
             setActiveSessionId(sessionId);
           }

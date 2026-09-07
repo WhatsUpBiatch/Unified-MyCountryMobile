@@ -13,6 +13,7 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { upsertUserSettingsSchema } from './schema';
 import BasicInformation from './basic-information';
 import GreetingNotification from './greetings';
+import { roleDisplayName } from '@/pages/admin-settings/roles/role-names';
 import CallRules from './call-rules';
 import { RING_TYPE_LABELS } from '@/constants/forwarding-consts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -276,7 +277,7 @@ const UpdateForwarding: FC<UpdateForwardingProps> = ({ setDrawerState, data, set
   const { mutate: mutateUpdateMember, isPending: isPendingUpdateMember } = useMutation({
     mutationFn: updateMemberForwading,
     onSuccess: (data) => {
-      handleAlert({ text: data?.data?.message || 'User updated successfully!', type: 'success' });
+      handleAlert({ text: data?.data?.message || 'Person updated', type: 'success' });
       queryClient.invalidateQueries(['fetchUsersList']);
       invalidateGlobalUsersDirectory(queryClient);
       setDrawerState(false);
@@ -400,6 +401,11 @@ const UpdateForwarding: FC<UpdateForwardingProps> = ({ setDrawerState, data, set
       last_name: basic?.last_name,
       job_title: basic?.job_title,
       caller_id: basic?.caller_id,
+      /* The photo, passed through exactly as stored. The server writes
+         `profile = profile ?? null` on every update, so leaving it out of this
+         payload wiped the person's photo on every save from this drawer. This
+         drawer does not edit the photo; it only has to hand it back. */
+      profile: data?.profile ?? null,
       /* Omitted rather than sent empty: a blank value here means we failed to
          resolve the current site, not that the admin cleared it. */
       ...(basic?.site?.value ? { site_uuid: basic.site.value } : {}),
@@ -742,21 +748,15 @@ const UpdateForwarding: FC<UpdateForwardingProps> = ({ setDrawerState, data, set
             },
           },
         });
-        /* Same copy decision as `seSettingsData`, on the non-template path. The
-           question is "should this value be put onto the person", which is the
-           apply half; a record carrying only the old flag reads exactly as before. */
-        setValue(
-          'settings.transcription',
-          readRuleFlags(settingsData, 'transcription').apply
-            ? settingsData?.transcription?.enabled
-            : false,
-        );
-        setValue(
-          'settings.ai_call_monitoring',
-          readRuleFlags(settingsData, 'ai_call_monitoring').apply
-            ? settingsData?.ai_call_monitoring?.enabled
-            : false,
-        );
+        /* This is the person's own record, not a template, so the value shown is
+           the value stored - in either of its two shapes, a bare boolean from the
+           server's defaults or {enabled} from a later save. Gating it on the
+           person's own apply flag turned a stored "on" into "off" on every page
+           load, and the next save wrote that "off" back. */
+        const storedToggle = (node: any): boolean =>
+          typeof node === 'object' && node !== null ? !!node.enabled : !!node;
+        setValue('settings.transcription', storedToggle(settingsData?.transcription));
+        setValue('settings.ai_call_monitoring', storedToggle(settingsData?.ai_call_monitoring));
 
         setValue('basic', {
           email: data?.email || '',
@@ -936,13 +936,15 @@ const UpdateForwarding: FC<UpdateForwardingProps> = ({ setDrawerState, data, set
                 />
                 <div style={{ minWidth: 0 }}>
                   <div className="mcm-personhead-name">
-                    {`${data?.first_name || ''} ${data?.last_name || ''}`.trim() || 'User'}
+                    {`${data?.first_name || ''} ${data?.last_name || ''}`.trim() || 'Person'}
                   </div>
                   <div className="mcm-personhead-meta">
                     {data?.extension ? <span className="tag neu">Ext {data.extension}</span> : null}
                     {data?.custom_role_data?.name || data?.role_data?.name || data?.role ? (
                       <span className="tag acc">
-                        {data?.custom_role_data?.name || data?.role_data?.name || data?.role}
+                        {roleDisplayName(
+                          data?.custom_role_data?.name || data?.role_data?.name || data?.role,
+                        )}
                       </span>
                     ) : null}
                     {data?.email ? <span className="mcm-field-note">{data.email}</span> : null}

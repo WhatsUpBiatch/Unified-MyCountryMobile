@@ -99,6 +99,7 @@ export const chatEvents = {
   DASH_LIVE_CALLS_RESPONSE: 'dash-live-calls-response',
   LIVE_QUEUE_CALLS_RESPONSE: 'dash-live-queue-calls-response',
   ACTIVE_CAMPAIGN_RESPONSE: 'dash-active-campaign-response',
+  CAMPAIGN_LIVE_STATS: 'campaign-live-stats',
   CAMPAIGN_CALL_FLOW_FUNNEL: 'dash-campaign-call-flow-funnel-response',
   CONF_UPDATE: 'callcenter.conference-update',
   CONF_END: 'callcenter.conference-end',

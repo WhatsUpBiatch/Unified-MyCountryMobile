@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { deleteGreeting, deleteMedia, getGreetings } from '@/services/api';
 import { Icon, IconName } from '@/assets/icons/icon';
 import TableManager from '@/components/custom/table-manager';
@@ -32,6 +32,14 @@ const GreetingContent: FC = () => {
   const [recordingUrl, serRecordingUrl] = useState<any>('');
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  /* `?mine=1` narrows the library to files the signed-in person added, so a
+     link from their own Greetings settings lands on their files and not on the
+     whole company's. The filter is applied in the browser: the list endpoint
+     has no owner filter, so one wide page is fetched and narrowed here. */
+  const onlyMine = searchParams.get('mine') === '1';
+  const myUuid = String(user?.uuid || user?.user_info?.uuid || '');
+  const querySuffix = onlyMine ? '?mine=1' : '';
   const { features } = useCompanyFeatures();
   const greetingAccess = features?.plan_features?.settings?.action?.greeting || {};
   const [modalState, setModalState] = useState<any>({
@@ -173,7 +181,17 @@ const GreetingContent: FC = () => {
       accessorKey: 'action',
       cell: (props: any) => {
         const data = props?.row?.original;
-        const srcUrl = DEFAULT_RECORDING_UUIDS?.includes(data?.uuid)
+        /* `is_default` off the row itself decides where the file lives - see
+           the same choice in greeting-select.tsx. The uuid list stays only as
+           a fallback for rows served without the flag; on its own it made
+           playback depend on a hardcoded list keeping step with the database,
+           and every stock recording added after the list was last edited
+           failed to play. */
+        const isDefaultRecording =
+          data?.is_default === true ||
+          data?.is_default === 1 ||
+          DEFAULT_RECORDING_UUIDS?.includes(data?.uuid);
+        const srcUrl = isDefaultRecording
           ? `${getEnv().VITE_API_BASE_URL}/api/media/default/recording/${data?.filename}`
           : `${MEDIA_URL}/${user?.company_info?.uuid}/greeting/${data?.filename}`;
         const actions = [
@@ -246,12 +264,24 @@ const GreetingContent: FC = () => {
             <span className="text-primary text-md">{capitalizeFirstLetter(type)}</span>
           </p>
           <p className="text-gray-500 text-xs">{typeBlurb[type] || typeBlurb.all}</p>
+          {onlyMine ? (
+            <p className="text-xs text-primary mt-1">
+              Showing only files you added.{' '}
+              <button
+                type="button"
+                className="underline underline-offset-2 cursor-pointer"
+                onClick={() => navigate(typeBase === '' ? '/' : typeBase)}
+              >
+                Show the whole library
+              </button>
+            </p>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-1">
             {TYPE_TABS.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => navigate(tab.to)}
+                onClick={() => navigate(`${tab.to}${querySuffix}`)}
                 className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                   type === tab.key
                     ? 'bg-ucass-primary-200 text-primary'
@@ -317,14 +347,30 @@ const GreetingContent: FC = () => {
         <div className="w-full p-3 flex flex-col gap-2">
           <TableManager
             {...{
-              fetcherKey: 'greetingList',
+              fetcherKey: onlyMine ? 'greetingListMine' : 'greetingList',
               fetcherFn: getGreetings,
               columns,
               search,
               type,
-              emptyTablePlaceholder:
-                type == 'all' ? 'No media files uploaded yet' : `No ${type} file uploaded yet`,
-              descriptionEmptyTable: `Uploaded ${type} files will appear here.`,
+              /* One wide page when narrowing to the person's own files, so the
+                 filter is applied over the whole library rather than over the
+                 first 25 rows of it. */
+              ...(onlyMine ? { extraParams: { limit: 200 } } : {}),
+              select: (res: any) => {
+                const rows = res?.data?.data?.result?.rows || [];
+                if (!onlyMine) return rows;
+                return rows.filter(
+                  (row: any) => !row?.is_default && String(row?.user_uuid || '') === myUuid,
+                );
+              },
+              emptyTablePlaceholder: onlyMine
+                ? 'You have not added any files yet'
+                : type == 'all'
+                  ? 'No media files uploaded yet'
+                  : `No ${type} file uploaded yet`,
+              descriptionEmptyTable: onlyMine
+                ? 'Files you add will appear here.'
+                : `Uploaded ${type} files will appear here.`,
             }}
           />
           {modalState?.playMedia && (

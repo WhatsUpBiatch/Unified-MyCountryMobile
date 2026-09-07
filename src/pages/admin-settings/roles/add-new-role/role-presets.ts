@@ -2,8 +2,12 @@
  *
  * ONE SET OF NAMES, EVERYWHERE A PERSON LOOKS
  *
- * These are the same five names the built-in roles are shown under - see
- * src/lib/role-display-names.ts. There were briefly three vocabularies on this
+ * The built-in roles are shown under the names in ../role-names.ts (Account
+ * owner, Location admin, Group admin, Supervisor, Agent). A preset must not
+ * borrow one of those names: a custom role called "Account owner" would look
+ * like the owner and not be one, because the server gates on the stored
+ * string, not on the label. So presets are named for the job they do and
+ * never for a built-in role. There were briefly three vocabularies on this
  * screen: the stored ADMIN/MANAGER/SUB-ADMIN/AGENT, a set of presets, and a set
  * of display labels. Three names for one idea is worse than an ugly name.
  *
@@ -65,9 +69,10 @@ export interface RolePreset {
 
 export const ROLE_PRESETS: RolePreset[] = [
   {
-    id: 'account-owner',
-    name: 'Account owner',
-    description: 'Runs the whole account. Everything the company has.',
+    id: 'full-access',
+    name: 'Full access',
+    description:
+      'Every feature the company has. A copy you own; the built-in Account owner role stays as it is.',
     features: null,
   },
   {
@@ -77,15 +82,11 @@ export const ROLE_PRESETS: RolePreset[] = [
     features: [FEATURE_KEYS.people, FEATURE_KEYS.numbers, FEATURE_KEYS.settings],
   },
   {
-    id: 'account-admin',
-    name: 'Account admin',
-    description: 'Runs the account day to day. Everything except the account itself.',
-    features: [FEATURE_KEYS.reports, FEATURE_KEYS.monitoring],
-  },
-  {
-    id: 'call-reviewer',
-    name: 'Call reviewer',
-    description: 'Listens to recordings and reads reports. Changes no settings.',
+    /* "Account admin" and "Call reviewer" used to sit here as two presets with
+       the same two features. One job, one preset. */
+    id: 'reports-and-monitoring',
+    name: 'Reports and monitoring',
+    description: 'Watches live calls, listens to recordings and reads reports. Changes no settings.',
     features: [FEATURE_KEYS.reports, FEATURE_KEYS.monitoring],
   },
   {

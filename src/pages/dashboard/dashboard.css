@@ -50,3 +50,429 @@
   overflow: auto;
   background: var(--ground);
 }
+
+/* ============================================================
+   Home — the shift opener.
+
+   Everything below is scoped to `.home-v2` and overrides the platform
+   components rather than replacing them, so Performance and the wallboards
+   are untouched and Home keeps the same tokens, tags and states.
+
+   WHAT WAS WRONG
+
+   The page was drawn almost entirely in lines. The KPI strip was a real grid:
+   1px gaps over a `--line` background, so the gaps themselves were the rules,
+   inside another border. Seven panels each had a hard border and a second rule
+   under their header. On one screen that is upwards of twenty lines, and the
+   eye has to cross every one of them to read a number — which is what makes an
+   interface feel like a form from 2011 rather than a dashboard.
+
+   WHAT REPLACES IT
+
+   Depth and space instead of edges. Panels keep a surface and lift off the page
+   on a soft shadow with no border at all; headers separate from their content
+   by distance rather than a rule; the KPI row becomes one calm surface with
+   hairlines only between figures. The numbers then carry the page, which is the
+   point of a dashboard: what is on fire should be the loudest thing on it.
+   ============================================================ */
+
+/* NOTE ON WEIGHT
+   Every selector below is `.mcm-page.home-v2`, compound, not `.home-v2` on its
+   own. Both classes are on the same element, so `.home-v2 .hero` and the
+   platform's `.mcm-page .hero` weigh exactly the same and the winner is decided
+   by which sheet loads last — which is the platform's. Written that way the
+   hero kept its box and the alert tile kept its fill, and nothing here applied
+   at all. */
+
+.mcm-page.home-v2 {
+  /* One elevation, used everywhere, so nothing competes. A near-invisible
+     contact shadow, a wide soft one for the lift, and a light inner top edge —
+     the detail that reads as glass rather than as a rectangle. */
+  --lift:
+    0 1px 2px rgba(13, 21, 38, 0.04), 0 14px 34px -18px rgba(13, 21, 38, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --hair: color-mix(in srgb, var(--line) 55%, transparent);
+}
+.dark .mcm-page.home-v2 {
+  /* An inner top edge made of light is wrong on a dark surface; there it is a
+     faint lift of the surface's own colour instead. */
+  --lift:
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px -18px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --hair: color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+/* ---- canvas ---- */
+.mcm-page.home-v2 .page {
+  padding: 34px 34px 64px;
+}
+/* Held to a readable measure. Stretched across a 27" monitor a KPI row puts a
+   metre of space between the first figure and the last. */
+.mcm-page.home-v2 .page > * {
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+/* ---- hero: the one thing on the page with no box around it ---- */
+.mcm-page.home-v2 .hero {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 26px;
+  align-items: flex-end;
+  gap: 26px;
+}
+.mcm-page.home-v2 .hero h1 {
+  font-size: 30px;
+  line-height: 1.14;
+  font-weight: 650;
+  /* Display type wants to be tighter than body type; at 30px the default
+     spacing reads as gappy. */
+  letter-spacing: -0.022em;
+  color: var(--ink);
+}
+.mcm-page.home-v2 .hero p {
+  margin-top: 9px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 72ch;
+}
+
+/* ---- the figures ---- */
+.mcm-page.home-v2 .kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
+  gap: 0;
+  background: var(--surface);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: var(--lift);
+  padding: 4px 0;
+  margin-bottom: 22px;
+  overflow: visible;
+}
+.mcm-page.home-v2 .kpi {
+  background: none;
+  padding: 20px 24px;
+  position: relative;
+}
+/* A hairline between figures, and only between: it stops short of the top and
+   bottom so it separates the numbers without ruling the card into cells. */
+.mcm-page.home-v2 .kpi + .kpi::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
+  background: var(--hair);
+}
+.mcm-page.home-v2 .kpi .k {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-page.home-v2 .kpi .v {
+  margin-top: 9px;
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  /* Figures of equal width, so a changing number does not shuffle the row. */
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v2 .kpi .d {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--ink-4);
+}
+/* A breaching figure tints itself, not the whole tile — with no cell borders
+   left, a filled tile would read as a block of colour rather than a warning. */
+.mcm-page.home-v2 .kpi.alert {
+  background: none;
+}
+.mcm-page.home-v2 .kpi.alert .v {
+  color: var(--crit);
+}
+
+/* ---- panels ---- */
+.mcm-page.home-v2 .panel-card {
+  background: var(--surface);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: var(--lift);
+  overflow: hidden;
+}
+.mcm-page.home-v2 .pc-head {
+  border-bottom: 0;
+  padding: 20px 24px 4px;
+}
+.mcm-page.home-v2 .pc-head h3 {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.008em;
+  color: var(--ink);
+}
+.mcm-page.home-v2 .pc-body {
+  padding: 12px 24px 22px;
+}
+/* The grid gap between panels, matched to the space under the KPI row so the
+   whole page is on one rhythm. */
+.mcm-page.home-v2 .grid2 {
+  gap: 18px;
+}
+.mcm-page.home-v2 .panel-card + .panel-card,
+.mcm-page.home-v2 .grid2 + .panel-card {
+  margin-top: 18px !important;
+}
+
+/* ---- lists and tables inside a panel ---- */
+/* Rows separated by the faintest line the page uses, and given room to breathe:
+   a dense ruled table is the other half of what made this look dated. */
+.mcm-page.home-v2 .tbl th,
+.mcm-page.home-v2 .tbl td {
+  border-color: var(--hair);
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.mcm-page.home-v2 .tbl thead th {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--ink-4);
+  border-bottom-color: var(--hair);
+}
+.mcm-page.home-v2 .attn {
+  border-color: var(--hair);
+}
+
+/* ---- the empty half ----
+
+   `.grid2` is two equal columns, and the markup put one panel in the left and a
+   `.stack` of three in the right. On a quiet shift "Needs you now" is a couple of
+   lines high, so the left column ended a third of the way down and left a column
+   of empty page beside three stacked panels — the taller the right got, the more
+   nothing there was on the left.
+
+   `display: contents` dissolves the stack, so its three panels become items of
+   the same grid as the first one and the four of them fill both columns two by
+   two. The wrapper carried no background, border or padding — only a flex
+   direction and a gap the grid already supplies — so nothing is lost with it.
+
+   Below 1080px .grid2 is already one column, where they simply follow in order. */
+.mcm-page.home-v2 .grid2 > .stack {
+  display: contents;
+}
+
+/* ---- ragged bottoms ----
+
+   `.grid2` sets `align-items: start`, so every card is its own height and the
+   two in a row end wherever their content happens to stop — "Since you logged
+   off" running a couple of hundred pixels past "Quick dial" beside it, with the
+   page showing through underneath. Four cards of four different heights read as
+   a layout that has come apart rather than a grid.
+
+   Stretching them makes each row end on one line. The empty space does not
+   vanish, it moves inside the shorter card, which is the difference between a
+   panel with room in it and a hole in the page. */
+.mcm-page.home-v2 .grid2 {
+  align-items: stretch;
+}
+/* A stretched card is only taller, not filled, unless its body is told to take
+   the slack — otherwise the card grows and its content stays at the top with a
+   gap under it, which is the same raggedness one level down. */
+.mcm-page.home-v2 .grid2 > .panel-card {
+  display: flex;
+  flex-direction: column;
+}
+.mcm-page.home-v2 .grid2 > .panel-card > .pc-body {
+  flex: 1;
+}
+
+/* ---- flat ----
+
+   The first pass traded borders for depth: a soft shadow, an inner light edge,
+   18px corners. That is the house style of every generated dashboard — it looks
+   expensive for a second and then looks like everything else, and the lift puts
+   every panel on its own plane so nothing sits still.
+
+   Flat instead. One hairline at low contrast, small corners, no shadow at all.
+   The page is then held together by alignment and spacing rather than by
+   effects, which is the whole point of the flat school: nothing is decorated,
+   so anything that IS emphasised — a breaching figure, a live dot — carries. */
+.mcm-page.home-v2 {
+  --lift: none;
+  --hair: color-mix(in srgb, var(--line) 62%, transparent);
+}
+.dark .mcm-page.home-v2 {
+  --lift: none;
+  --hair: color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.mcm-page.home-v2 .kpis,
+.mcm-page.home-v2 .panel-card {
+  box-shadow: none;
+  border: 1px solid var(--hair);
+  /* 10px, not 18px. Large radii read as soft and consumer; at this size the
+     corner is a detail rather than a shape. */
+  border-radius: 10px;
+}
+
+/* ---- type ----
+
+   Sentence case at a normal width. Small uppercase with 0.045em of tracking is
+   the other half of the generated-dashboard look — it shouts a label that only
+   needs to be read once, and wide tracking at 11px is genuinely harder to read
+   than the words set plainly. */
+.mcm-page.home-v2 .kpi .k,
+.mcm-page.home-v2 .tbl thead th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.mcm-page.home-v2 .kpi .v {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+}
+.mcm-page.home-v2 .hero h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.mcm-page.home-v2 .hero p {
+  font-size: 13.5px;
+  margin-top: 6px;
+}
+.mcm-page.home-v2 .pc-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+
+/* ---- density ----
+   Flat surfaces want less air than lifted ones: without a shadow to separate
+   them, generous padding just reads as emptiness. */
+.mcm-page.home-v2 .page {
+  padding: 26px 28px 56px;
+}
+.mcm-page.home-v2 .kpi {
+  padding: 16px 20px;
+}
+.mcm-page.home-v2 .pc-head {
+  padding: 16px 18px 2px;
+}
+.mcm-page.home-v2 .pc-body {
+  padding: 10px 18px 16px;
+}
+.mcm-page.home-v2 .grid2 {
+  gap: 14px;
+}
+.mcm-page.home-v2 .panel-card + .panel-card,
+.mcm-page.home-v2 .grid2 + .panel-card {
+  margin-top: 14px !important;
+}
+.mcm-page.home-v2 .hero {
+  margin-bottom: 20px;
+}
+.mcm-page.home-v2 .kpis {
+  margin-bottom: 14px;
+  padding: 0;
+}
+
+/* ---- the figures are set in the text face, not the mono one ----
+
+   `.num` switches to IBM Plex Mono so columns of numbers line up. In a table
+   that is right; on a headline figure it is not — a monospaced 26px "4.1%" puts
+   a fixed cell around the point and the percent sign, so it reads spaced out
+   and slightly broken next to Inter.
+
+   Inter's own tabular figures line up just as well and belong to the same
+   alphabet as everything around them. Table cells keep the mono face. */
+.mcm-page.home-v2 .kpi .v.num,
+.mcm-page.home-v2 .hero .num {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.022em;
+}
+
+/* ---- a figure measured against its target ----
+
+   Borrowed from the reference's current-against-target rail. A percentage on
+   its own is a number you have to know the target for; the same percentage on a
+   rail with the target marked on it is a distance you can see. Only Service
+   level gets one, because it is the only figure on the strip with a target
+   behind it — inventing rails for the others would mean inventing targets. */
+.mcm-page.home-v2 .kpi-meter {
+  position: relative;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  overflow: visible;
+}
+.mcm-page.home-v2 .kpi-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* The target: a tick standing across the rail, not a colour change, so it reads
+   as a mark on a scale rather than as part of the fill. */
+.mcm-page.home-v2 .kpi-meter > i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--ink-3);
+  transform: translateX(-1px);
+}
+/* A figure under its target fills in the colour it is judged in. */
+.mcm-page.home-v2 .kpi .v.bad ~ .kpi-meter > span {
+  background: var(--crit);
+}
+.mcm-page.home-v2 .kpi .v.warnv ~ .kpi-meter > span {
+  background: var(--warn);
+}
+
+/* ---- the roster as one bar ----
+
+   The reference's stacked channel bar, applied to the one place on this page
+   with parts of a whole: four states of one team. Segments sit shoulder to
+   shoulder with a hairline of page between them, so the split is legible
+   without each part needing a label on the bar itself — the rows underneath
+   already carry the names and the counts. */
+.mcm-page.home-v2 .rosterbar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin: 2px 0 16px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.mcm-page.home-v2 .rosterbar > span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Square the inner ends so the bar reads as one divided length rather than as
+   separate pills that happen to be touching. */
+.mcm-page.home-v2 .rosterbar > span:first-child {
+  border-radius: 99px 0 0 99px;
+}
+.mcm-page.home-v2 .rosterbar > span:last-child {
+  border-radius: 0 99px 99px 0;
+}
+.mcm-page.home-v2 .rosterbar > span:only-child {
+  border-radius: 99px;
+}

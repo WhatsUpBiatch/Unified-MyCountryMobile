@@ -1,0 +1,695 @@
+--- a/src/routers/userRoute.ts
++++ b/src/routers/userRoute.ts
+@@ -16,6 +16,13 @@
+ import { PrivateCallAuth } from "@/middlewares/PrivateCallAuth";
+ import { CompanyPolicyLock } from "@/middlewares/CompanyPolicyLock";
+ import { RequireAdminRole } from "@/middlewares/RoleGuard";
++import { RequirePermission } from "@/middlewares/PermissionGuard";
++
++/* The role's own permission tree (Roles > Add role), read on the server for
++   the first time. Keys under account_setting.access.USER.action.* are the
++   ones the People page reads. Report mode by default: see
++   middlewares/PermissionGuard.ts and PERMISSION_ENFORCE. */
++const PEOPLE = "account_setting.access.USER.action";
+ 
+ const Main = new UserController();
+ 
+@@ -34,23 +41,30 @@
+ );
+ userRoute.get("/detail/:uuid", auth, catchErrors(Main.getUserDetail));
+ userRoute.post("/info/via/email", catchErrors(Main.infoViaEmail));
+-userRoute.post("/list", auth, catchErrors(Main.list));
++userRoute.post("/list", auth, RequirePermission(`${PEOPLE}.view`), catchErrors(Main.list));
+ userRoute.post("/list/chat", PrivateCallAuth, catchErrors(Main.listChat));
+ /* Administrators only (helpers/roleGuard.ts). The handler adds the per-target
+    rules: not yourself, not the account owner. */
+-userRoute.delete("/delete/:uuid", auth, RequireAdminRole, catchErrors(Main.delete));
++userRoute.delete("/delete/:uuid", auth, RequireAdminRole, RequirePermission(`${PEOPLE}.delete`), catchErrors(Main.delete));
+ /* Removed in the last 72 hours, and bringing one back. */
+ userRoute.post("/list-deleted", auth, RequireAdminRole, catchErrors(Main.listDeleted));
+ userRoute.post("/restore/:uuid", auth, RequireAdminRole, catchErrors(Main.restore));
+ userRoute.get("/cards", auth, catchErrors(Main.cardListing));
+ 
+-userRoute.post("/add-member", auth, RequireAdminRole, catchErrors(Main.addMember));
++userRoute.post("/add-member", auth, RequireAdminRole, RequirePermission(`${PEOPLE}.add`), catchErrors(Main.addMember));
+ userRoute.put(
+     "/update-settings/",
+     auth,
+     catchErrors(Main.upateNotificationSettings),
+ );
+-userRoute.post("/update/:uuid?", auth, CompanyPolicyLock, catchErrors(Main.update));
++/* No uuid means "myself"; editing yourself never needs the edit box. */
++userRoute.post(
++    "/update/:uuid?",
++    auth,
++    RequirePermission(`${PEOPLE}.edit`, { target: (req) => req.params?.uuid || req.auth?.uuid }),
++    CompanyPolicyLock,
++    catchErrors(Main.update),
++);
+ userRoute.post("/update-auto-recharge-settings", auth, catchErrors(Main.updateAutoRecharge));
+ userRoute.post("/update-low-balance-settings", auth, validate(updateLowBalanceSettings), catchErrors(Main.updateLowBalanceSettings));
+ 
+@@ -58,6 +72,8 @@
+     "/assign-role-bulk-users",
+     auth,
+     RequireAdminRole,
++    /* The tree has no "assign role" box; changing a person's role is an edit. */
++    RequirePermission(`${PEOPLE}.edit`),
+     validate(assignBulkRoleByRoleId),
+     catchErrors(Main.assignBulkRoleToUser),
+ );
+--- a/src/routers/mediaRoute.ts
++++ b/src/routers/mediaRoute.ts
+@@ -3,6 +3,7 @@
+ import { MediaController } from "@/controllers/Media/MediaController";
+ import { PrivateCallAuth } from "@/middlewares/PrivateCallAuth";
+ import auth from "@/middlewares/AuthMiddleware";
++import { RequirePermission } from "@/middlewares/PermissionGuard";
+ 
+ const mediaRoute = express.Router();
+ 
+@@ -19,7 +20,17 @@
+ mediaRoute.post("/upload/url", auth, catchErrors(getUploadSignedUrl));
+ mediaRoute.post("/direct/upload/url", PrivateCallAuth, catchErrors(getUploadSignedUrl));
+ mediaRoute.post("/upload/url/prosody", PrivateCallAuth, catchErrors(getUploadSignedUrlProsody));
+-mediaRoute.get("/:uuid/:type/:file_name", auth, catchErrors(getMediaFile));
++/* Playing a call recording needs the "call recording listen" box in the
++   caller's role tree - the same key every call-log page gates the play
++   button on. Other media types are not the tree's business. */
++mediaRoute.get(
++    "/:uuid/:type/:file_name",
++    auth,
++    RequirePermission("reports.action.call_recording_listen", {
++        when: (req) => String(req.params?.type ?? "").trim().toLowerCase() === "recording",
++    }),
++    catchErrors(getMediaFile),
++);
+ // Media served with NO login at all. This route exists so an outside party can
+ // fetch a file, and only two kinds of file genuinely need that:
+ //   fax             - the URL is handed to the fax carrier, which has no token
+--- a/src/routers/TenantRouter/tenantUserTemplate.ts
++++ b/src/routers/TenantRouter/tenantUserTemplate.ts
+@@ -3,14 +3,18 @@
+ import auth from "@/middlewares/AuthMiddleware";
+ import TenantUserTemplateController from "@/controllers/Tenant/TenantUserTemplateController";
+ import { RequireAdminRole } from "@/middlewares/RoleGuard";
++import { RequirePermission } from "@/middlewares/PermissionGuard";
+ const tenantUserTemplateRoute = express.Router();
+ 
+ const { list, upsert, remove, info } = new TenantUserTemplateController();
+ tenantUserTemplateRoute.post("/user/template/list", auth, catchErrors(list));
+ /* The company template (the "Company Default" rule, admin scopes, default
+-   role) is written by administrators only (helpers/roleGuard.ts). */
+-tenantUserTemplateRoute.post("/user/template/upsert/:uuid?", auth, RequireAdminRole, catchErrors(upsert));
+-tenantUserTemplateRoute.delete("/user/template/delete/:uuid", auth, RequireAdminRole, catchErrors(remove));
++   role) is written by administrators only (helpers/roleGuard.ts), and only
++   by a role whose tree ticks the phone-system edit box: the company pages
++   that write this template sit behind phone_system_action on the website. */
++const PHONE_SYSTEM_EDIT = "phone_system_action.action.edit";
++tenantUserTemplateRoute.post("/user/template/upsert/:uuid?", auth, RequireAdminRole, RequirePermission(PHONE_SYSTEM_EDIT), catchErrors(upsert));
++tenantUserTemplateRoute.delete("/user/template/delete/:uuid", auth, RequireAdminRole, RequirePermission(PHONE_SYSTEM_EDIT), catchErrors(remove));
+ tenantUserTemplateRoute.get("/user/template/info/:uuid", auth, catchErrors(info));
+ 
+ 
+--- a/src/routers/TenantRouter/tenantCompanySettings.ts
++++ b/src/routers/TenantRouter/tenantCompanySettings.ts
+@@ -2,12 +2,20 @@
+ import { catchErrors } from "../../helpers/responseHelper";
+ import auth from "@/middlewares/AuthMiddleware";
+ import TenantCompanySettingsController from "@/controllers/Tenant/TenantCompanySettingsController";
++import { RequirePermission } from "@/middlewares/PermissionGuard";
+ const tenantCompanySettingsRoute = express.Router();
+ 
+ const { list, get, save, history, policy } = new TenantCompanySettingsController();
+ tenantCompanySettingsRoute.post("/user/company-settings/list", auth, catchErrors(list));
+ tenantCompanySettingsRoute.post("/user/company-settings/get", auth, catchErrors(get));
+-tenantCompanySettingsRoute.post("/user/company-settings/save", auth, catchErrors(save));
++/* Saving a company section needs the phone-system edit box in the caller's
++   role tree (tenant-api separately refuses a non-admin role string). */
++tenantCompanySettingsRoute.post(
++    "/user/company-settings/save",
++    auth,
++    RequirePermission("phone_system_action.action.edit"),
++    catchErrors(save),
++);
+ tenantCompanySettingsRoute.post("/user/company-settings/history", auth, catchErrors(history));
+ tenantCompanySettingsRoute.post("/user/company-settings/policy", auth, catchErrors(policy));
+ 
+--- /dev/null
++++ b/src/helpers/permissionTree.ts
+@@ -0,0 +1,252 @@
++/* Reading a role's permission tree - the pure part.
++ *
++ * An administrator builds a tree of tick-boxes for a role (Roles > Add role).
++ * The website reads that tree to decide which buttons and pages to show. Until
++ * now no server route read it at all, so every tick-box was decorative: a
++ * person could untick "delete people" in the browser and still send the delete
++ * request by hand. This file is the server's reader of the same tree.
++ *
++ * THE TREE. What the website saves (`roles/add-new-role/index.tsx`) is
++ *
++ *   { plan_features: { account_setting: { access: { USER: { action: { view, add,
++ *     edit, delete, ... } } } }, reports: { action: { call, sms,
++ *     call_recording_listen } }, phone_system_action: { access: {...},
++ *     action: { view, add, ... } }, ... } }
++ *
++ * and the website reads it by walking a dotted path
++ * (`router/protected-route.tsx`): `account_setting.access.USER.action.edit`
++ * means plan_features → account_setting → access → USER → action → edit. Only
++ * the boolean at the end counts. A missing key is NOT permission - the website
++ * says the same in so many words - so a role that never had the key is refused,
++ * not waved through.
++ *
++ * WHERE THE TREE COMES FROM (services/PermissionTreeService.ts loads, this file
++ * only chooses and reads):
++ *   custom role      -> custom_roles.permission                 (its own tree)
++ *   system role      -> role_features.permission for the company's plan,
++ *                       else roles.permission on the PREDEFINED row,
++ *                       else users.permission on the person,
++ *                       else role_features.permission for the platform's
++ *                       default plan (what PlansController seeds)
++ *   ADMIN            -> no tree needed: the account owner passes everything,
++ *                       exactly as the website gives ADMIN the whole plan tree.
++ *   nothing resolves -> refused. Fail closed.
++ *
++ * That order is the website's (`hooks/rbac.tsx`: custom_role_data.permission ??
++ * role_data.permission ?? users.permission) with the default-plan tree added
++ * at the end so a system role on a plan that never got its rows seeded is not
++ * locked out of everything.
++ *
++ * SELF VERSUS OTHER. A route that acts on a person (edit) is asked twice: is
++ * the caller acting on their own record? If the tree carries an explicit
++ * `<...>.action.self` boolean it decides; the trees seeded today do not, and
++ * then acting on yourself is always allowed - the People rules
++ * (helpers/roleGuard.ts) already say editing yourself needs no administrator.
++ *
++ * REPORT / ENFORCE. Same two modes as CompanyPolicyLock: `report` (the default)
++ * writes a log line saying what would have been refused; `enforce` refuses.
++ *
++ * Everything here is pure: no database, no express, no imports.
++ */
++
++export type PermissionTree = Record<string, any>;
++
++export type SystemRoleKeyLike = "ADMIN" | "SUB-ADMIN" | "MANAGER" | "AGENT" | null;
++
++/** Where a tree came from, for the log line. */
++export type TreeSource =
++    | "custom_role"
++    | "plan_role_feature"
++    | "system_role"
++    | "user"
++    | "default_plan"
++    | "none";
++
++export interface TreeCandidate {
++    source: TreeSource;
++    tree: unknown;
++}
++
++export interface ChosenTree {
++    source: TreeSource;
++    tree: PermissionTree | null;
++}
++
++const asObject = (value: unknown): PermissionTree => {
++    if (typeof value === "string") {
++        try {
++            return asObject(JSON.parse(value));
++        } catch (error) {
++            return {};
++        }
++    }
++    return value && typeof value === "object" && !Array.isArray(value) ? (value as PermissionTree) : {};
++};
++
++/** Is this something with at least one key in it, once parsed? */
++export const isNonEmptyTree = (value: unknown): boolean => Object.keys(asObject(value)).length > 0;
++
++/**
++ * The module map the keys are written against. Mirrors the website's
++ * `extractPlanFeatures`: parse a JSON string, unwrap `plan_features` up to
++ * three levels (company trees are `plan_features.plan_features`, role trees
++ * `permission.plan_features`), and let the misspelled `wishper` key answer for
++ * `whisper` in older custom roles.
++ */
++export function unwrapPlanFeatures(source: unknown): PermissionTree {
++    let current = asObject(source);
++    for (let depth = 0; depth < 3 && "plan_features" in current; depth += 1) {
++        current = asObject(current.plan_features);
++    }
++
++    const monitoring = asObject(current.monitoring_features);
++    const actions = asObject(monitoring.action);
++    if (!("whisper" in actions) && "wishper" in actions) {
++        return {
++            ...current,
++            monitoring_features: { ...monitoring, action: { ...actions, whisper: actions.wishper } },
++        };
++    }
++    return current;
++}
++
++/**
++ * First candidate that holds a non-empty tree, in the order given. `none`
++ * when nothing does. The caller lists candidates in the resolution order
++ * described at the top of this file.
++ */
++export function selectTree(candidates: TreeCandidate[]): ChosenTree {
++    for (const candidate of candidates) {
++        if (isNonEmptyTree(candidate.tree)) {
++            return { source: candidate.source, tree: unwrapPlanFeatures(candidate.tree) };
++        }
++    }
++    return { source: "none", tree: null };
++}
++
++/** Split "a.b.c" into ["a","b","c"], dropping empty segments. */
++export const keyPath = (key: string): string[] =>
++    String(key ?? "")
++        .split(".")
++        .map((part) => part.trim())
++        .filter(Boolean);
++
++/**
++ * The boolean at the end of a dotted path, or undefined when the path does not
++ * reach a boolean. Case-sensitive, exactly like the website's reader. `1`/`0`
++ * and "true"/"false" are read as booleans because JSON that has been through
++ * MySQL and back has arrived in those shapes before.
++ */
++export function readPermission(tree: PermissionTree | null | undefined, key: string): boolean | undefined {
++    const parts = keyPath(key);
++    if (!tree || parts.length === 0) return undefined;
++    let node: any = tree;
++    for (const part of parts) {
++        if (!node || typeof node !== "object" || !(part in node)) return undefined;
++        node = node[part];
++    }
++    if (typeof node === "boolean") return node;
++    if (node === 1 || node === "1" || node === "true") return true;
++    if (node === 0 || node === "0" || node === "false") return false;
++    return undefined;
++}
++
++export const hasPermissionKey = (tree: PermissionTree | null | undefined, key: string): boolean =>
++    readPermission(tree, key) !== undefined;
++
++/** `a.b.c.edit` -> `a.b.c.self`: the sibling key that would govern "on myself". */
++export const selfKeyFor = (key: string): string => {
++    const parts = keyPath(key);
++    if (parts.length === 0) return "self";
++    parts[parts.length - 1] = "self";
++    return parts.join(".");
++};
++
++export type DenyReason =
++    | "unresolved_role" /* the caller's role could not be worked out at all */
++    | "no_tree" /* a role, but no permission tree anywhere for it */
++    | "refused" /* the tree holds the key and it is false */
++    | "missing"; /* the tree does not hold the key */
++
++export type AllowReason = "owner" | "granted" | "self" | "self_key";
++
++export type PermissionDecision =
++    | { ok: true; reason: AllowReason }
++    | { ok: false; reason: DenyReason; message: string };
++
++export const DENY_MESSAGES: Record<DenyReason, string> = {
++    unresolved_role: "Your role could not be determined, so this was not allowed. Ask an administrator to check your account.",
++    no_tree: "Your role has no permissions set up, so this was not allowed. Ask an administrator to check the role.",
++    refused: "Your role does not allow this.",
++    missing: "Your role does not allow this.",
++};
++
++export interface EvaluateInput {
++    /** The caller's resolved system role; null when it could not be resolved. */
++    systemRole: SystemRoleKeyLike;
++    /** The tree chosen for the caller (already unwrapped), or null. */
++    tree: PermissionTree | null;
++    /** The dotted key the route needs, e.g. account_setting.access.USER.action.delete */
++    key: string;
++    /** True when the route is acting on the caller's own record. */
++    isSelf?: boolean;
++    /** The key that governs "on myself"; defaults to the sibling `self` key. */
++    selfKey?: string;
++}
++
++/**
++ * The one decision. In order:
++ *   1. ADMIN passes everything.
++ *   2. No role and no tree: refused (unresolved).
++ *   3. Acting on yourself: an explicit self key in the tree decides, else allowed.
++ *   4. No tree: refused.
++ *   5. The key must be present and true.
++ */
++export function evaluatePermission(input: EvaluateInput): PermissionDecision {
++    const { systemRole, tree, key, isSelf = false } = input;
++    const selfKey = input.selfKey ?? selfKeyFor(key);
++
++    if (systemRole === "ADMIN") return { ok: true, reason: "owner" };
++
++    if (!systemRole && !isNonEmptyTree(tree)) {
++        return { ok: false, reason: "unresolved_role", message: DENY_MESSAGES.unresolved_role };
++    }
++
++    if (isSelf) {
++        const own = readPermission(tree, selfKey);
++        if (own === undefined) return { ok: true, reason: "self" };
++        return own
++            ? { ok: true, reason: "self_key" }
++            : { ok: false, reason: "refused", message: DENY_MESSAGES.refused };
++    }
++
++    if (!isNonEmptyTree(tree)) {
++        return { ok: false, reason: "no_tree", message: DENY_MESSAGES.no_tree };
++    }
++
++    const value = readPermission(tree, key);
++    if (value === true) return { ok: true, reason: "granted" };
++    if (value === false) return { ok: false, reason: "refused", message: DENY_MESSAGES.refused };
++    return { ok: false, reason: "missing", message: DENY_MESSAGES.missing };
++}
++
++export type PermissionMode = "report" | "enforce";
++
++/** PERMISSION_ENFORCE: "enforce" refuses; anything else (or unset) reports. */
++export function permissionMode(raw: unknown): PermissionMode {
++    return String(raw ?? "").trim().toLowerCase() === "enforce" ? "enforce" : "report";
++}
++
++export type ModeOutcome =
++    | { pass: true; log: false }
++    | { pass: true; log: true } /* report mode: let it through, write the line */
++    | { pass: false; status: 403; body: { success: false; message: string; permission: string } };
++
++/** What the middleware does with a decision under a mode. */
++export function applyMode(decision: PermissionDecision, mode: PermissionMode, key: string): ModeOutcome {
++    if (decision.ok) return { pass: true, log: false };
++    if (mode === "enforce") {
++        return { pass: false, status: 403, body: { success: false, message: decision.message, permission: key } };
++    }
++    return { pass: true, log: true };
++}
+--- /dev/null
++++ b/src/services/PermissionTreeService.ts
+@@ -0,0 +1,193 @@
++/* Find the permission tree that applies to the signed-in person.
++ *
++ * The reading and the decision live in helpers/permissionTree.ts (pure). This
++ * file does the lookups, in the order that file documents:
++ *
++ *   custom role  -> custom_roles.permission (this company's row)
++ *   system role  -> role_features (company's plan + role)
++ *                -> roles.permission (the PREDEFINED row)
++ *                -> users.permission (carried on req.auth)
++ *                -> role_features for the platform's default plan
++ *
++ * Which role the person holds comes from RoleResolverService, so the same
++ * resolution the People rules use (custom_role_uuid -> parent, role_uuid, a
++ * uuid in users.role, a bare key in users.role) is used here too. The free-text
++ * role string is never compared on its own.
++ *
++ * CACHE. Trees are cached per company for 30 seconds. A role edit therefore
++ * takes up to half a minute to reach the server's decision, which is shorter
++ * than the time the website takes to notice (it re-reads /api/user/info on the
++ * next page load). Keyed by the thing that was looked up, so two people on the
++ * same custom role share one lookup.
++ */
++
++import CustomRole from "@/models/CustomRole";
++import Role from "@/models/Role";
++import RoleFeature from "@/models/RoleFeature";
++import Plan from "@/models/Plan";
++import { IAuth } from "@/interfaces/IRequest";
++import RoleResolverService from "@/services/RoleResolverService";
++import { SystemRoleKey } from "@/helpers/roleGuard";
++import {
++    ChosenTree,
++    evaluatePermission,
++    PermissionDecision,
++    selectTree,
++    TreeCandidate,
++} from "@/helpers/permissionTree";
++
++export const TREE_CACHE_MS = 30 * 1000;
++
++interface CacheEntry {
++    at: number;
++    value: unknown;
++}
++
++const cache = new Map<string, Map<string, CacheEntry>>();
++
++const companyCache = (company_uuid: string): Map<string, CacheEntry> => {
++    let entries = cache.get(company_uuid);
++    if (!entries) {
++        entries = new Map();
++        cache.set(company_uuid, entries);
++    }
++    return entries;
++};
++
++async function cached<T>(company_uuid: string, key: string, load: () => Promise<T>, now = Date.now()): Promise<T> {
++    const entries = companyCache(company_uuid);
++    const hit = entries.get(key);
++    if (hit && now - hit.at < TREE_CACHE_MS) return hit.value as T;
++    const value = await load();
++    entries.set(key, { at: now, value });
++    return value;
++}
++
++export interface CallerPermissionContext {
++    systemRole: SystemRoleKey | null;
++    roleUuid: string | null;
++    customRoleUuid: string | null;
++    chosen: ChosenTree;
++}
++
++export default class PermissionTreeService {
++    /** Forget every cached tree, or only one company's. */
++    static clearCache(company_uuid?: string): void {
++        if (company_uuid) cache.delete(company_uuid);
++        else cache.clear();
++    }
++
++    /** custom_roles.permission for a role of this company, or null. */
++    static async customRoleTree(custom_role_uuid: string, company_uuid: string): Promise<unknown> {
++        return cached(company_uuid, `custom:${custom_role_uuid}`, async () => {
++            const row: any = await CustomRole.findOne({
++                where: { uuid: custom_role_uuid, company_uuid },
++                attributes: ["uuid", "permission"],
++                raw: true,
++            });
++            return row?.permission ?? null;
++        });
++    }
++
++    /** role_features.permission for (plan, role), or null. */
++    static async planRoleTree(plan_uuid: string, role_uuid: string, company_uuid: string): Promise<unknown> {
++        return cached(company_uuid, `plan:${plan_uuid}:${role_uuid}`, async () => {
++            const row: any = await RoleFeature.findOne({
++                where: { plan_uuid, role_uuid },
++                attributes: ["uuid", "permission"],
++                raw: true,
++            });
++            return row?.permission ?? null;
++        });
++    }
++
++    /** roles.permission on the role row itself, or null. */
++    static async roleRowTree(role_uuid: string, company_uuid: string): Promise<unknown> {
++        return cached(company_uuid, `role:${role_uuid}`, async () => {
++            const row: any = await Role.findOne({
++                where: { uuid: role_uuid },
++                attributes: ["uuid", "permission"],
++                raw: true,
++            });
++            return row?.permission ?? null;
++        });
++    }
++
++    /**
++     * The platform's default tree for a system role: the role_features row
++     * PlansController seeds for the default plan. Null when there is none.
++     */
++    static async defaultPlanRoleTree(role_uuid: string, company_uuid: string): Promise<unknown> {
++        return cached(company_uuid, `default:${role_uuid}`, async () => {
++            const plan: any = await Plan.findOne({
++                where: { is_default: 1, status: "A" } as any,
++                attributes: ["uuid"],
++                order: [["created_at", "DESC"]],
++                raw: true,
++            });
++            if (!plan?.uuid) return null;
++            const row: any = await RoleFeature.findOne({
++                where: { plan_uuid: plan.uuid, role_uuid },
++                attributes: ["uuid", "permission"],
++                raw: true,
++            });
++            return row?.permission ?? null;
++        });
++    }
++
++    /** Resolve the caller and pick the tree that applies to them. */
++    static async contextForCaller(auth: IAuth): Promise<CallerPermissionContext> {
++        const identity = await RoleResolverService.resolveCaller(auth);
++        const company_uuid = String(auth.company_uuid ?? "");
++        const customRoleUuid = identity.customRoleUuid ? String(identity.customRoleUuid) : null;
++
++        /* The PREDEFINED row for the resolved key is the id role_features and
++           roles.permission are keyed on; identity.roleUuid may be empty when the
++           person was resolved through a custom role's parent. */
++        let roleUuid: string | null = identity.roleUuid ? String(identity.roleUuid) : null;
++        if (identity.systemRole) {
++            const { byKey } = await RoleResolverService.systemRoles();
++            roleUuid = byKey.get(identity.systemRole)?.uuid ?? roleUuid;
++        }
++
++        /* The owner needs no tree; do not spend four queries finding one. */
++        if (identity.systemRole === "ADMIN") {
++            return { systemRole: "ADMIN", roleUuid, customRoleUuid, chosen: { source: "none", tree: null } };
++        }
++
++        const candidates: TreeCandidate[] = [];
++        if (customRoleUuid) {
++            candidates.push({ source: "custom_role", tree: await this.customRoleTree(customRoleUuid, company_uuid) });
++        }
++        if (roleUuid) {
++            const plan_uuid = String(auth.plan_uuid ?? "").trim();
++            if (plan_uuid) {
++                candidates.push({ source: "plan_role_feature", tree: await this.planRoleTree(plan_uuid, roleUuid, company_uuid) });
++            }
++            candidates.push({ source: "system_role", tree: await this.roleRowTree(roleUuid, company_uuid) });
++        }
++        candidates.push({ source: "user", tree: auth.permission ?? null });
++        if (roleUuid) {
++            candidates.push({ source: "default_plan", tree: await this.defaultPlanRoleTree(roleUuid, company_uuid) });
++        }
++
++        return { systemRole: identity.systemRole, roleUuid, customRoleUuid, chosen: selectTree(candidates) };
++    }
++
++    /** The whole question in one call: may this caller do `key`? */
++    static async decide(
++        auth: IAuth,
++        key: string,
++        options: { isSelf?: boolean; selfKey?: string } = {},
++    ): Promise<{ decision: PermissionDecision; context: CallerPermissionContext }> {
++        const context = await this.contextForCaller(auth);
++        const decision = evaluatePermission({
++            systemRole: context.systemRole,
++            tree: context.chosen.tree,
++            key,
++            isSelf: options.isSelf,
++            selfKey: options.selfKey,
++        });
++        return { decision, context };
++    }
++}
+--- /dev/null
++++ b/src/middlewares/PermissionGuard.ts
+@@ -0,0 +1,104 @@
++/* Route-level "does your role's permission tree allow this?"
++ *
++ *   userRoute.delete("/delete/:uuid", auth, RequireAdminRole,
++ *       RequirePermission("account_setting.access.USER.action.delete"), ...)
++ *
++ * Runs after `auth` (it needs req.auth) and, where one is wired, after
++ * RequireAdminRole: that guard answers "is the caller an administrator at all",
++ * this one answers "did the administrator's role get this particular box
++ * ticked". Both are needed; neither replaces the other.
++ *
++ * The tree, its sources and the decision are in helpers/permissionTree.ts and
++ * services/PermissionTreeService.ts. The account owner (ADMIN) passes
++ * everything. A caller whose role cannot be resolved is refused.
++ *
++ * MODES - the same switch shape as CompanyPolicyLock:
++ *   PERMISSION_ENFORCE unset / "report"  log "would have refused", let it through
++ *   PERMISSION_ENFORCE=enforce           answer 403 { message, permission }
++ *
++ * Report is the default on purpose. Some of these routes (/api/user/list is
++ * the obvious one) are read by screens that have nothing to do with the People
++ * page, and the trees seeded for the built-in roles have never been checked
++ * against real traffic. A few days of the log line show which keys real roles
++ * are missing before anything is refused.
++ *
++ * A failure inside the check (database away, role table unreadable) lets the
++ * request through in report mode and refuses it in enforce mode, so enforce is
++ * never quietly open.
++ */
++
++import { NextFunction, Response } from "express";
++import { IAuth, IRequest } from "@/interfaces/IRequest";
++import PermissionTreeService from "@/services/PermissionTreeService";
++import { applyMode, permissionMode } from "@/helpers/permissionTree";
++
++export interface RequirePermissionOptions {
++    /**
++     * For routes that act on one person: return the target's uuid. When it is
++     * the caller's own uuid the "self" rule applies (an explicit `...self` key
++     * in the tree decides; otherwise acting on yourself is allowed).
++     */
++    target?: (req: IRequest) => unknown;
++    /** The key that governs "on myself"; defaults to the sibling `self` key. */
++    selfKey?: string;
++    /** Only check when this is true (e.g. a media route, only for recordings). */
++    when?: (req: IRequest) => boolean;
++}
++
++export const RequirePermission = (key: string, options: RequirePermissionOptions = {}) => {
++    return async (req: IRequest, res: Response, next: NextFunction): Promise<any> => {
++        const auth = req.auth as IAuth | undefined;
++        if (!auth?.uuid || !auth?.company_uuid) {
++            return res.status(401).json({ success: false, message: "Un-authenticate or deleted User" });
++        }
++
++        if (options.when && !options.when(req)) return next();
++
++        const mode = permissionMode(process.env.PERMISSION_ENFORCE);
++        const rawTarget = options.target ? options.target(req) : "";
++        const targetUuid = String((Array.isArray(rawTarget) ? rawTarget[0] : rawTarget) ?? "").trim();
++        const isSelf = !!targetUuid && targetUuid === String(auth.uuid).trim();
++
++        try {
++            const { decision, context } = await PermissionTreeService.decide(auth, key, {
++                isSelf,
++                selfKey: options.selfKey,
++            });
++            const outcome = applyMode(decision, mode, key);
++
++            if (!outcome.pass) {
++                return res.status(outcome.status).json(outcome.body);
++            }
++            if (outcome.log && !decision.ok) {
++                console.warn(
++                    "permissionGuard: report mode, would have refused",
++                    JSON.stringify({
++                        user: auth.uuid,
++                        company: auth.company_uuid,
++                        role: context.systemRole,
++                        role_uuid: context.roleUuid,
++                        custom_role_uuid: context.customRoleUuid,
++                        tree_source: context.chosen.source,
++                        key,
++                        reason: decision.reason,
++                        self: isSelf,
++                        route: `${req.method} ${(req.originalUrl || "").split("?")[0]}`,
++                    }),
++                );
++            }
++            return next();
++        } catch (error: any) {
++            console.error("permissionGuard: check failed:", error?.message || error);
++            if (mode === "enforce") {
++                return res.status(403).json({
++                    success: false,
++                    message: "Your permissions could not be checked, so this was not allowed. Please try again.",
++                    permission: key,
++                });
++            }
++            return next();
++        }
++    };
++};
++
++export default RequirePermission;

@@ -1,0 +1,1342 @@
+diff --git a/src/pages/directory/people-rows.ts b/src/pages/directory/people-rows.ts
+index d2c1654..fcb7ce9 100644
+--- a/src/pages/directory/people-rows.ts
++++ b/src/pages/directory/people-rows.ts
+@@ -1,11 +1,12 @@
+ import { useMemo } from 'react';
+-import { useQuery } from '@tanstack/react-query';
+-import { getDepartmentList, getUserList } from '@/services/api';
++import { keepPreviousData, useQuery } from '@tanstack/react-query';
++import { getDepartmentList, getPersonStates, getUserList } from '@/services/api';
+ import { useGetSite } from '@/hooks/common';
+ import { useSocketEvents } from '@/hooks/use-socket-events';
+ import { useLiveContactCentre, KPI_REFRESH_MS } from '@/hooks/use-live-contact-centre';
+ import { handleDate } from '@/components/custom/date-dropdown/constant';
+ import { getAgentLiveState } from '@/pages/performance/agent-rows';
++import { roleDisplayName } from '@/pages/admin-settings/roles/role-names';
+ 
+ /**
+  * The organisation roster, as the console's People page reads it.
+@@ -18,17 +19,64 @@ import { getAgentLiveState } from '@/pages/performance/agent-rows';
+  *
+  * Location comes from the site a user is assigned to (`site.name`), which is
+  * what the platform calls the same thing.
++ *
++ * TWO WAYS TO READ IT
++ *
++ * People (the list page) reads one page at a time — `POST /api/user/list` has
++ * always taken `page`/`limit`/`search` and returned `total`/`totalPages`, and
++ * asking for one page of 50 is what every other list in the product does. The
++ * old single request for 500 rows silently cut off any company bigger than
++ * that, and the export button then called the cut-off list "everybody".
++ *
++ * Favourites and Locations still need the whole roster in one go (to find the
++ * pinned people, and to count heads per location), so calling the hook with no
++ * query keeps the old single-request shape. That request is still capped at
++ * ROSTER_LIMIT; the cap is now written down here rather than hidden.
+  */
+ 
+ export type PresenceTone = 'good' | 'busy' | 'warn' | 'idle';
+ 
++/**
++ * What a person's account is, as distinct from their live presence.
++ *
++ *   PENDING    invited, has not signed in yet
++ *   ACTIVE     normal
++ *   SUSPENDED  an administrator switched them off: signed out everywhere and
++ *              cannot sign in. The phone follows once the switch update is applied.
++ *   REMOVED    removed, restorable for 72 hours (the Removed tab)
++ *
++ * `/api/user/list` does not carry the stored status, so the states come from
++ * one extra request (`POST /api/person/state`) and are joined here by uuid.
++ * A person the states request does not know is `null`, never assumed Active.
++ */
++export type PersonState = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REMOVED';
++
++/** How each state reads on screen, and the honest note behind it. */
++export const PERSON_STATE_LABEL: Record<PersonState, { label: string; tone: PresenceTone; note: string }> = {
++  PENDING: {
++    label: 'Pending',
++    tone: 'warn',
++    note: 'Invited, has not signed in yet. Cannot sign in until the invitation is accepted.',
++  },
++  ACTIVE: { label: 'Active', tone: 'good', note: 'Can sign in and use their phone.' },
++  SUSPENDED: {
++    label: 'Suspended',
++    tone: 'busy',
++    note: 'Login blocked; phone blocked once the switch update is applied.',
++  },
++  REMOVED: { label: 'Removed', tone: 'idle', note: 'Removed. Can be restored for 72 hours.' },
++};
++
+ export type PersonRow = {
+   uuid: string;
+   name: string;
+   initials: string;
+   image?: string;
+   email: string;
++  /** The stored role name — an authorisation key, never shown as is. */
+   role: string;
++  /** The role as a person should read it: "Location admin", not "MANAGER". */
++  roleLabel: string;
+   department: string;
+   extension: string;
+   /** The site's name — in most tenants this reads like a company name. */
+@@ -45,10 +93,25 @@ export type PersonRow = {
+   /** The availability stored against the person, which an admin can change. */
+   availability: string;
+   tone: PresenceTone;
++  /** Pending / Active / Suspended. Null until the states request has answered. */
++  state: PersonState | null;
+   /** The untouched user record, for surfaces that expect the platform shape. */
+   raw: any;
+ };
+ 
++/** One page of the list, as the People page asks for it. */
++export type PeopleQuery = {
++  page: number;
++  limit: number;
++  /** Matched by the server against name, e-mail and extension. */
++  search?: string;
++  /** A location name; the server matches the site's name. 'All' means no filter. */
++  location?: string;
++};
++
++/** The most the whole-roster shape will ever fetch. */
++export const ROSTER_LIMIT = 500;
++
+ const initialsOf = (name: string) =>
+   name
+     .split(/\s+/)
+@@ -77,18 +140,67 @@ const parseMembers = (members: unknown): any[] => {
+   }
+ };
+ 
+-export const usePeopleRows = () => {
++/** What is actually posted to /api/user/list for a given query. */
++const listPayload = (query?: PeopleQuery) => {
++  if (!query) return { page: 1, limit: ROSTER_LIMIT };
++  const search = String(query.search || '').trim();
++  const location = String(query.location || '').trim();
++  return {
++    page: Math.max(1, query.page || 1),
++    limit: query.limit || 50,
++    ...(search ? { search } : {}),
++    ...(location && location !== 'All'
++      ? { filter: [{ key: 'site_name', value: location }] }
++      : {}),
++  };
++};
++
++export const usePeopleRows = (query?: PeopleQuery) => {
+   const today = useMemo(() => handleDate('Today'), []);
+   const { queues, activeQueueCalls } = useLiveContactCentre(today);
+   const { usersOnlineStatus } = useSocketEvents();
+ 
+-  const { data: roster = [], isPending: isRosterLoading } = useQuery({
+-    queryKey: ['directoryPeople'],
+-    queryFn: () => getUserList({ page: 1, limit: 500 }),
+-    select: (res: any) => res?.data?.data?.result?.rows || [],
++  const payload = useMemo(
++    () => listPayload(query),
++    [query?.page, query?.limit, query?.search, query?.location, Boolean(query)],
++  );
++
++  const { data: page, isPending: isRosterLoading, isFetching } = useQuery({
++    /* 'directoryPeople' stays the first key so the existing invalidations
++       (remove person, change role, caller ID) still refresh every page. */
++    queryKey: ['directoryPeople', payload],
++    queryFn: () => getUserList(payload),
++    select: (res: any) => res?.data?.data?.result || {},
+     refetchInterval: KPI_REFRESH_MS,
++    /* Keep the last page on screen while the next one loads, so paging does
++       not flash an empty table. */
++    placeholderData: keepPreviousData,
+   });
+ 
++  const roster: any[] = useMemo(() => (Array.isArray(page?.rows) ? page.rows : []), [page]);
++
++  /* One request for every person's state, joined by uuid below. Refreshed on
++     the same clock as the roster, and invalidated by suspend / reactivate /
++     remove / restore. A failed request leaves every state null, and the
++     screen then shows no pill rather than a wrong one. */
++  const { data: stateByUuid } = useQuery({
++    queryKey: ['directoryPersonStates'],
++    queryFn: getPersonStates,
++    select: (res: any) => {
++      const map = new Map<string, PersonState>();
++      const list = res?.data?.data?.result?.rows;
++      (Array.isArray(list) ? list : []).forEach((row: any) => {
++        const state = String(row?.state || '').toUpperCase() as PersonState;
++        if (row?.uuid && state in PERSON_STATE_LABEL) map.set(String(row.uuid), state);
++      });
++      return map;
++    },
++    refetchInterval: KPI_REFRESH_MS,
++    retry: false,
++  });
++  const total = Number(page?.total);
++  const totalPages = Number(page?.totalPages);
++
+   /* Sites carry city/country; the user row only carries the site's name. Joining
+      them lets the roster show where someone actually is, not just the label
+      whoever created the site happened to type. */
+@@ -128,6 +240,7 @@ export const usePeopleRows = () => {
+           .map((queue: any) => queue.name);
+ 
+         const live = getAgentLiveState(extension, usersOnlineStatus, activeQueueCalls);
++        const role = person?.custom_role_data?.name || person?.role_data?.name || person?.role || '';
+ 
+         return {
+           uuid: String(person?.uuid || extension || name),
+@@ -135,7 +248,8 @@ export const usePeopleRows = () => {
+           initials: initialsOf(name),
+           image: person?.profile,
+           email: person?.email || '',
+-          role: person?.custom_role_data?.name || person?.role_data?.name || person?.role || '—',
++          role: role || '—',
++          roleLabel: role ? roleDisplayName(role) : '—',
+           department: (departmentByUser.get(String(person?.uuid)) || []).join(', ') || '—',
+           extension,
+           location: person?.site?.name || '—',
+@@ -167,13 +281,33 @@ export const usePeopleRows = () => {
+             return rules?.status || 'online';
+           })(),
+           tone: TONE[live.status] || 'idle',
++          state: stateByUuid?.get(String(person?.uuid)) ?? null,
+           raw: person,
+         };
+       }),
+-    [roster, queues, usersOnlineStatus, activeQueueCalls, departmentByUser, sites],
++    [roster, queues, usersOnlineStatus, activeQueueCalls, departmentByUser, sites, stateByUuid],
++  );
++
++  /** Every location the company has, for a filter that must list locations the
++      current page happens not to show. */
++  const locationNames = useMemo(
++    () =>
++      Array.from(
++        new Set((sites as any[]).map((site) => String(site?.name || '')).filter(Boolean)),
++      ).sort(),
++    [sites],
+   );
+ 
+-  return { rows, isLoading: isRosterLoading };
++  return {
++    rows,
++    isLoading: isRosterLoading,
++    isFetching,
++    /* Fall back to what is on screen when the server sends no total, so a
++       count is never shown as zero for a list that is plainly not empty. */
++    total: Number.isFinite(total) ? total : rows.length,
++    totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
++    locationNames,
++  };
+ };
+ 
+ export default usePeopleRows;
+diff --git a/src/pages/directory/people.tsx b/src/pages/directory/people.tsx
+index 8f034bd..d97d18f 100644
+--- a/src/pages/directory/people.tsx
++++ b/src/pages/directory/people.tsx
+@@ -1,5 +1,6 @@
+-import { useMemo, useState } from 'react';
++import { useEffect, useMemo, useState } from 'react';
+ import { useNavigate } from 'react-router-dom';
++import useDebounce from '@/hooks/use-debounce';
+ import { Ic } from '@/components/mcm/icons';
+ import SideDrawer from '@/components/custom/side-drawer';
+ import UpdateForwarding from '@/pages/admin-settings/people/update-forwarding';
+@@ -7,11 +8,12 @@ import { DirectoryDrawer, DirectoryPage, EmptyRow, FilterChip, SearchChip } from
+ import CustomAvatar from '@/components/custom/custom-avatar';
+ import { useConsoleDialer } from '@/pages/phone/console/dial-number';
+ import { useInstantMeeting } from '@/hooks/use-instant-meeting';
+-import { usePeopleRows, type PersonRow } from './people-rows';
++import { PERSON_STATE_LABEL, usePeopleRows, type PersonRow } from './people-rows';
++import RemovedPeople from './people-removed';
+ import { useDirectoryFavourites } from './use-directory-favourites';
+ import { useUser } from '@/hooks/use-user';
+ import { useMutation, useQueryClient } from '@tanstack/react-query';
+-import { deleteMember, removeAssignNumber } from '@/services/api';
++import { deleteMember, reactivateMember, removeAssignNumber, suspendMember } from '@/services/api';
+ import { handleAlert } from '@/lib/utils';
+ import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
+ import AlertConfirm from '@/components/custom/alert-confirm';
+@@ -36,10 +38,41 @@ import { buildRosterCsv, rosterFileName, toExportRow } from '@/lib/user-roster-e
+  * take (the platform's nearest thing to an ACD skill), live presence, and one
+  * click to call, message or start video.
+  *
+- * Row actions mirror the platform's own Extension page rather than inventing a
+- * second vocabulary: on this platform "Edit" for a user means Update Forwarding,
+- * and it is gated on the same admin + plan permissions, so People cannot offer
+- * an action the Extension page would refuse.
++ * Row actions reuse the platform's own person editor rather than inventing a
++ * second one: "Edit" opens Update Forwarding, and every action is gated on the
++ * plan's USER permission tree.
++ *
++ * WHAT THE GATES HERE ARE, AND ARE NOT
++ *
++ * The buttons below are hidden or shown from the role's permission tree
++ * (account_setting.access.USER.action.edit / .delete). That is a browser-side
++ * courtesy: it keeps people from seeing buttons that would fail or that they
++ * should not use. The server does not read this tree at all — its only check
++ * on these routes is the stored role string (whether the caller is ADMIN), so
++ * nothing here should be described as enforcement. It is the same gate for
++ * all three actions on purpose: Edit and Change role used to demand the ADMIN
++ * role as well, while Remove did not, so a custom role holding the edit
++ * permission could delete a colleague but not rename them.
++ *
++ * ONE PAGE AT A TIME
++ *
++ * The list is read a page at a time from the same endpoint every other list
++ * uses. It used to ask for 500 rows once, and any company larger than that
++ * was silently cut off — with an export button that still said "everybody".
++ * Search and Location go to the server (it matches name, e-mail, extension and
++ * the location's name); Groups and Presence are only known once the page has
++ * arrived, so they narrow the page on screen. The export covers exactly the
++ * rows on screen and its label says so.
++ *
++ * STATES
++ *
++ * Every person has a state as well as a presence: Pending (invited, not yet
++ * signed in), Active, Suspended (an administrator switched them off), and
++ * Removed (soft-deleted, restorable for 72 hours on the Removed tab). The
++ * pill in the Status column is the state; Presence stays what it was. What
++ * Suspended actually blocks today is written on the pill itself, and it must
++ * stay honest: login is blocked the moment it is set, the phone only once
++ * the switch update is applied.
+  */
+ 
+ const TONE_CLASS: Record<string, string> = {
+@@ -49,27 +82,45 @@ const TONE_CLASS: Record<string, string> = {
+   idle: 'tag neu',
+ };
+ 
++const PAGE_SIZE = 50;
++
+ const People = () => {
+   const navigate = useNavigate();
+   const { dial } = useConsoleDialer();
+   const { startVideoCall, isStarting } = useInstantMeeting();
+-  const { rows, isLoading } = usePeopleRows();
++
++  const [search, setSearch] = useState('');
++  const debouncedSearch = useDebounce(search, 400);
++  const [location, setLocation] = useState('All');
++  const [page, setPage] = useState(1);
++
++  /* A new search or location starts from the first page again. */
++  useEffect(() => {
++    setPage(1);
++  }, [debouncedSearch, location]);
++
++  const { rows, isLoading, isFetching, total, totalPages, locationNames } = usePeopleRows({
++    page,
++    limit: PAGE_SIZE,
++    search: debouncedSearch,
++    location,
++  });
+ 
+   const { user } = useUser();
+   const { setMyPresence, isPending: isSettingPresence, myUuid } = useMyPresenceControl();
+   const { features } = useCompanyFeatures();
+ 
+-  /* Same source the Extension page reads, so the two pages can't disagree about
+-     who may edit a user. */
++  /* Browser-side only — see the note at the top of the file. The server's gate
++     on every one of these routes is the stored role string, not this tree. */
+   const userAccess = features?.plan_features?.account_setting?.access?.USER?.action;
+   const isAdmin = user?.user_info?.role === 'ADMIN';
+-  const canEdit = Boolean(isAdmin && userAccess?.edit);
++  const canEdit = Boolean(userAccess?.edit);
+   const canAssignCallerId = Boolean(
+     features?.plan_features?.virtual_numbers?.action?.assign_number,
+   );
+ 
+-  /* Same gate the Extension page puts on Add Users: trial accounts and users
+-     without the add permission don't get an invite button that would fail. */
++  /* Trial accounts and people without the add permission don't get an invite
++     button that would fail. */
+   const canInvite = Boolean(userAccess?.add) && user?.company_info?.is_trial !== 'Y';
+   const canDelete = Boolean(userAccess?.delete);
+ 
+@@ -78,10 +129,9 @@ const People = () => {
+ 
+   /* Before anybody is removed, find what still points at them — a queue they
+      are the last agent on, a menu key, a number forwarded to their extension.
+-     The roster is already on screen, so it is handed over rather than fetched
+-     a second time. */
+-  const roster = useMemo(() => rows.map((row: any) => row.raw), [rows]);
+-  const removal = useRemovalImpact((deleting?.raw ?? null) as any, Boolean(deleting), roster);
++     Only one page of the roster is on screen now, and "is this the last
++     administrator?" needs everybody, so the check fetches its own list. */
++  const removal = useRemovalImpact((deleting?.raw ?? null) as any, Boolean(deleting));
+   const [unassigning, setUnassigning] = useState<PersonRow | null>(null);
+ 
+   const { mutate: removePerson, isPending: isDeletingPerson } = useMutation({
+@@ -96,6 +146,35 @@ const People = () => {
+     },
+   });
+ 
++  /* Suspend / reactivate. The server decides who may (an administrator,
++     never yourself, never the account owner); these only hide the buttons
++     from people it would refuse. Every failed request is toasted by the API
++     client, so there is no onError here. */
++  const [suspending, setSuspending] = useState<PersonRow | null>(null);
++  const [reactivating, setReactivating] = useState<PersonRow | null>(null);
++  const afterStateChange = (message: string) => {
++    queryClient.invalidateQueries({ queryKey: ['directoryPersonStates'] });
++    queryClient.invalidateQueries({ queryKey: ['directoryPeople'] });
++    queryClient.invalidateQueries({ queryKey: ['fetchUsersList'] });
++    handleAlert({ text: message, type: 'success' });
++  };
++  const { mutate: suspendPerson, isPending: isSuspending } = useMutation({
++    mutationKey: ['suspendMember'],
++    mutationFn: suspendMember,
++    onSuccess: ({ data }: any) => {
++      afterStateChange(data?.data?.message || 'Person suspended');
++      setSuspending(null);
++    },
++  });
++  const { mutate: reactivatePerson, isPending: isReactivating } = useMutation({
++    mutationKey: ['reactivateMember'],
++    mutationFn: reactivateMember,
++    onSuccess: ({ data }: any) => {
++      afterStateChange(data?.data?.message || 'Person reactivated');
++      setReactivating(null);
++    },
++  });
++
+   const { mutate: removeCallerId, isPending: isUnassigning } = useMutation({
+     mutationFn: removeAssignNumber,
+     onSuccess: (data: any) => {
+@@ -109,20 +188,31 @@ const People = () => {
+     },
+   });
+ 
+-  /* Admins may change anyone's role except another admin's — the same rule the
+-     Extension page applies to its inline role control. */
++  /* Anyone with the edit permission may change a role, except the owner's.
++     The role-change dialog refuses the owner role too. Browser-side only. */
+   const canChangeRoleOf = (row: PersonRow) =>
+-    isAdmin && String(row.role || '').toUpperCase() !== 'ADMIN';
++    canEdit && String(row.role || '').toUpperCase() !== 'ADMIN';
++
++  /* Same shape as Remove: the delete permission, never yourself, never the
++     owner. Only once the state is known — a null state means the states
++     request has not answered, and a button that acts on a guess is worse
++     than none. */
++  const canSuspendOf = (row: PersonRow) =>
++    canDelete &&
++    row.uuid !== myUuid &&
++    String(row.role || '').toUpperCase() !== 'ADMIN' &&
++    row.state !== null;
++
++  /* People, or the people removed in the last 72 hours. */
++  const [tab, setTab] = useState<'people' | 'removed'>('people');
+ 
+   const [changingRole, setChangingRole] = useState<PersonRow | null>(null);
+   const [assigningCallerId, setAssigningCallerId] = useState<PersonRow | null>(null);
+   const [inviting, setInviting] = useState(false);
+ 
+-  const [search, setSearch] = useState('');
+   const [department, setDepartment] = useState('All');
+   const { isFavourite, toggleFavourite } = useDirectoryFavourites();
+   const [presence, setPresence] = useState('Any');
+-  const [location, setLocation] = useState('All');
+   const [open, setOpen] = useState<PersonRow | null>(null);
+   const [editing, setEditing] = useState<PersonRow | null>(null);
+ 
+@@ -132,11 +222,9 @@ const People = () => {
+     return ['All', ...Array.from(found).sort()];
+   }, [rows]);
+ 
+-  const locations = useMemo(() => {
+-    const found = new Set<string>();
+-    rows.forEach((row) => row.location !== '—' && found.add(row.location));
+-    return ['All', ...Array.from(found).sort()];
+-  }, [rows]);
++  /* Every location the company has, not just the ones on this page — otherwise
++     picking one would make the others vanish from the list. */
++  const locations = useMemo(() => ['All', ...locationNames], [locationNames]);
+ 
+   const presences = useMemo(() => {
+     const found = new Set<string>();
+@@ -144,36 +232,32 @@ const People = () => {
+     return ['Any', ...Array.from(found).sort()];
+   }, [rows]);
+ 
+-  const visible = useMemo(() => {
+-    const needle = search.trim().toLowerCase();
+-    return rows.filter((row) => {
+-      if (department !== 'All' && row.department !== department) return false;
+-      if (location !== 'All' && row.location !== location) return false;
+-      if (presence !== 'Any' && row.presence !== presence) return false;
+-      if (!needle) return true;
+-      return [
+-        row.name,
+-        row.role,
+-        row.department,
+-        row.location,
+-        row.extension,
+-        row.email,
+-        ...row.skills,
+-      ]
+-        .filter(Boolean)
+-        .some((value) => String(value).toLowerCase().includes(needle));
+-    });
+-  }, [rows, search, department, presence, location]);
++  /* Search and location already went to the server; this narrows the page
++     that came back by the two filters the server does not know about. */
++  const visible = useMemo(
++    () =>
++      rows.filter((row) => {
++        if (department !== 'All' && row.department !== department) return false;
++        if (presence !== 'Any' && row.presence !== presence) return false;
++        return true;
++      }),
++    [rows, department, presence],
++  );
+ 
+   const onQueue = rows.filter((row) => row.tone === 'good').length;
+ 
++  const pageFirst = total ? (page - 1) * PAGE_SIZE + 1 : 0;
++  const pageLast = Math.min(page * PAGE_SIZE, total);
++  const pageIsEverybody = totalPages <= 1 && !debouncedSearch.trim() && location === 'All';
++  const exportIsEverybody = pageIsEverybody && visible.length === rows.length;
++
+   /* Take the roster away as a spreadsheet.
+    *
+    * The platform has no export of any kind for people, so this is built here
+-   * out of the list already on screen. That is why it exports what the filters
+-   * are showing rather than "everybody": the rows are what this page fetched,
+-   * and pretending otherwise would quietly hand somebody a partial file
+-   * labelled as the whole company. The button says how many are in it.
++   * out of the list already on screen. It exports exactly the rows on screen —
++   * this page, after the filters — and never claims more: a file labelled
++   * "everybody" that quietly holds one page of fifty is worse than no export.
++   * The button says how many rows are in it and what they are.
+    *
+    * The file starts with a byte-order mark because otherwise a spreadsheet
+    * opening it on Windows reads the accents in people's names as rubbish. */
+@@ -213,22 +297,24 @@ const People = () => {
+               <Ic n="users" />
+               Groups
+             </button>
+-            {/* The count is in the label on purpose: filters are on this page,
+-                and a button that just says "Export" invites somebody to file a
+-                filtered list as the whole company. */}
++            {/* The count is in the label on purpose: filters and paging are
++                on this page, and a button that just says "Export" invites
++                somebody to file one page as the whole company. */}
+             <button
+               type="button"
+               className="btn ghost"
+               disabled={!visible.length}
+               title={
+-                visible.length === rows.length
+-                  ? 'Download everybody as a spreadsheet'
+-                  : 'Downloads the people these filters are showing, not the whole company'
++                exportIsEverybody
++                  ? `Download everybody (${visible.length}) as a spreadsheet`
++                  : `Downloads the ${visible.length} people shown on this page, not the whole company (${total})`
+               }
+               onClick={exportRoster}
+             >
+               <Ic n="dl" />
+-              Export {visible.length}
++              {exportIsEverybody
++                ? `Export all ${visible.length}`
++                : `Export ${visible.length} on this page`}
+             </button>
+             {canInvite ? (
+               <button type="button" className="btn primary" onClick={() => setInviting(true)}>
+@@ -259,8 +345,18 @@ const People = () => {
+               onChange={setPresence}
+             />
+             <SearchChip value={search} onChange={setSearch} placeholder="Search people" />
+-            <span className="fchip live" style={{ marginLeft: 'auto' }}>
+-              <span className="num">{onQueue}</span> available
++            <span className="fchip" style={{ marginLeft: 'auto' }}>
++              {total ? (
++                <>
++                  Showing <span className="num">{pageFirst}</span>–
++                  <span className="num">{pageLast}</span> of <span className="num">{total}</span>
++                </>
++              ) : (
++                'Nobody to show'
++              )}
++            </span>
++            <span className="fchip live">
++              <span className="num">{onQueue}</span> available on this page
+             </span>
+           </>
+         }
+@@ -270,11 +366,46 @@ const People = () => {
+             everything is done, so an established account never sees it. */}
+         <SetupGuide companyInfo={user?.company_info} />
+ 
++        {/* Two views of the same roster: the people here now, and the people
++            removed in the last 72 hours who can still be brought back. */}
++        <div
++          className="flex items-center gap-1"
++          role="tablist"
++          aria-label="People or removed people"
++          style={{ padding: '8px 12px', borderBottom: '1px solid var(--line)' }}
++        >
++          <button
++            type="button"
++            role="tab"
++            aria-selected={tab === 'people'}
++            className={tab === 'people' ? 'mini solid' : 'mini'}
++            onClick={() => setTab('people')}
++          >
++            <Ic n="users" size={12} />
++            People
++          </button>
++          <button
++            type="button"
++            role="tab"
++            aria-selected={tab === 'removed'}
++            className={tab === 'removed' ? 'mini solid' : 'mini'}
++            title="People removed in the last 72 hours, who can still be restored"
++            onClick={() => setTab('removed')}
++          >
++            <Ic n="trash" size={12} />
++            Removed
++          </button>
++        </div>
++
++        {tab === 'removed' ? (
++          <RemovedPeople canRestore={canDelete} />
++        ) : (
+         <table>
+           <thead>
+             <tr>
+               <th>Person</th>
+               <th>Role</th>
++              <th>Status</th>
+               <th>Groups</th>
+               <th>Location</th>
+               <th>Numbers</th>
+@@ -285,7 +416,7 @@ const People = () => {
+           </thead>
+           <tbody>
+             {isLoading ? (
+-              <EmptyRow span={8} message="Loading the roster…" />
++              <EmptyRow span={9} message="Loading the roster…" />
+             ) : visible.length ? (
+               visible.map((row: PersonRow) => (
+                 <tr key={row.uuid}>
+@@ -305,7 +436,24 @@ const People = () => {
+                       </span>
+                     </span>
+                   </td>
+-                  <td>{row.role}</td>
++                  {/* The friendly name, never the stored MANAGER/AGENT string;
++                      the same map every other role screen reads. */}
++                  <td>{row.roleLabel}</td>
++                  {/* The account's state, not their presence. The note on the
++                      pill says exactly what the state blocks today. Nothing is
++                      shown until the states request has answered. */}
++                  <td>
++                    {row.state ? (
++                      <span
++                        className={TONE_CLASS[PERSON_STATE_LABEL[row.state].tone] || 'tag neu'}
++                        title={PERSON_STATE_LABEL[row.state].note}
++                      >
++                        {PERSON_STATE_LABEL[row.state].label}
++                      </span>
++                    ) : (
++                      <span style={{ color: 'var(--ink-4)' }}>—</span>
++                    )}
++                  </td>
+                   <td>{row.department}</td>
+                   <td>
+                     <span style={{ display: 'block' }}>{row.location}</span>
+@@ -441,6 +589,28 @@ const People = () => {
+                           <Ic n="shield" size={12} />
+                         </button>
+                       ) : null}
++                      {canSuspendOf(row) && row.state !== 'SUSPENDED' ? (
++                        <button
++                          type="button"
++                          className="mini"
++                          title={`Suspend ${row.name}`}
++                          aria-label={`Suspend ${row.name}`}
++                          onClick={() => setSuspending(row)}
++                        >
++                          <Ic n="pause" size={12} />
++                        </button>
++                      ) : null}
++                      {canSuspendOf(row) && row.state === 'SUSPENDED' ? (
++                        <button
++                          type="button"
++                          className="mini"
++                          title={`Reactivate ${row.name}`}
++                          aria-label={`Reactivate ${row.name}`}
++                          onClick={() => setReactivating(row)}
++                        >
++                          <Ic n="play" size={12} />
++                        </button>
++                      ) : null}
+                       {canAssignCallerId && row.callerId ? (
+                         <button
+                           type="button"
+@@ -452,8 +622,9 @@ const People = () => {
+                           <Ic n="x" size={12} />
+                         </button>
+                       ) : null}
+-                      {/* Admins can remove a person; never yourself, and never
+-                          another admin unless you are one. */}
++                      {/* Anyone with the delete permission can remove a person;
++                          never yourself. The server refuses to delete the
++                          owner whoever asks. Browser-side gate, like the rest. */}
+                       {canDelete && row.uuid !== myUuid ? (
+                         <button
+                           type="button"
+@@ -482,14 +653,52 @@ const People = () => {
+               ))
+             ) : (
+               <EmptyRow
+-                span={8}
++                span={9}
+                 message={
+-                  rows.length ? 'Nobody matches those filters.' : 'No people on the roster yet.'
++                  rows.length
++                    ? 'Nobody on this page matches those filters.'
++                    : debouncedSearch.trim() || location !== 'All'
++                      ? 'Nobody matches that search.'
++                      : 'No people yet.'
+                 }
+               />
+             )}
+           </tbody>
+         </table>
++        )}
++
++        {/* One page at a time. The page you are on, out of how many, with the
++            two buttons that move it; nothing else, because nothing else is
++            needed to get to any person. */}
++        {tab === 'people' && totalPages > 1 ? (
++          <div
++            className="flex flex-wrap items-center justify-between gap-2"
++            style={{ padding: '10px 12px', borderTop: '1px solid var(--line)' }}
++          >
++            <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
++              Page {page} of {totalPages}
++              {isFetching ? ' · loading…' : ''}
++            </span>
++            <span className="flex items-center gap-1">
++              <button
++                type="button"
++                className="btn ghost"
++                disabled={page <= 1 || isFetching}
++                onClick={() => setPage((current) => Math.max(1, current - 1))}
++              >
++                Previous
++              </button>
++              <button
++                type="button"
++                className="btn ghost"
++                disabled={page >= totalPages || isFetching}
++                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
++              >
++                Next
++              </button>
++            </span>
++          </div>
++        ) : null}
+ 
+         {open ? (
+           <DirectoryDrawer
+@@ -521,7 +730,7 @@ const People = () => {
+               <CustomAvatar name={open.name} image={open.image} size="44" />
+               <div style={{ minWidth: 0 }}>
+                 <div style={{ fontWeight: 800, fontSize: 15 }}>{open.name}</div>
+-                <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{open.role}</div>
++                <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{open.roleLabel}</div>
+               </div>
+               <span
+                 className={`${TONE_CLASS[open.tone] || 'tag neu'}`}
+@@ -531,6 +740,15 @@ const People = () => {
+               </span>
+             </div>
+ 
++            <div className="kv">
++              <span className="k">Status</span>
++              <span className="v">
++                {open.state
++                  ? `${PERSON_STATE_LABEL[open.state].label} · ${PERSON_STATE_LABEL[open.state].note}`
++                  : '—'}
++              </span>
++            </div>
++
+             <div className="kv">
+               <span className="k">Groups</span>
+               <span className="v">{open.department}</span>
+@@ -665,6 +883,46 @@ const People = () => {
+         }}
+       />
+ 
++      <AlertConfirm
++        {...{
++          apiLoading: isSuspending,
++          open: Boolean(suspending),
++          setOpen: (value: boolean) => !value && setSuspending(null),
++          onConfirm: () => suspending?.uuid && suspendPerson(suspending.uuid),
++          onCancel: () => setSuspending(null),
++          onClose: () => setSuspending(null),
++          confirmBtnText: 'Suspend',
++          closeBtnText: 'Cancel',
++          descriptionTextComp: (
++            <div className="text-md">
++              Suspend <strong>{suspending?.name}</strong>? They are signed out everywhere at
++              once and cannot sign in until you reactivate them. Their phone stops working once
++              the switch update is applied. Nothing is deleted: their extension, e-mail, role and
++              settings stay as they are.
++            </div>
++          ),
++        }}
++      />
++
++      <AlertConfirm
++        {...{
++          apiLoading: isReactivating,
++          open: Boolean(reactivating),
++          setOpen: (value: boolean) => !value && setReactivating(null),
++          onConfirm: () => reactivating?.uuid && reactivatePerson(reactivating.uuid),
++          onCancel: () => setReactivating(null),
++          onClose: () => setReactivating(null),
++          confirmBtnText: 'Reactivate',
++          closeBtnText: 'Cancel',
++          descriptionTextComp: (
++            <div className="text-md">
++              Reactivate <strong>{reactivating?.name}</strong>? They can sign in again straight
++              away.
++            </div>
++          ),
++        }}
++      />
++
+       <RoleChangeModal
+         open={Boolean(changingRole)}
+         userData={changingRole?.raw}
+diff --git a/src/services/api/index.tsx b/src/services/api/index.tsx
+index f154352..d6a888d 100644
+--- a/src/services/api/index.tsx
++++ b/src/services/api/index.tsx
+@@ -26,6 +26,13 @@ export const login = (data: any) => {
+     data,
+   });
+ };
++export const googleLogin = (data: any) => {
++  return apiClient({
++    method: routes.GOOGLE_LOGIN.METHOD,
++    url: routes.GOOGLE_LOGIN.URL,
++    data,
++  });
++};
+ 
+ export const forgetPassword = (data: any) => {
+   return apiClient({
+@@ -43,6 +50,42 @@ export const newPassword = (data: any) => {
+   });
+ };
+ 
++/* Invite links for new people. inspect/accept are public (the link is the
++   secret); resend/pending are administrators only. */
++export const inspectInvite = (data: { token: string }) => {
++  return apiClient({
++    method: routes.INVITE_INSPECT.METHOD,
++    url: routes.INVITE_INSPECT.URL,
++    data,
++    hideToastOnError: true,
++  } as CustomAxiosRequestConfig);
++};
++
++export const acceptInvite = (data: { token: string; password: string }) => {
++  return apiClient({
++    method: routes.INVITE_ACCEPT.METHOD,
++    url: routes.INVITE_ACCEPT.URL,
++    data,
++  });
++};
++
++export const resendInvite = (data: { user_uuid: string }) => {
++  return apiClient({
++    method: routes.INVITE_RESEND.METHOD,
++    url: routes.INVITE_RESEND.URL,
++    data,
++  });
++};
++
++export const pendingInvites = () => {
++  return apiClient({
++    method: routes.INVITE_PENDING.METHOD,
++    url: routes.INVITE_PENDING.URL,
++    data: {},
++    hideToastOnError: true,
++  } as CustomAxiosRequestConfig);
++};
++
+ //Billing
+ export const billingList = (data: any) => {
+   return apiClient({
+@@ -1412,6 +1455,42 @@ export const deleteMember = (id: any) => {
+   });
+ };
+ 
++/* Person states. See routes.tsx beside PERSON_SUSPEND for what each one is. */
++export const suspendMember = (id: string) => {
++  return apiClient({
++    method: routes.PERSON_SUSPEND.METHOD,
++    url: `${routes.PERSON_SUSPEND.URL}/${id}`,
++  });
++};
++
++export const reactivateMember = (id: string) => {
++  return apiClient({
++    method: routes.PERSON_REACTIVATE.METHOD,
++    url: `${routes.PERSON_REACTIVATE.URL}/${id}`,
++  });
++};
++
++export const getPersonStates = () => {
++  return apiClient({
++    method: routes.PERSON_STATES.METHOD,
++    url: routes.PERSON_STATES.URL,
++  });
++};
++
++export const listDeletedMembers = () => {
++  return apiClient({
++    method: routes.LIST_DELETED_MEMBERS.METHOD,
++    url: routes.LIST_DELETED_MEMBERS.URL,
++  });
++};
++
++export const restoreMember = (id: string) => {
++  return apiClient({
++    method: routes.RESTORE_MEMBER.METHOD,
++    url: `${routes.RESTORE_MEMBER.URL}/${id}`,
++  });
++};
++
+ export const getPlans = () => {
+   return apiClient({
+     method: routes.GET_PLANS.METHOD,
+@@ -1539,6 +1618,54 @@ export const templateList = (data: any) => {
+     data,
+   });
+ };
++
++// Company settings, per section. The toast is left to src/lib/company-defaults.ts:
++// a 404 from `list` is how it learns the server has not got this API yet, and
++// that must be silent; a real failure it reports itself, in the same words the
++// interceptor would have used.
++export const listCompanySettings = () => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SETTINGS_LIST.METHOD,
++    url: routes.COMPANY_SETTINGS_LIST.URL,
++    data: {},
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
++
++export const getCompanySettingsSection = (data: { section: string }) => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SETTINGS_GET.METHOD,
++    url: routes.COMPANY_SETTINGS_GET.URL,
++    data,
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
++
++export const saveCompanySettingsSection = (data: {
++  section: string;
++  settings: any;
++  version?: number;
++}) => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SETTINGS_SAVE.METHOD,
++    url: routes.COMPANY_SETTINGS_SAVE.URL,
++    data,
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
++
++export const getCompanySettingsHistory = (data: { section: string; limit?: number }) => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SETTINGS_HISTORY.METHOD,
++    url: routes.COMPANY_SETTINGS_HISTORY.URL,
++    data,
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
+ export const templateDelete = (id: any) => {
+   return apiClient({
+     method: routes.TEMPLATE_DELETE.METHOD,
+@@ -1595,6 +1722,38 @@ export const upsertCompany = (data: {
+   } as any);
+ };
+ 
++/* The company's own record through the tenant-scoped endpoint. Both calls are
++   quiet on error because lib/company-self.ts decides what the user is told: a
++   404 from the read means the server has not got this endpoint yet and must be
++   silent, while a real failure must say so. A 401 here is a genuine session
++   problem and is left to the interceptor. */
++export const fetchCompanySelf = () => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SELF.METHOD,
++    url: routes.COMPANY_SELF.URL,
++    data: {},
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
++
++export const updateCompanySelf = (data: {
++  name?: string;
++  address?: string;
++  city?: string;
++  state?: string;
++  country?: string;
++  postal_code?: string;
++}) => {
++  const config: CustomAxiosRequestConfig = {
++    method: routes.COMPANY_SELF_UPDATE.METHOD,
++    url: routes.COMPANY_SELF_UPDATE.URL,
++    data,
++    hideToastOnError: true,
++  };
++  return apiClient(config);
++};
++
+ export const changePassword = (data: any) => {
+   return apiClient({
+     method: routes.CHANGE_PASSWORD.METHOD,
+diff --git a/src/services/api/routes.tsx b/src/services/api/routes.tsx
+index d667152..f7ed569 100644
+--- a/src/services/api/routes.tsx
++++ b/src/services/api/routes.tsx
+@@ -11,6 +11,10 @@ export const routes = {
+     METHOD: 'POST',
+     URL: '/api/login',
+   },
++  GOOGLE_LOGIN: {
++    METHOD: 'POST',
++    URL: '/api/auth/google',
++  },
+   FORGET_PASSWORD: {
+     METHOD: 'POST',
+     URL: '/api/forgot-password',
+@@ -19,6 +23,23 @@ export const routes = {
+     METHOD: 'POST',
+     URL: '/api/verify-password',
+   },
++  /* Invite links for new people (backend-patches/invites). */
++  INVITE_INSPECT: {
++    METHOD: 'POST',
++    URL: '/api/invite/inspect',
++  },
++  INVITE_ACCEPT: {
++    METHOD: 'POST',
++    URL: '/api/invite/accept',
++  },
++  INVITE_RESEND: {
++    METHOD: 'POST',
++    URL: '/api/invite/resend',
++  },
++  INVITE_PENDING: {
++    METHOD: 'POST',
++    URL: '/api/invite/pending',
++  },
+ 
+   DASHBOARD_STATS: {
+     METHOD: 'POST',
+@@ -770,6 +791,30 @@ export const routes = {
+     METHOD: 'DELETE',
+     URL: '/api/user/delete',
+   },
++  /* Person states (3 Sep 2026). Suspend / reactivate are served by default-api's
++     personStateRoute (administrators only, never yourself, never the owner);
++     PERSON_STATES returns every person's state, because /api/user/list does
++     not carry `status`. List-deleted / restore are the 72-hour removal window. */
++  PERSON_SUSPEND: {
++    METHOD: 'POST',
++    URL: '/api/person/suspend',
++  },
++  PERSON_REACTIVATE: {
++    METHOD: 'POST',
++    URL: '/api/person/reactivate',
++  },
++  PERSON_STATES: {
++    METHOD: 'POST',
++    URL: '/api/person/state',
++  },
++  LIST_DELETED_MEMBERS: {
++    METHOD: 'POST',
++    URL: '/api/user/list-deleted',
++  },
++  RESTORE_MEMBER: {
++    METHOD: 'POST',
++    URL: '/api/user/restore',
++  },
+   GET_PLANS: {
+     METHOD: 'GET',
+     URL: '/api/plan/list',
+@@ -837,6 +882,23 @@ export const routes = {
+     METHOD: 'DELETE',
+     URL: '/api/tenant/user/template/delete',
+   },
++  // Company settings, one section per former top-level key of the template blob
++  COMPANY_SETTINGS_LIST: {
++    METHOD: 'POST',
++    URL: '/api/tenant/user/company-settings/list',
++  },
++  COMPANY_SETTINGS_GET: {
++    METHOD: 'POST',
++    URL: '/api/tenant/user/company-settings/get',
++  },
++  COMPANY_SETTINGS_SAVE: {
++    METHOD: 'POST',
++    URL: '/api/tenant/user/company-settings/save',
++  },
++  COMPANY_SETTINGS_HISTORY: {
++    METHOD: 'POST',
++    URL: '/api/tenant/user/company-settings/history',
++  },
+   // Delete Call Handling Template
+   DELETE_CALL_HANDLING_TEMPLATE: {
+     URL: '/api/tenant/call-handling/template/delete/',
+@@ -1474,6 +1536,18 @@ export const routes = {
+     METHOD: 'POST',
+     URL: '/api/admin/company/upsert',
+   },
++  /* The company's own record, read and written by its own admins. The company
++     is taken from the session on the server, never from the body. These two
++     are the tenant-scoped doors that COMPANY_INFO and COMPANY_UPSERT never
++     were: those sit under /api/admin behind the platform-staff check. */
++  COMPANY_SELF: {
++    METHOD: 'POST',
++    URL: '/api/company/self',
++  },
++  COMPANY_SELF_UPDATE: {
++    METHOD: 'POST',
++    URL: '/api/company/self/update',
++  },
+   // MAIN SITE INFO
+   MAIN_SITE_INFO: {
+     METHOD: 'POST',
+--- /dev/null	2025-06-03 05:14:22.424183130 +0000
++++ src/pages/directory/people-removed.tsx	2026-09-03 08:42:14.377598770 +0000
+@@ -0,0 +1,204 @@
++import { useState } from 'react';
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
++import { listDeletedMembers, restoreMember } from '@/services/api';
++import { handleAlert } from '@/lib/utils';
++import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
++import AlertConfirm from '@/components/custom/alert-confirm';
++import CustomAvatar from '@/components/custom/custom-avatar';
++import { Ic } from '@/components/mcm/icons';
++import { roleDisplayName } from '@/pages/admin-settings/roles/role-names';
++import { EmptyRow } from './page-shell';
++
++/**
++ * Directory ▸ People ▸ Removed — people removed in the last 72 hours.
++ *
++ * Removing a person is a soft delete: the record stays, and for 72 hours an
++ * administrator can bring it back with one click. After that the e-mail and
++ * phone are freed and the person has to be added again from scratch. This
++ * tab is the only place that window is visible.
++ *
++ * Restore puts the person back with their extension, e-mail and role, and
++ * gives them a licence. It does NOT put back any call routing that pointed
++ * at them (a number that forwarded to them, a menu key, a queue seat) — that
++ * was removed from other people's records when they were removed, and there
++ * is no copy of it. The reply says so, and so does the confirm dialog.
++ *
++ * Reads `POST /api/user/list-deleted`, restores with `POST /api/user/restore/:uuid`.
++ * Both are administrators-only on the server; `canRestore` only hides the
++ * button from people the server would refuse anyway.
++ */
++
++export type RemovedPerson = {
++  uuid: string;
++  name: string;
++  email: string;
++  extension: string;
++  roleLabel: string;
++  removedAt: Date | null;
++  restoreUntil: Date | null;
++  raw: any;
++};
++
++const toRow = (row: any): RemovedPerson => {
++  const name = `${row?.first_name || ''} ${row?.last_name || ''}`.trim() || 'Unknown';
++  const role = row?.role || '';
++  return {
++    uuid: String(row?.uuid || ''),
++    name,
++    email: row?.email || '',
++    extension: String(row?.extension || ''),
++    roleLabel: role ? roleDisplayName(role) : '—',
++    removedAt: row?.deleted_at ? new Date(row.deleted_at) : null,
++    restoreUntil: row?.restore_until ? new Date(row.restore_until) : null,
++    raw: row,
++  };
++};
++
++/** "2 days 3 hours" / "40 minutes" / "less than a minute", from now to `until`. */
++export const timeLeft = (until: Date | null, now: Date = new Date()): string => {
++  if (!until) return '—';
++  const ms = until.getTime() - now.getTime();
++  if (ms <= 0) return 'expired';
++  const minutes = Math.floor(ms / 60000);
++  if (minutes < 1) return 'less than a minute';
++  const days = Math.floor(minutes / 1440);
++  const hours = Math.floor((minutes % 1440) / 60);
++  const mins = minutes % 60;
++  if (days > 0) return `${days} day${days === 1 ? '' : 's'}${hours ? ` ${hours} hour${hours === 1 ? '' : 's'}` : ''}`;
++  if (hours > 0) return `${hours} hour${hours === 1 ? '' : 's'}${mins ? ` ${mins} min` : ''}`;
++  return `${mins} min`;
++};
++
++const when = (date: Date | null) =>
++  date ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
++
++const RemovedPeople = ({ canRestore }: { canRestore: boolean }) => {
++  const queryClient = useQueryClient();
++  const [restoring, setRestoring] = useState<RemovedPerson | null>(null);
++
++  const { data, isLoading, isError } = useQuery({
++    queryKey: ['directoryRemovedPeople'],
++    queryFn: listDeletedMembers,
++    select: (res: any) => {
++      const result = res?.data?.data?.result || {};
++      const rows = Array.isArray(result?.rows) ? result.rows : [];
++      return {
++        rows: rows.map(toRow) as RemovedPerson[],
++        windowHours: Number(result?.restore_window_hours) || 72,
++      };
++    },
++    retry: false,
++  });
++
++  const rows = data?.rows || [];
++  const windowHours = data?.windowHours || 72;
++
++  const { mutate: restore, isPending } = useMutation({
++    mutationKey: ['restoreMember'],
++    mutationFn: restoreMember,
++    onSuccess: ({ data: reply }: any) => {
++      queryClient.invalidateQueries({ queryKey: ['directoryRemovedPeople'] });
++      queryClient.invalidateQueries({ queryKey: ['directoryPeople'] });
++      queryClient.invalidateQueries({ queryKey: ['directoryPersonStates'] });
++      queryClient.invalidateQueries({ queryKey: ['fetchUsersList'] });
++      invalidateGlobalUsersDirectory(queryClient);
++      handleAlert({ text: reply?.data?.message || 'Person restored', type: 'success' });
++      setRestoring(null);
++    },
++    /* No onError: the API client toasts every failed request already. */
++  });
++
++  return (
++    <>
++      <p style={{ fontSize: 12, color: 'var(--ink-3)', padding: '10px 12px 0' }}>
++        People removed in the last {windowHours} hours. Restore brings back their extension,
++        e-mail and role. Call routing that pointed at them is not put back.
++      </p>
++      <table>
++        <thead>
++          <tr>
++            <th>Person</th>
++            <th>Role</th>
++            <th>Extension</th>
++            <th>Removed</th>
++            <th>Restore within</th>
++            <th>Action</th>
++          </tr>
++        </thead>
++        <tbody>
++          {isLoading ? (
++            <EmptyRow span={6} message="Loading removed people…" />
++          ) : isError ? (
++            <EmptyRow
++              span={6}
++              message="Could not load removed people. Only an administrator can see this list."
++            />
++          ) : rows.length ? (
++            rows.map((row) => (
++              <tr key={row.uuid}>
++                <td>
++                  <span className="flex items-center gap-2.5">
++                    <CustomAvatar name={row.name} size="30" />
++                    <span style={{ minWidth: 0 }}>
++                      <span style={{ fontWeight: 700, display: 'block' }}>{row.name}</span>
++                      {row.email ? (
++                        <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{row.email}</span>
++                      ) : null}
++                    </span>
++                  </span>
++                </td>
++                <td>{row.roleLabel}</td>
++                <td className="num">{row.extension || '—'}</td>
++                <td>{when(row.removedAt)}</td>
++                <td title={row.restoreUntil ? `Until ${when(row.restoreUntil)}` : undefined}>
++                  {timeLeft(row.restoreUntil)}
++                </td>
++                <td>
++                  {canRestore ? (
++                    <button
++                      type="button"
++                      className="mini solid"
++                      title={`Restore ${row.name}`}
++                      aria-label={`Restore ${row.name}`}
++                      onClick={() => setRestoring(row)}
++                    >
++                      <Ic n="refresh" size={12} />
++                      Restore
++                    </button>
++                  ) : (
++                    <span style={{ color: 'var(--ink-4)' }}>—</span>
++                  )}
++                </td>
++              </tr>
++            ))
++          ) : (
++            <EmptyRow span={6} message={`Nobody has been removed in the last ${windowHours} hours.`} />
++          )}
++        </tbody>
++      </table>
++
++      <AlertConfirm
++        {...{
++          apiLoading: isPending,
++          open: Boolean(restoring),
++          setOpen: (value: boolean) => !value && setRestoring(null),
++          onConfirm: () => restoring?.uuid && restore(restoring.uuid),
++          onCancel: () => setRestoring(null),
++          onClose: () => setRestoring(null),
++          confirmBtnText: 'Restore',
++          closeBtnText: 'Cancel',
++          descriptionTextComp: (
++            <div className="text-md">
++              Restore <strong>{restoring?.name}</strong>? They get their extension
++              {restoring?.extension ? ` (${restoring.extension})` : ''}, e-mail and role back, and a
++              licence. Any call routing that pointed at them is not put back — set it again if you
++              need it.
++            </div>
++          ),
++        }}
++      />
++    </>
++  );
++};
++
++export default RemovedPeople;

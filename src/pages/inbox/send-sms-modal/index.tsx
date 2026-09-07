@@ -1,9 +1,6 @@
 import { EmojiICon } from '@/assets/icons';
 import CustomSelect from '@/components/custom/custom-select';
-import ErrorTooltip from '@/components/custom/error-tooltip';
-import Loader from '@/components/custom/loader';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import Flag, { toFlagNumber } from '@/components/flag';
 import useClickOutside from '@/hooks/use-click-outside';
 import { useUser } from '@/hooks/use-user';
 import useDebounce from '@/hooks/use-debounce';
@@ -16,18 +13,18 @@ import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 polyfillCountryFlagEmojis();
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import PhoneInput from 'react-phone-input-2';
 import { count } from 'sms-length';
 import * as yup from 'yup';
-import { checkPhoneNumberCountry, getSmsAlert, handleAlert } from '@/lib/utils';
+import { checkPhoneNumberCountry, cn, getSmsAlert, handleAlert } from '@/lib/utils';
 import { getDLCStatus } from '@/services/api';
 import DLCVerificationPopup from '@/components/custom/dlc-verification-popup';
 import countryList from '@/lib/countries.json';
 import AlertConfirm from '@/components/custom/alert-confirm';
-import { FileAudio2, FileText, FileVideo2, Paperclip, X } from 'lucide-react';
+import { FileAudio2, FileText, FileVideo2, Loader2, Paperclip, Send, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useSmsRateCredits } from '@/hooks/use-sms-rate-credits';
 import { useMessagingPermissions } from '@/hooks/use-messaging-permissions';
+import RecipientField from '../recipient-field';
 
 export const validationSchema = yup.object().shape({
   from: yup
@@ -124,7 +121,7 @@ const SendSMSModal = ({ handleClose = () => null, defaultNumber, selectedDID }: 
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isSubmitted },
   } = useForm<any>({
     mode: 'onChange',
     defaultValues: {
@@ -194,7 +191,6 @@ const SendSMSModal = ({ handleClose = () => null, defaultNumber, selectedDID }: 
     allow_country?.some(({ country_code_iso2 }: any) => country_code_iso2 === countryCode) &&
     freeSms > sms_used;
   const freeSmsLeft = isSmsFree ? freeSms - sms_used : 0;
-  const totalSmsCharges = Number(sms_rates?.rate || 0) * smsCountData.messages;
   const balanceAmount = Number(user?.company_info?.amount || 0);
   const chargeableSmsCount = Math.max(smsCountData.messages - freeSmsLeft, 0);
   const smsRate = Number(sms_rates?.rate || 0);
@@ -204,16 +200,21 @@ const SendSMSModal = ({ handleClose = () => null, defaultNumber, selectedDID }: 
     phone: debouncedTo,
     alpha2code: countryCode,
   });
-  const [searchParams, setSearchParams] = useSearchParams();
-  console.log(searchParams, 'searchParamssearchParams');
+
+  /* `sms_rates` is destructured with a default of `[]`, so `sms_rates.rate` is
+     undefined whenever the response omits it — the old rate-card sum was then
+     0, which the balance dialog read as "you cannot afford this" and refused a
+     fully funded wallet. The applied cost from the rate service is the same
+     figure shown on screen as "SMS Charges", so the dialog and the price now
+     agree; the rate card is only the fallback. */
+  const totalSmsCharges =
+    smsCredits > 0 ? smsCredits : Number(sms_rates?.rate || 0) * smsCountData.messages;
+  const [, setSearchParams] = useSearchParams();
 
   const { mutateAsync: sendSMSMutate, isPending } = useMutation({
     mutationFn: sendSms,
     onSuccess: (data) => {
       refetch();
-      const chatId = data?.data?.data?.result?.chatId;
-      console.log(from?.value, 'from?.value 77===============', chatId, 'chatId');
-
       setSearchParams({ did_number: from?.value, chatId: data?.data?.data?.result?.chatId });
       queryClient.invalidateQueries({ queryKey: ['getSMSList'], exact: false });
       queryClient.invalidateQueries({ queryKey: ['smsListViaDID'], exact: false });
@@ -342,247 +343,261 @@ const SendSMSModal = ({ handleClose = () => null, defaultNumber, selectedDID }: 
 
   useClickOutside({ current: [emojiContainerRef.current] }, () => setEmojiOpen(false));
 
+  const canSend = !isMMSMode ? Boolean(String(sms || '').trim()) : true;
+  const isBusy = isPending || isSending;
+
+  const submit = () => {
+    if (isBusy) return;
+    handleSubmit((values) => {
+      const normalizedText = String(values?.sms || '').trim();
+      if (!normalizedText && !mmsFile) {
+        handleAlert({ type: 'error', text: 'Message or media attachment is required' });
+        return;
+      }
+      if (!isMMSMode && smsCountData.messages > freeSmsLeft) {
+        setSendMsgAlert(true);
+      } else {
+        handleSendMessage(values);
+      }
+    })();
+  };
+
   return (
-    <>
-      <div className="flex flex-col text-gray-900">
-        <div className="font-semibold truncate text-md flex items-center justify-between  min-h-11 ">
-          New Message
+    <div className="mcm-col mcm-col-stage flex h-full w-full min-h-0 flex-col">
+      {/* Same header a thread has — closing is the X, exactly as it is there. */}
+      <div className="mcm-thread-head">
+        <div className="min-w-0 flex-1">
+          <div className="mcm-thread-name">New message</div>
+          <div className="mcm-thread-num">
+            <span className="mcm-tag neu">SMS / MMS</span>
+          </div>
         </div>
+        <button
+          type="button"
+          className="mcm-iconbtn"
+          onClick={() => handleClose()}
+          aria-label="Close new message"
+          title="Close"
+        >
+          <X className="h-[18px] w-[18px]" />
+        </button>
       </div>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-2 justify-between">
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+
+      {/* addressing — lines, not boxes */}
+      <div className="mcm-addr">
+        <span className="mcm-addr-label">From:</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {from?.value ? <Flag phoneNumber={toFlagNumber(from.value)} /> : null}
           <CustomSelect
-            label="Choose a DID to send message"
+            className="mcm-addr-select"
             options={
               allDIDNumbers && allDIDNumbers?.length > 0
                 ? allDIDNumbers.map((number: any) => ({
                     label: number?.did_number,
                     value: number?.did_number,
+                    icon: (
+                      <span className="w-5">
+                        <Flag phoneNumber={toFlagNumber(number?.did_number)} />
+                      </span>
+                    ),
                   }))
                 : []
             }
             value={from}
-            handleChange={(e) => {
-              setValue('from', e, { shouldValidate: true });
-            }}
-            placeholder="Select DID Number"
-            error={errors?.from?.message}
+            handleChange={(e) => setValue('from', e, { shouldValidate: true })}
+            placeholder="Select a number"
           />
-          <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex items-center justify-between">
-              <Label>Send message to</Label>
-              {errors?.to?.message && <ErrorTooltip text={errors?.to?.message || ''} />}
+        </span>
+      </div>
+      <div className="mcm-addr">
+        <span className="mcm-addr-label">To:</span>
+        <RecipientField
+          value={String(to || '')}
+          fromNumber={from?.value}
+          onChange={(next) => setValue('to', next, { shouldValidate: true })}
+          /* Only after a send has actually been attempted. Validating the
+             whole schema on mount lit up "Phone number is required" on an
+             empty, untouched field before anyone had typed a character. While
+             typing, RecipientField shows its own gentler hint instead. */
+          error={isSubmitted ? (errors?.to?.message as string) : ''}
+          autoFocus
+        />
+      </div>
+
+      <div className="mcm-compose-body">
+        <p className="mcm-compose-hint">
+          {to
+            ? 'This will start a new conversation.'
+            : 'Type a name to find a saved contact, or a number to text someone new.'}
+        </p>
+      </div>
+
+      <div className="mcm-composer">
+        {mmsFile ? (
+          <div className="mcm-attach">
+            <div className="mcm-attach-thumb">
+              {mmsPreviewUrl ? (
+                <img src={mmsPreviewUrl} alt={mmsFile?.name || 'attachment'} />
+              ) : String(mmsFile?.type || '').startsWith('video/') ? (
+                <FileVideo2 className="h-5 w-5" />
+              ) : String(mmsFile?.type || '').startsWith('audio/') ? (
+                <FileAudio2 className="h-5 w-5" />
+              ) : (
+                <FileText className="h-5 w-5" />
+              )}
             </div>
-            <div className="flex w-full gap-1">
-              <PhoneInput
-                country="us"
-                value={String(to) || ''}
-                onChange={(value: string) => {
-                  setValue('to', value, {
-                    shouldValidate: true,
+            <div className="min-w-0">
+              <div className="mcm-attach-name">{mmsFile?.name || 'Attachment'}</div>
+              <div className="mcm-attach-sub">
+                Sending as MMS
+                {mmsFile?.size ? ` · ${(mmsFile.size / 1024 / 1024).toFixed(2)} MB` : ''}
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="Remove attachment"
+              className="mcm-iconbtn"
+              style={{ width: 26, height: 26 }}
+              onClick={() => {
+                setMmsFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+
+        <div className={cn('mcm-composer-shell', isBusy && 'is-busy')}>
+          <textarea
+            rows={1}
+            placeholder="Write a message…"
+            value={String(sms)}
+            disabled={isBusy}
+            maxLength={700}
+            onChange={(e) => {
+              const value = e.target.value.replace(/^\s+/, '');
+              setValue('sms', trimToSmsCountLimit(value), { shouldValidate: true });
+            }}
+            onKeyDown={(e) => {
+              // Enter sends, Shift+Enter is a newline — as in a thread.
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+
+          <div className="mcm-composer-bar">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,audio/*,video/*"
+              className="hidden"
+              onClick={(e) => {
+                (e.target as HTMLInputElement).value = '';
+              }}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0] || null;
+                if (selectedFile && !isAllowedMMSFile(selectedFile)) {
+                  handleAlert({
+                    type: 'error',
+                    text: 'Only image, audio, or video files are allowed',
                   });
-                }}
-                containerClass={`w-full ${errors?.to?.message ? 'phone-error' : ''}`}
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2.5 w-full">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between">
-                <Label>Message</Label>
-                <div className="flex justify-end">
-                  {errors?.sms?.message && <ErrorTooltip text={errors?.sms?.message || ''} />}
-                </div>
-              </div>
-              <div
-                className={`flex items-center w-full rounded-xl ${errors?.sms?.message ? 'border border-red-500' : 'border border-gray-300'}`}
-              >
-                <div className="flex min-h-[126px] w-full flex-col justify-between gap-2 p-3">
-                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <span className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-2">
-                      <p className="text-sm leading-normal font-medium">
-                        Chars Used -{' '}
-                        <span className="text-gray-500 font-normal">{smsCountData.length}</span>
-                      </p>
-                      <p className="text-sm leading-normal font-medium">
-                        Chars in SMS -{' '}
-                        <span className="text-gray-500 font-normal">
-                          {smsCountData.characterPerMessage}
-                        </span>
-                      </p>
-                    </span>
-                    <p className="text-sm leading-normal font-medium">
-                      SMS Count (max 5):{' '}
-                      <span className="text-gray-500 font-normal">{smsCountData.messages}</span>
-                    </p>
-                  </div>
-                  <textarea
-                    name="sms"
-                    id=""
-                    value={String(sms)}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/^\s+/, ''); // remove leading spaces
-                      const limitedValue = trimToSmsCountLimit(value);
-                      setValue('sms', limitedValue, { shouldValidate: true });
-                    }}
-                    maxLength={700}
-                    placeholder="Write a message..."
-                    className="min-h-[120px] border-none text-sm outline-0 resize-none placeholder:text-gray-700 sm:min-h-[140px]"
-                  />
-                  <div className="flex min-h-6 flex-wrap items-center gap-3">
-                    <div className="relative cursor-pointer">
-                      <div
-                        className="emoji-container absolute bottom-[2.5rem] !left-0 z-20 max-w-[calc(100vw-3rem)] sm:left-auto sm:right-0 sm:max-w-none"
-                        ref={emojiContainerRef}
-                      >
-                        <EmojiPicker
-                          lazyLoadEmojis
-                          className="z-[99999] max-h-86 max-w-76"
-                          open={emojiOpen}
-                          onEmojiClick={(data) => {
-                            const limitedValue = trimToSmsCountLimit(
-                              `${sms || ''}${data?.emoji || ''}`,
-                            );
-                            setValue('sms', limitedValue, { shouldValidate: true });
-                            setEmojiOpen(false);
-                          }}
-                        />
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setEmojiOpen((prev) => !prev);
-                        }}
-                        className="relative cursor-pointer w-6 h-6 flex items-center justify-center"
-                      >
-                        <EmojiICon className="text-gray-900 w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,audio/*,video/*"
-                        className="hidden"
-                        onClick={(e) => {
-                          (e.target as HTMLInputElement).value = '';
-                        }}
-                        onChange={(e) => {
-                          const selectedFile = e.target.files?.[0] || null;
-                          if (selectedFile && !isAllowedMMSFile(selectedFile)) {
-                            handleAlert({
-                              type: 'error',
-                              text: 'Only image, audio, or video files are allowed',
-                            });
-                            setMmsFile(null);
-                            (e.target as HTMLInputElement).value = '';
-                            return;
-                          }
-                          setMmsFile(selectedFile);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="relative cursor-pointer w-6 h-6 flex items-center justify-center shrink-0"
-                      >
-                        <Paperclip className="text-gray-900 w-5 h-5" />
-                      </button>
-                      {!mmsFile ? (
-                        <p className="max-w-full text-xs leading-none text-gray-600 sm:max-w-[200px]">
-                          Attach media file (optional)
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {mmsFile ? (
-                <div className="w-full flex items-center pt-1">
-                  <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-                    {mmsPreviewUrl ? (
-                      <img
-                        src={mmsPreviewUrl}
-                        alt={mmsFile?.name || 'attachment'}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                        {String(mmsFile?.type || '').startsWith('video/') ? (
-                          <FileVideo2 className="w-6 h-6 text-gray-500" />
-                        ) : String(mmsFile?.type || '').startsWith('audio/') ? (
-                          <FileAudio2 className="w-6 h-6 text-gray-500" />
-                        ) : (
-                          <FileText className="w-6 h-6 text-gray-500" />
-                        )}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 border border-white text-white flex items-center justify-center"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMmsFile(null);
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = '';
-                        }
-                      }}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {!isMMSMode ? (
-                <p className="text-xs">
-                  SMS Charges: <span className="text-red-500">${smsCredits.toFixed(2)}</span>
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        {/* <p>{!sms ? 'Maximum length: 180 characters' : `${String(sms).length}/180`}</p> */}
-        <div className="flex flex-col-reverse justify-end gap-2 pt-2 sm:flex-row">
-          <Button
-            variant="transparent"
-            type="button"
-            onClick={handleClose}
-            className="w-full sm:w-auto"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
-            type="button"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              handleSubmit((values) => {
-                const normalizedText = String(values?.sms || '').trim();
-                if (!normalizedText && !mmsFile) {
-                  handleAlert({ type: 'error', text: 'Message or media attachment is required' });
+                  setMmsFile(null);
+                  (e.target as HTMLInputElement).value = '';
                   return;
                 }
-                if (!isMMSMode && smsCountData.messages > freeSmsLeft) {
-                  setSendMsgAlert(true);
-                } else {
-                  handleSendMessage(values);
-                }
-              })();
-            }}
-            disabled={isPending || isSending}
-          >
-            {isPending || isSending ? (
-              <div className="flex items-center justify-center p-5">
-                <Loader variant="white" size="sm" />
+                setMmsFile(selectedFile);
+              }}
+            />
+            <button
+              type="button"
+              title="Attach image, audio or video"
+              aria-label="Attach image, audio or video"
+              className="mcm-iconbtn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="h-[17px] w-[17px]" />
+            </button>
+
+            <div className="relative flex items-center">
+              <div
+                className="emoji-container absolute bottom-[2.75rem] left-0 z-20 max-w-[calc(100vw-2rem)]"
+                ref={emojiContainerRef}
+              >
+                <EmojiPicker
+                  className="border-gray-200"
+                  lazyLoadEmojis
+                  open={emojiOpen}
+                  onEmojiClick={(data) => {
+                    setValue('sms', trimToSmsCountLimit(`${sms || ''}${data?.emoji || ''}`), {
+                      shouldValidate: true,
+                    });
+                    setEmojiOpen(false);
+                  }}
+                />
               </div>
-            ) : (
-              'Send'
-            )}
-          </Button>
+              <button
+                type="button"
+                title="Insert emoji"
+                aria-label="Insert emoji"
+                className={cn('mcm-iconbtn', emojiOpen && 'is-on')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEmojiOpen((prev) => !prev);
+                }}
+              >
+                <EmojiICon className="h-[17px] w-[17px]" />
+              </button>
+            </div>
+
+            {/* Sending is the arrow and closing is the header X, as in a thread —
+                no Cancel/Send pair. */}
+            <button
+              type="button"
+              className="mcm-sendbtn ml-auto"
+              aria-label="Send message"
+              title="Send message"
+              disabled={isBusy || !canSend}
+              onClick={submit}
+            >
+              {isBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-[17px] w-[17px]" />
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* One quiet line. This was three headings in a justify-between row that
+            could not fit and pushed the SMS count off the edge. */}
+        {!isMMSMode ? (
+          <div className="mcm-composer-foot">
+            <span className="hidden sm:inline">Enter to send · Shift + Enter for a new line</span>
+            <span className="mcm-compose-stats ml-auto">
+              <span className="mcm-num">
+                {smsCountData.length} chars · {smsCountData.characterPerMessage}/SMS ·{' '}
+                {smsCountData.messages}/{SMS_COUNT_LIMIT}
+              </span>
+              {freeSmsLeft > 0 ? (
+                <span className="mcm-tag pos">
+                  <span className="mcm-num">{freeSmsLeft}</span> free left
+                </span>
+              ) : null}
+              <span>
+                SMS Charges{' '}
+                <span className="mcm-num" style={{ color: 'var(--mcm-ink-2)', fontWeight: 700 }}>
+                  ${smsCredits.toFixed(2)}
+                </span>
+              </span>
+            </span>
+          </div>
+        ) : null}
       </div>
+
       <DLCVerificationPopup open={showDLCPopup} setOpen={setShowDLCPopup} />
       {!isMMSMode && sendMsgAlert && (
         <AlertConfirm
@@ -600,7 +615,7 @@ const SendSMSModal = ({ handleClose = () => null, defaultNumber, selectedDID }: 
           headerText={balanceAmount <= 0 ? 'Alert' : 'Confirm'}
         />
       )}
-    </>
+    </div>
   );
 };
 

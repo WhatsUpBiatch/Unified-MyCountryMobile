@@ -262,7 +262,7 @@ const CommonSettingPermission: FC<any> = ({
         {isOwnSettingsPage && companyPolicy.isActive && hasCompanyLockedFields && (
           <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
             Some settings below are greyed out because they are set for everyone by your company. An
-            administrator can change them under <strong>Phone System → Preferences</strong>.
+            administrator can change them under <strong>Company → Company Rules</strong>.
           </div>
         )}
         <div className="grid grid-cols-1 gap-3">

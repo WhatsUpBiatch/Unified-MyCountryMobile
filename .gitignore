@@ -42,3 +42,4 @@ secrets-backup/
 
 # Generated lint report
 eslint-output.json
+mock/.role

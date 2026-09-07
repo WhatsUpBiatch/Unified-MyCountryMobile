@@ -1,4 +1,5 @@
 import { useDialpad } from '@/hooks/use-dialpad';
+import { isServerDialed } from '@/lib/campaign-dial-mode';
 import CustomAvatar from '@/components/custom/custom-avatar';
 import { isExtensionDialTarget, normalizeDialTargetUserPart } from '@/lib/extension-utility';
 import { Loader2, PhoneCall, SkipForward } from 'lucide-react';
@@ -73,7 +74,7 @@ const DialpadCampaignContactCard = ({
     firstCampaignCard?.campaignDetail?.campaignType?.trim() ||
     '';
   const normalizedDialMethod = dialMethodValue.toUpperCase();
-  const isPredictiveDialMethod = normalizedDialMethod.includes('PREDICTIVE');
+  const isPredictiveDialMethod = isServerDialed(normalizedDialMethod);
 
   const sessionStatus = `${currentSession?.status || ''}`.trim();
   console.log('🚀 ~ DialpadCampaignContactCard ~ sessionStatus:', sessionStatus);

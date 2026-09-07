@@ -63,11 +63,25 @@
   --r: 12px;
   --r-sm: 8px;
   --r-lg: 18px;
-  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* 'Twemoji Country Flags' belongs in the MONO stack too, not only the sans
+     one. Phone numbers are rendered in monospace (`.num`), and that is exactly
+     where the country flags sit — so a stack without it fell back to the bare
+     regional-indicator letters and every number read "IN +91 90045 83988" or
+     "US +1 605 971 3935" instead of showing a flag. Windows has no flag emoji
+     font of its own, so the webfont the polyfill injects is the only thing that
+     draws them; its @font-face carries a unicode-range covering nothing but
+     those codepoints, so listing it first cannot affect the digits. */
+  --mono: 'Twemoji Country Flags', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   /* Keep 'Twemoji Country Flags' in the stack — without it flag emoji fall
      back to their letter pair ('IN' instead of the flag). */
+  /* Inter, which index.html already loads and nothing was using. Plus Jakarta
+     is a friendly geometric face — wide round bowls, generous spacing — and at
+     UI sizes that reads as consumer software rather than as a tool. Inter was
+     drawn for screens at 12-14px: narrower, tighter, with a taller x-height, so
+     dense rows of figures stay legible and headings can be tracked in without
+     falling apart. Jakarta stays in the stack behind it. */
   --sans:
-    'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
+    'Inter', 'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', sans-serif;
 }
 .dark .mcm-page {
@@ -126,23 +140,39 @@
   min-height: 0;
   overflow: hidden;
 }
-.mcm-page button {
-  font: inherit;
-  color: inherit;
-  border: 0;
-  background: none;
-  cursor: pointer;
+/* This reset exists so the ported artifact's bare <button> markup renders
+   unstyled. It must NOT reach the app's own components: a shadcn Button, a
+   Radix Checkbox and a Radix TabsTrigger are all <button> elements carrying
+   Tailwind utilities, and an unlayered rule BEATS a utility class — which is
+   how every icon button lost its border, every table checkbox became invisible,
+   and no wizard tab could show which one was active.
+
+   `@layer base` puts it below Tailwind's utilities layer, so anything with real
+   classes on it keeps them and only bare buttons are reset. */
+@layer base {
+  .mcm-page button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+  .mcm-page input,
+  .mcm-page textarea,
+  .mcm-page select {
+    font: inherit;
+    color: inherit;
+  }
 }
-.mcm-page input,
-.mcm-page textarea,
-.mcm-page select {
-  font: inherit;
-  color: inherit;
-}
+/* NO `border-radius` here. It is an ELEMENT property, not an outline one, so
+   setting it in a :focus-visible rule re-rounds the control itself: click a
+   `rounded-xl` input and its corners snapped from 12px to 4px, which is what
+   made the border look broken the moment a field was focused. Outlines already
+   follow the element's own border-radius in every browser we support, so the
+   ring is correctly shaped without it. */
 .mcm-page :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 .mcm-page ::-webkit-scrollbar {
   width: 9px;
@@ -172,7 +202,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .ic {
   width: 1em;
@@ -375,7 +405,7 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .stat .v {
   font-size: 25px;
@@ -687,6 +717,8 @@
    use, so it stays a line of small text on the header surface rather than the
    bordered grey box the old breadcrumb drew. */
 .mcm-page .cs-crumbs {
+  /* Sits under an admin page's own head too, where it replaces the one-word
+     eyebrow, so it needs the same room below it that the eyebrow had. */
   margin: 0 0 8px;
   font-size: 12px;
   line-height: 16px;
@@ -777,6 +809,69 @@
 .mcm-page.cs-section-form.mcm-userform > * {
   max-width: none;
   margin-left: 0;
+}
+
+/* ---- section heading ----
+
+   One shape for the line that opens every settings tab: an icon at a fixed size
+   in a fixed tile, the title at one size and weight, the description under it,
+   and anything the section can do at the far end. See section-heading.tsx for
+   what it replaced. */
+.mcm-page .cs-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.mcm-page .cs-heading-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  /* Nudged down so the icon's centre lines up with the title's x-height rather
+     than with the top of its ascenders. */
+  margin-top: 1px;
+}
+.mcm-page .cs-heading-text {
+  min-width: 0;
+  flex: 1;
+}
+.mcm-page .cs-heading h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  color: var(--ink);
+}
+.mcm-page .cs-heading p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  /* Stops the sentence running the full width of a wide screen, where a line
+     that long is hard to come back from at the end. */
+  max-width: 84ch;
+}
+.mcm-page .cs-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .mcm-page .cs-heading-actions {
+    margin-left: 46px;
+    width: 100%;
+  }
+  .mcm-page .cs-heading {
+    flex-wrap: wrap;
+  }
 }
 
 /* ---- settings section ----
@@ -871,11 +966,39 @@
 }
 
 /* Sections of the one panel: a rule between them, equal air either side. Must
-   come after the flattening above — same weight, later wins. */
-.mcm-page .cs-section > * + * {
+   come after the flattening above — same weight, later wins. The save bar is
+   excluded: it draws its own rule and owns its own spacing, and taking both
+   would double the line above it. */
+.mcm-page .cs-section > * + *:not(.cs-saverow):not(.cs-savebar) {
   border-top: 1px solid var(--line-2);
   margin-top: 16px;
   padding-top: 16px;
+}
+
+/* ---- primary buttons, everywhere ----
+
+   The reset at the top of this file strips every button's background, colour
+   and border so the console's own controls can be drawn from scratch. That also
+   strips the design system's `primary` variant, which is how a save button ends
+   up as bare dark text on any screen scoped by .mcm-page — the same fault that
+   hid the Change and Start Recording buttons.
+
+   Rather than restate the colour on each of the seventy-odd forms that have a
+   save button, this puts the variant's own utilities back. Two classes beat the
+   one-class-one-element reset, so these win wherever they appear, and they read
+   the accent tokens so a save button is the same blue as the open tab beside
+   it. Nothing has to be changed form by form for the colour to be uniform. */
+.mcm-page .bg-primary {
+  background: var(--accent);
+}
+.mcm-page .bg-primary:hover:not(:disabled) {
+  background: var(--accent-ink);
+}
+.mcm-page .text-white {
+  color: #fff;
+}
+.mcm-page .border-primary {
+  border-color: var(--accent);
 }
 
 /* ---- secondary buttons ----
@@ -942,6 +1065,64 @@
   outline-offset: 1px;
 }
 
+/* ---- a settings section already inside a panel ----
+
+   AdminPage wraps whatever it is given in a `.panel-card`, so a `.cs-section`
+   used on one of those screens draws a second surface inside the first: two
+   borders, two radii, and both lots of padding — which is why the Numbers views
+   sat further in from their edges than the company tabs do from theirs.
+
+   Nested, the section keeps only what it is for — the rhythm between the pieces
+   inside it — and leaves the surface to the panel that already drew one. The
+   padding moves out to that panel so its content is inset once, by the same
+   16px/20px a settings panel uses. */
+.mcm-page .panel-card > .tbl-wrap > .cs-section,
+.mcm-page .panel-card .cs-section {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.mcm-page .panel-card > .tbl-wrap:has(> .cs-section) {
+  /* Almost nothing at the top. Three paddings stack between the search box and
+     the first tab — the filter bar's 12px, the body's 16px, and this — and each
+     one looks reasonable alone while together they leave the panel floating
+     well clear of the row above it. The tab strip is 56px tall and carries its
+     own air, so it does not need more added above it. */
+  padding: 2px 20px 14px;
+}
+/* Same reason, one level up: the body's own top padding on a screen whose panel
+   opens with a tab strip. */
+.mcm-admin .mcm-adminpage-body:has(> .panel-card > .tbl-wrap > .cs-section) {
+  padding-top: 8px;
+}
+/* And the filter bar above it, which was leaving 12px under a search box that
+   already sits in its own bordered field. */
+.mcm-admin .mcm-adminpage-bar:has(~ .mcm-adminpage-body .cs-section) {
+  padding-bottom: 6px;
+}
+
+/* ---- a tab rail inside a settings panel ----
+
+   In the company header the rail sits in `.cs-head`, which sets the inset it
+   bleeds its hairline out to. Dropped straight into a panel there is no such
+   inset, so the line stopped at the padding while the panel carried on — the
+   rail read as floating in the box rather than closing the top of it. Given the
+   panel's own padding to bleed to, the two line up.
+
+   The rail already draws that line, so whatever follows it must not take the
+   divider `.cs-section` puts between its children as well: two hairlines a
+   pixel or two apart is the doubled rule this area spent a while getting rid
+   of. It keeps the spacing, just not the second line. */
+.mcm-page .cs-section > .tabnav {
+  --cs-inset: 20px;
+}
+.mcm-page .cs-section > .tabnav + * {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 16px;
+}
+
 /* ---- save row ----
 
    The end of a settings form: whatever the screen wants to say last, then the
@@ -953,6 +1134,46 @@
    button { color: inherit }` is unlayered, so it beats Tailwind's `text-white`
    and the button quietly takes the form's dark ink on a brand-coloured fill.
    This says the colour again, at a weight the reset cannot undo. */
+/* Pinned to the foot of the screen, not left at the end of the form.
+ 
+   A settings page can be several screens long, and a button that only exists at
+   the very bottom means scrolling the whole way down to save one switch near the
+   top. Sticky keeps it against the bottom edge while there is still form below
+   it, and settles into place at the end — so it is always the same button in the
+   same corner, whatever you are looking at.
+ 
+   The negative margins pull it out to the panel's edges, past the 20px the panel
+   pads its content by, so the bar spans the full width and the settings pass
+   cleanly underneath rather than beside it. It needs its own opaque background
+   for the same reason: content scrolling under a transparent bar reads as a
+   fault. */
+/* A descendant selector, not a child one. Most of these screens wrap their
+   content in a column of their own and put the save bar inside it, so `>` only
+   ever matched the one tab that happened to place it directly in the panel —
+   that tab pinned, every other stayed where it was, and the difference read as
+   the pinned one being broken. */
+.mcm-page .cs-saverow,
+.mcm-page .cs-section .cs-savebar {
+  /* Static, at the end of the settings — not pinned over them.
+ 
+     This was sticky, and on seven of the nine tabs it worked: the bar rode the
+     bottom of the window with the settings passing underneath. On Phone rules
+     and Greetings it did nothing, because their form is `flex: none` and sized
+     to its own content, so the bar had no room to stick within and simply came
+     to rest at the end. One rule, two behaviours, and moving between tabs the
+     footer changed character — which is what made it feel wrong.
+ 
+     Settled everywhere now, which is the behaviour those two tabs already had.
+     It still spans the panel and still draws its own line; it just stays where
+     the form ends instead of following the window. */
+  position: static;
+  margin: 16px -20px -16px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  /* Follows the panel's own corners where it comes to rest at the bottom. */
+  border-radius: 0 0 var(--r) var(--r);
+}
 .mcm-page .cs-saverow {
   display: flex;
   justify-content: flex-end;
@@ -1310,7 +1531,6 @@
 .mcm-page .ptabstrip a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  border-radius: 4px;
 }
 /* Radix Tabs mark the open tab with data-state rather than a class, so pages
    built on <Tabs> light up the same way hand-rolled strips do. */
@@ -1372,7 +1592,7 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
 }
 .mcm-page .kpi .v {
   font-size: 26px;
@@ -2792,11 +3012,119 @@
   background: var(--surface);
 }
 
+/* The field grid inside a person's card. The card paints the surface now, so
+   this only lays the fields out. */
 .mcm-invite .mcm-invitee {
-  border-color: var(--line);
-  border-radius: var(--r);
-  background: var(--surface);
   align-items: start;
+}
+/* One person to the next.
+ 
+   The card each of them sat in was a third frame inside an already-bordered
+   drawer, but taking it away left ten people as one column of First Name / Last
+   Name / Email repeating — a rule between them is a join, not a heading, and
+   nothing said where one person ended and the next began.
+ 
+   So each is a numbered block with its name at the top. The number is the part
+   that does the work: it says how many people there are, which one you are
+   looking at, and which row the delete button on the right belongs to. */
+/* A card each, on a ground of their own.
+ 
+   Rules alone did not carry it: a hairline between two blocks of identical
+   fields is a join, and people were still losing the boundary. A card does say
+   it — the trick is what the card sits on. Earlier this was a bordered card
+   inside a bordered panel inside a bordered drawer, three frames deep, which is
+   what read as layered. Here the container is not a frame at all: it is a
+   slightly deeper ground with no border of its own, so the white cards separate
+   by contrast rather than by yet another outline. */
+.mcm-invite .mcm-invitee-list {
+  background: var(--surface-2);
+  border-radius: var(--r);
+  padding: 12px;
+  gap: 10px;
+}
+.mcm-invite .mcm-invitee-block {
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: 14px 16px;
+}
+.mcm-invite .mcm-invitee-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 14px;
+}
+/* Pushed to the far end of the heading line, which is where a row's own
+   controls belong — level with the name they act on, not adrift in the fields
+   below it. */
+.mcm-invite .mcm-invitee-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.mcm-invite .mcm-invitee-acts button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-invite .mcm-invitee-acts button:hover {
+    color: var(--accent-ink);
+    border-color: var(--accent-edge);
+    background: var(--accent-wash);
+  }
+  /* Removing somebody is the one action here that cannot be undone, so it is
+     the one that answers in red — but only under the pointer. Sitting red all
+     the time it would be the loudest thing on a form nobody has filled in
+     yet. */
+  .mcm-invite .mcm-invitee-acts button.is-remove:hover {
+    color: var(--crit);
+    border-color: var(--crit);
+    background: var(--crit-wash);
+  }
+}
+.mcm-invite .mcm-invitee-acts button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.mcm-invite .mcm-invitee-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  color: var(--ink);
+  /* A long name cannot push the row wider than the drawer. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Small, quiet and a fixed width, so a list of ten reads as a numbered column
+   down the left rather than as ten badges. */
+.mcm-invite .mcm-invitee-n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The order summary was pinned to half-width on the right, floating away
@@ -3949,8 +4277,8 @@
   gap: 6px;
   margin: 14px 0;
   padding: 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--rule-tone) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 20%, transparent);
   border-radius: var(--r);
 }
 .mcm-flowstep {
@@ -4412,4 +4740,250 @@
 }
 .mcm-acctbanner-a:hover {
   background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* ============================================================
+   CONTACTS — page heading
+
+   The Contacts screen is the platform's own table rather than one of the
+   directory shells, so it needs the page title the shell would have given it.
+   Same type scale as `.page-head` so the two read as one product.
+   ============================================================ */
+.mcm-page .contacts-page-head {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.mcm-page .contacts-page-head h1 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.mcm-page .contacts-page-head p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  max-width: 64ch;
+}
+@media (max-width: 640px) {
+  .mcm-page .contacts-page-head {
+    padding: 14px 12px 12px;
+  }
+  .mcm-page .contacts-page-head h1 {
+    font-size: 19px;
+  }
+}
+.mcm-page .contacts-page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.mcm-page .contacts-page-head-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.mcm-page .contacts-page-head-add {
+  margin-left: auto;
+  flex: none;
+}
+
+/* ---- company rule cards -------------------------------------------------
+
+   The rebuilt rule card. See rule-card.tsx for why it is shaped this way; the
+   short version is that the current value used to be the faintest thing on a
+   card whose four parts all carried equal weight.
+
+   Every colour here is a token. The tone is spent on the left spine alone -
+   a card's fill must never read as a status, because that is the badge's job.
+   --------------------------------------------------------------------------- */
+
+.mcm-page .mcm-rule {
+  position: relative;
+  /* A wash of the card's own tone over the surface rather than flat white. At
+     4% it is barely a colour - enough that two cards side by side are visibly
+     different objects, not enough to compete with a status badge. */
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--rule-tone) 5%, transparent),
+      color-mix(in srgb, var(--rule-tone) 1%, transparent) 120px
+    ),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 22%, var(--line));
+  border-radius: var(--r-lg);
+  padding: 16px 18px 14px 20px;
+  overflow: hidden;
+  --rule-tone: var(--accent);
+}
+
+/* The spine. `inset-inline-start` rather than `left` so a right-to-left
+   console puts it on the correct edge without a second rule. */
+.mcm-page .mcm-rule::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--rule-tone);
+}
+
+.mcm-page .mcm-rule.is-indigo { --rule-tone: #6366f1; }
+.mcm-page .mcm-rule.is-violet { --rule-tone: #8b5cf6; }
+.mcm-page .mcm-rule.is-cyan   { --rule-tone: #0891b2; }
+.mcm-page .mcm-rule.is-teal   { --rule-tone: #0d9488; }
+.mcm-page .mcm-rule.is-rose   { --rule-tone: #e11d48; }
+.mcm-page .mcm-rule.is-sky    { --rule-tone: #0284c7; }
+
+.mcm-page .mcm-rule-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mcm-page .mcm-rule-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  /* The tone, heavily diluted. colour-mix keeps the wash tied to the spine, so
+     a new tone needs one line above and not a second colour invented here. */
+  background: linear-gradient(
+    145deg,
+    var(--rule-tone),
+    color-mix(in srgb, var(--rule-tone) 78%, #000)
+  );
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--rule-tone) 32%, transparent);
+}
+.mcm-page .mcm-rule-ht { min-width: 0; flex: 1; }
+.mcm-page .mcm-rule-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.mcm-page .mcm-rule-title h3 {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.mcm-page .mcm-rule-h p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  /* Held to a readable measure. Across the full panel these descriptions ran to
+     a line and a half of very long lines with the control stranded far right. */
+  max-width: 62ch;
+}
+
+/* The state block: what this rule currently says, and the way to change it. */
+.mcm-page .mcm-rule-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--rule-tone) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rule-tone) 20%, transparent);
+  border-radius: var(--r);
+}
+.mcm-page .mcm-rule-statet { min-width: 0; flex: 1 1 260px; }
+.mcm-page .mcm-rule-eyebrow {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--rule-tone) 72%, var(--ink-3));
+}
+.mcm-page .mcm-rule-value {
+  margin: 3px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.mcm-page .mcm-rule-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+.mcm-page .mcm-rule-act { flex: 0 0 auto; }
+
+/* The rule switches, side by side. They qualify the value above rather than
+   standing beside it as further decisions, so they are smaller, quieter, and
+   grouped - not two more full-width rows. */
+.mcm-page .mcm-rule-gov {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+  gap: 10px 22px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+.mcm-page .mcm-rule-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.mcm-page .mcm-rule-toggle-c { flex: 0 0 auto; padding-top: 1px; }
+.mcm-page .mcm-rule-toggle-t { min-width: 0; }
+.mcm-page .mcm-rule-toggle-t > span {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-page .mcm-rule-toggle-t p {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-4);
+}
+
+/* Quiet by default. The old note was a full-bleed tinted band, which reads as
+   an alert - and none of these are alerts, they are explanations. */
+.mcm-page .mcm-rule-note {
+  margin: 12px 0 0;
+  padding-inline-start: 11px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--rule-tone) 40%, var(--line));
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  max-width: 92ch;
+}
+
+/* The panel draws a divider between its children, which on a card that already
+   has its own border means a grey hairline across the top edge and a second
+   16px of padding above the one the card sets itself.
+
+   The weight has to match to beat it: that rule is
+   `.cs-section > * + *:not(.cs-saverow):not(.cs-savebar)`, and both :not()
+   arguments count, so it scores (0,4,0) — a plain `.cs-section > * + .mcm-rule`
+   scores (0,3,0) and loses. Carrying one :not() of our own levels it, and
+   coming later in the file settles it. */
+.mcm-page .cs-section > .mcm-rule:not(.cs-saverow) {
+  border-top: 1px solid color-mix(in srgb, var(--rule-tone) 22%, var(--line));
+  margin-top: 14px;
+  /* The card's own top padding, restated so the inherited 16px cannot stack. */
+  padding-top: 16px;
 }

@@ -59,10 +59,10 @@ const validationSchema: Record<string, yup.AnyObjectSchema> = {
     name: requiredString('Name', 2, 50),
     extension: requiredExtension(),
     timeout: yup.object().shape({
-      value: yup.string().required('Member Ring Timeout is required'),
+      value: yup.string().required('Ring time is required'),
     }),
     site: yup.object().shape({
-      value: yup.string().required('Site is required'),
+      value: yup.string().required('Location is required'),
     }),
     description: yup
       .string()
@@ -101,10 +101,10 @@ const validationSchema: Record<string, yup.AnyObjectSchema> = {
       .array()
       .of(
         yup.object({
-          value: yup.string().trim().required('Member is required'),
+          value: yup.string().trim().required('Person is required'),
         }),
       )
-      .min(1, 'At least one member is required'),
+      .min(1, 'Add at least one person'),
   }),
   [DEPARTMENT_TAB_CONSTANT.RING_STRETEGY]: yup.object().shape({
     ring_strategy: yup.object().shape({

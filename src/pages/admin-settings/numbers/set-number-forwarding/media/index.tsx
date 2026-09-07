@@ -1,14 +1,11 @@
 import CommonGreetingNotification from '@/components/common-greetings';
-import { GreetingItem, useGetGreetings } from '@/hooks/common';
+import { useGetGreetings } from '@/hooks/common';
+import { greetingOptionsForSlots } from '@/lib/greeting-slots';
 
 const Media = () => {
-  const { greetingList = [], voicemailList = [] } = useGetGreetings();
+  const { allGreetings } = useGetGreetings();
 
-  const optionsData: Record<string, GreetingItem[]> = {
-    welcome: greetingList,
-    hold: greetingList,
-    voicemail: voicemailList,
-  };
+  const optionsData = greetingOptionsForSlots(allGreetings, ['welcome', 'hold', 'voicemail']);
 
   const mediaOptionsGreetingNotifications = [
     {

@@ -56,11 +56,32 @@ const SetupOption = ({
             setValue('password_type', value, { shouldValidate: true });
           }}
         >
-          <div className="flex items-center gap-3">
-            <RadioGroupItem value="common" id="password-common" className="cursor-pointer" />
-            <Label htmlFor="password-common" className="cursor-pointer">
-              Give Common Password
-            </Label>
+          {/* The invite link is the default. Nothing on this screen ever
+              e-mails a password: the person chooses their own on the page the
+              link opens (see /accept-invite). */}
+          <div className="flex items-start gap-3">
+            <RadioGroupItem value="email" id="password-email" className="mt-1 cursor-pointer" />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="password-email" className="cursor-pointer">
+                Send them an invite link
+              </Label>
+              <p className="text-xs text-grey-800">
+                They get an e-mail with a link to choose their own password. The link works for 3
+                days. You can send it again from the People list.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <RadioGroupItem value="common" id="password-common" className="mt-1 cursor-pointer" />
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="password-common" className="cursor-pointer">
+                Set one password for everyone now
+              </Label>
+              <p className="text-xs text-grey-800">
+                You tell them the password yourself. They also get the invite link, in case they
+                want to choose their own.
+              </p>
+            </div>
           </div>
 
           {passwordType === 'common' && (
@@ -87,15 +108,20 @@ const SetupOption = ({
               </div>
             </div>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <RadioGroupItem
               value="individual"
               id="password-individual"
-              className="cursor-pointer"
+              className="mt-1 cursor-pointer"
             />
-            <Label htmlFor="password-individual" className="cursor-pointer">
-              Individual Password
-            </Label>
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="password-individual" className="cursor-pointer">
+                Set a password for each person now
+              </Label>
+              <p className="text-xs text-grey-800">
+                You tell each person their password yourself. They also get the invite link.
+              </p>
+            </div>
           </div>
 
           {passwordType === 'individual' && (
@@ -103,7 +129,7 @@ const SetupOption = ({
               {watchUsers?.map((field: typeof userInitialState, index: number) => {
                 return (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" key={index}>
-                    <Input label={index === 0 && 'User'} value={field?.first_name} disabled />
+                    <Input label={index === 0 && 'Person'} value={field?.first_name} disabled />
 
                     <Input
                       showEye={true}
@@ -126,12 +152,6 @@ const SetupOption = ({
               })}
             </div>
           )}
-          <div className="flex items-center gap-3">
-            <RadioGroupItem value="email" id="password-email" className="cursor-pointer" />
-            <Label htmlFor="password-email" className="cursor-pointer">
-              Send via Email
-            </Label>
-          </div>
         </RadioGroup>
       )}
     </div>

@@ -217,6 +217,63 @@ const Settings: FC<any> = ({ dialMethod, setModalState, campaignStatus }) => {
           {/* <Input label="Name" placeholder="Enter campaign name" /> */}
         </div>
 
+        {dialMethod === DIALER_TYPE.PREDICTIVE || dialMethod === DIALER_TYPE.NORMAL ? (
+          <div className="w-full flex flex-col gap-3">
+            <div>
+              <h3 className="text-gray-900 font-semibold text-md">Pacing</h3>
+              <p className="text-xs text-gray-500">
+                {dialMethod === DIALER_TYPE.PREDICTIVE
+                  ? 'The dialer places more calls than there are free agents, then corrects itself from the answer rate. Keep the abandon cap where your regulations put it.'
+                  : 'The dialer places one call for each free agent, so nobody answers to silence. Only the line ceiling applies.'}
+              </p>
+            </div>
+            <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
+              <Input
+                label="Line ceiling (0 = no limit)"
+                type="number"
+                min={0}
+                max={500}
+                disabled={campaignStatus !== '' && campaignStatus !== 'NEW'}
+                {...register('dialerSetting.max_lines')}
+                error={(errors?.dialerSetting as any)?.max_lines?.message}
+              />
+              {dialMethod === DIALER_TYPE.PREDICTIVE ? (
+                <>
+                  <Input
+                    label="Max calls per free agent"
+                    type="number"
+                    step="0.1"
+                    min={1}
+                    max={15}
+                    disabled={campaignStatus !== '' && campaignStatus !== 'NEW'}
+                    {...register('dialerSetting.max_calls_per_agent')}
+                    error={(errors?.dialerSetting as any)?.max_calls_per_agent?.message}
+                  />
+                  <Input
+                    label="Abandon rate cap (%)"
+                    type="number"
+                    step="0.1"
+                    min={0.1}
+                    max={100}
+                    disabled={campaignStatus !== '' && campaignStatus !== 'NEW'}
+                    {...register('dialerSetting.target_abandon_rate')}
+                    error={(errors?.dialerSetting as any)?.target_abandon_rate?.message}
+                  />
+                  <Input
+                    label="Counts as abandoned after (seconds waiting)"
+                    type="number"
+                    min={0}
+                    max={60}
+                    disabled={campaignStatus !== '' && campaignStatus !== 'NEW'}
+                    {...register('dialerSetting.compliance_abandon_seconds')}
+                    error={(errors?.dialerSetting as any)?.compliance_abandon_seconds?.message}
+                  />
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {dialMethod === DIALER_TYPE.PREDICTIVE ? (
           <>
             <div className="w-full flex items-start flex-col gap-2">
@@ -250,6 +307,9 @@ const Settings: FC<any> = ({ dialMethod, setModalState, campaignStatus }) => {
             <div className="w-full flex items-start gap-2 flex-col">
               <div className="flex items-center gap-2">
                 <p className="text-gray-900 font-medium text-sm">Answering Machine Detection</p>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  saved, not enforced by the switch yet
+                </span>
                 <Switch
                   disabled={campaignStatus !== '' && campaignStatus !== 'NEW'}
                   onCheckedChange={(checked) => {

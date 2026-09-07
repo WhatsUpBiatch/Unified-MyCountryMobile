@@ -1,0 +1,19 @@
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -8,6 +8,7 @@
+ import AiV2Route from "./routers/aiV2Route";
+ import authRoute from "./routers/authRoute";
+ import cardRoute from "./routers/cardRoute";
++import companySelfRoute from "./routers/companySelfRoute";
+ import didRoute from "./routers/didRoute";
+ import didWRoute from "./routers/didWRoute";
+ import identityRoute from "./routers/IdentityRoute";
+@@ -194,6 +195,8 @@
+        Both read the caller from the session only. */
+     app.use("/api/security/devices", trustedDeviceRoute);
+     app.use("/api/profile", profileSelfRoute);
++    /* Own company record (name and address), company taken from the session. */
++    app.use("/api/company", companySelfRoute);
+ 
+     app.use("/api/plan", planRoute);
+ 

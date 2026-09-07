@@ -1,0 +1,626 @@
+--- a/src/controllers/AuthController.ts
++++ b/src/controllers/AuthController.ts
+@@ -7,6 +7,7 @@
+     saveCard,
+ } from "@/helpers/stripeHelper";
+ import { createCredentials } from "@/helpers/stunHelper";
++import { flattenNotificationSettings } from "@/helpers/notificationSettings";
+ import { IAuth, IRequest } from "@/interfaces/IRequest";
+ 
+ import Billing from "@/models/Billing";
+@@ -3930,6 +3931,25 @@
+             if (!checkUserExist) {
+                 return super.sendError(response, "User does not exist");
+             }
++            if (key === "notification_settings") {
++                /* One column, one shape: `users.notification_settings` is FLAT
++                   (`{ voicemail: {...}, missed: {...}, ... }`). Older web builds post
++                   the choices wrapped as `{ notification_settings: {...} }`; the
++                   wrapper is peeled here so the column never carries it again. See
++                   helpers/notificationSettings.ts for why. */
++                const flat = flattenNotificationSettings(value);
++                if (!flat) {
++                    return super.sendError(
++                        response,
++                        "Notification settings must hold at least one event with its channels",
++                    );
++                }
++                await User.update(
++                    { notification_settings: flat },
++                    { where: { uuid: user?.uuid } },
++                );
++                return super.sendSuccess(response, "Setting updated successfully");
++            }
+             if (key === "call_forwarding") {
+                 let defaultCallerId = value?.outgoing_calls?.default_caller_id;
+                 await User.update(
+--- a/src/controllers/SmsController.ts
++++ b/src/controllers/SmsController.ts
+@@ -23,6 +23,7 @@
+ import Webhook from "@/models/WebhookModel";
+ import { ContactApiService } from "@/services/ContactApiService";
+ import { NotificationApiError, NotificationApiService } from "@/services/NotificationApiService";
++import { notificationSettingsForSend } from "@/helpers/notificationSettings";
+ import { SmsApiError, SmsApiService } from "@/services/SmsApiService";
+ import { AlertService } from "@/services/alerts/AlertService";
+ import { OtpCountryService } from "@/services/OtpCountryService";
+@@ -1639,21 +1640,16 @@
+             if (user) {
+                 user = user.get({ plain: true });
+                 resolvedCompany = user?.company ?? null;
+-                if (!user?.notification_settings || typeof user.notification_settings !== "object") {
+-                    user.notification_settings = {};
+-                }
+-                if (!user.notification_settings?.notification_settings || typeof user.notification_settings.notification_settings !== "object") {
+-                    user.notification_settings.notification_settings = {};
+-                }
+-                if (!user.notification_settings.notification_settings[requestedData.type]) {
+-                    user.notification_settings.notification_settings[requestedData.type] =
+-                    {
+-                        email: (requestedData?.email_notification) ? true : false,
+-                        socket: (requestedData?.socket_notification) ? true : false,
+-                        sms: (requestedData?.sms_notification) ? true : false,
+-                        push: (requestedData?.push_notification) ? true : false
+-                    }
+-                }
++                /* The column is flat (`{ voicemail: {...}, ... }`); rows written before
++                   3 Sep 2026 carry the old one-level wrapper. Either way this becomes
++                   the object notification-api reads, and an event the person never
++                   chose gets every channel this payload carries - the rule that was
++                   always applied here. */
++                user.notification_settings = notificationSettingsForSend(
++                    user.notification_settings,
++                    requestedData.type,
++                    requestedData,
++                );
+             }
+ 
+             if (!resolvedCompany && normalizedCompanyUuid) {
+@@ -1779,7 +1775,7 @@
+                 notification_payload: notificationPayload,
+                 notification_settings:
+                     requestedData?.notification_settings ??
+-                    user?.notification_settings?.notification_settings ??
++                    user?.notification_settings ??
+                     notification_settings,
+             };
+ 
+--- a/src/controllers/Media/MediaController.ts
++++ b/src/controllers/Media/MediaController.ts
+@@ -8,6 +8,13 @@
+ import Company from "@/models/Company";
+ import Plan from "@/models/Plan";
+ import { VideoApiService } from "@/services/VideoApiService";
++import { TenantApiService } from "@/services/TenantApiService";
++import {
++    fileBelongsToCaller,
++    isAdminRole,
++    isLibraryType,
++    libraryDeleteDecision,
++} from "@/helpers/mediaOwnership";
+ 
+ export class MediaController extends BaseController {
+     public getUploadSignedUrl = async (
+@@ -471,12 +478,80 @@
+         }
+     };
+ 
++    /* Delete one object from the bucket: `<uuid>/<type>/<file_name>`.
++     *
++     * Who may: the file must be in the caller's own company (or the caller's own
++     * folder), and for the audio library (greeting / prompt / voicemail) the
++     * caller must be an admin or the person who uploaded it - decided against the
++     * library row in the company's database, the same rule the row delete uses.
++     * Every other type (profile, recording, fax, ...) is admin-only here: nothing
++     * in the website deletes those, and a non-admin has no business removing a
++     * call recording. See helpers/mediaOwnership.ts.
++     */
+     public deleteFile = async (
+         request: Request,
+         response: Response,
+     ): Promise<any> => {
+         try {
+             const requestData: any = request.body;
++            const auth: any = (request as any)?.auth;
++            const refuse = (status: number, message: string) =>
++                response.status(status).send(
++                    new ResponseModel({
++                        success: false,
++                        error: { message, service: "MEDIA" },
++                    }),
++                );
++
++            if (!auth?.uuid) {
++                return refuse(401, "Authentication required");
++            }
++            const pathUuid = String(requestData?.uuid ?? "").trim();
++            const type = String(requestData?.type ?? "").trim().toLowerCase();
++            const fileName = String(requestData?.file_name ?? "").trim();
++            if (!pathUuid || !type || !fileName) {
++                return refuse(422, "uuid, type and file_name are required");
++            }
++            if (!fileBelongsToCaller({ uuid: auth.uuid, company_uuid: auth.company_uuid }, pathUuid)) {
++                return refuse(403, "You can only delete files that belong to your company");
++            }
++
++            if (isLibraryType(type)) {
++                let dbName = String(auth?.db_name ?? "").trim();
++                if (!dbName) {
++                    const company = await Company.findOne({
++                        where: { uuid: auth.company_uuid },
++                        attributes: ["uuid", "db_name"],
++                    });
++                    dbName = String(company?.db_name ?? "").trim();
++                }
++                if (!dbName) {
++                    return refuse(403, "Your company has no library to check this file against");
++                }
++                /* The row, or null for a file the library does not know. A failure to
++                   ask is a refusal, not a pass: the whole point is to check. */
++                let row: any = null;
++                try {
++                    const lookup = await TenantApiService.callTenantApi(
++                        dbName,
++                        "greeting/by-filename",
++                        "POST",
++                        { filename: fileName },
++                        auth,
++                    );
++                    row = lookup?.data?.data?.result ?? null;
++                } catch (lookupError: any) {
++                    console.error("media delete: could not read the library row:", lookupError?.message || lookupError);
++                    return refuse(503, "Could not check who owns this recording. Try again.");
++                }
++                const decision = libraryDeleteDecision({ uuid: auth.uuid, role: auth.role }, row);
++                if (!decision.allowed) {
++                    return refuse(403, decision.reason);
++                }
++            } else if (!isAdminRole(auth.role)) {
++                return refuse(403, `Only an admin can delete ${type} files`);
++            }
++
+             const mediaApiResponse = await MediaApiService.callMediaApi(
+                 "delete",
+                 "DELETE",
+--- a/src/controllers/Tenant/TenantController.ts
++++ b/src/controllers/Tenant/TenantController.ts
+@@ -1311,7 +1311,8 @@
+         const deleteGreeting: IvrFilesDeleteRequest = req.body;
+ 
+         try {
+-            // Call the tenant API using the service
++            // Call the tenant API using the service. tenant-api applies the owner
++            // rule (admin, or the person who uploaded it) and answers 403 otherwise.
+             const tenantApiResponse = await TenantApiService.callTenantApi(
+                 db_name,
+                 "greeting/delete", // Tenant API endpoint
+@@ -1320,6 +1321,34 @@
+                 req?.auth,
+             );
+ 
++            /* The row is gone; take the audio down with it, here, while the row's
++               file name is still known. The website's own follow-up call to
++               `DELETE /api/media/delete` is refused for a non-admin uploader once
++               the row no longer exists, so this is the one place a non-admin's
++               file is removed. Every upload is stored under `greeting/` whatever
++               its type (the website's add-greeting says why); the row's own
++               folder is tried too, in case that ever changes. Best effort: a
++               leftover object is housekeeping, not a failed deletion. */
++            const removed = tenantApiResponse?.data?.data?.result;
++            const filename = String(removed?.filename ?? "").trim();
++            if (filename) {
++                const folders = Array.from(new Set(["greeting", String(removed?.type ?? "").trim().toLowerCase()].filter(Boolean)));
++                for (const folder of folders) {
++                    try {
++                        await MediaApiService.callMediaApi("delete", "DELETE", {
++                            uuid: company_uuid,
++                            type: folder,
++                            file_name: filename,
++                        });
++                    } catch (mediaError: any) {
++                        console.error(
++                            `greetingDelete: row ${removed?.uuid} removed but ${company_uuid}/${folder}/${filename} was not:`,
++                            mediaError?.message || mediaError,
++                        );
++                    }
++                }
++            }
++
+             // Handle the response (pass it back to client)
+             return res.status(200).json(tenantApiResponse.data);
+         } catch (error) {
+--- a/src/helpers/companyRuleFlags.ts
++++ b/src/helpers/companyRuleFlags.ts
+@@ -18,10 +18,17 @@
+  * Each governed setting carries two independent booleans on its node in the company
+  * record: `apply` ("put this company value onto the person") and `locked` ("the
+  * person may not change it themselves"). Older records carry only `override`, which
+- * used to mean both things at once; it is read back as apply = override,
+- * locked = !override, which reproduces exactly what the product did before the flags
+- * were split. Nothing here writes to a database, so every function is testable on its
+- * own with plain objects.
++ * used to mean both things at once. It is read back like this:
++ *
++ *   override: true                          apply   , open
++ *   override: false (explicitly stored)     skip    , locked
++ *   override absent / undefined / null      skip    , open
++ *
++ * The first two reproduce exactly what the product did before the flags were split.
++ * The third is the "open default" decision: a company that never said anything about
++ * a setting governs nothing there, so a company that never set a single flag locks
++ * nothing at all. Nothing here writes to a database, so every function is testable
++ * on its own with plain objects.
+  *
+  * IDENTICAL COPIES
+  *
+@@ -106,9 +113,23 @@
+         ? RULE_NODE_PATHS[field as PolicyField]
+         : stripLegacyFlag(field);
+ 
+-/* What an old record means: `override: true` copied the value and left the control
+-   enabled; false or absent copied nothing and disabled the control. */
+-const legacyFlags = (override: boolean): RuleFlags => ({ apply: override, locked: !override });
++/* What an old record means.
++
++   `override: true` - the value was copied onto people and the control stayed enabled:
++   apply, not locked. `override: false` - an admin turned the switch off: nothing
++   copied, control disabled: skip, locked. Both are kept exactly as they were.
++
++   The flag being ABSENT used to read the same as `false`, because the old readers
++   tested `=== true`. That is the case this function now reads differently: absent
++   means the company never said anything about this setting, so nothing is copied and
++   nothing is locked. A value that is not a boolean at all - null from a JSON column,
++   a string from a hand edit - is treated as absent for the same reason: nobody chose
++   it. Verbatim from the website's company-rule-flags.ts. */
++const legacyFlags = (override: unknown): RuleFlags => {
++    if (override === true) return { apply: true, locked: false };
++    if (override === false) return { apply: false, locked: true };
++    return { apply: false, locked: false };
++};
+ 
+ /* What a new record writes back into the old flag: `apply` is the half that changes
+    data, so `apply` is the half `override` carries. See the website file for the full
+@@ -132,7 +153,7 @@
+     const explicitApply = typeof apply === "boolean" ? apply : null;
+     const explicitLocked = typeof locked === "boolean" ? locked : null;
+ 
+-    const fallback = legacyFlags(node?.[LEGACY_FLAG_KEY] === true);
++    const fallback = legacyFlags(node?.[LEGACY_FLAG_KEY]);
+ 
+     return {
+         apply: explicitApply ?? fallback.apply,
+--- a/src/helpers/notificationSettings.ts
++++ b/src/helpers/notificationSettings.ts
+@@ -0,0 +1,210 @@
++/* A person's notification choices: one column, one shape.
++ *
++ * THE COLUMN
++ *
++ * `users.notification_settings` (main database, JSON) is the only place a person's
++ * choices live. Its shape is FLAT: one key per event, each holding the channels the
++ * person wants for that event.
++ *
++ *   {
++ *     voicemail:       { email: true,  socket: true,  sms: false, push: true, phone: "" },
++ *     missed:          { email: false, socket: true,  sms: false, push: false, phone: "" },
++ *     sms:             { email: false, socket: true,  sms: false, push: true, phone: "" },
++ *     forgot_password: { email: true,  socket: false, sms: true,  push: false }
++ *   }
++ *
++ * That is exactly the object notification-api's `notification/send` reads: it takes
++ * `notification_settings[type]` and looks at `.email`, `.socket`, `.sms`, `.push`
++ * (NotificationController.notificationSend). The website's Notifications page and the
++ * older `PUT /api/user/update-settings` writer both produce this per-event shape.
++ *
++ * WHY THIS FILE EXISTS
++ *
++ * Until 3 Sep 2026 the website posted the object wrapped one level deeper -
++ * `{ notification_settings: { voicemail: ... } }` - and `updateUserSetting` stored
++ * that wrapper as-is. Readers then disagreed about where the choices were: one read
++ * `column.notification_settings.voicemail`, one read `settings.notification_settings`,
++ * one sent the column straight to notification-api, which answered 400 "Notification
++ * settings not found for type: voicemail" because `column.voicemail` did not exist.
++ * Voicemail emails stopped.
++ *
++ * Every reader and the one writer now go through here. `flattenNotificationSettings`
++ * accepts every shape that is in the data or that an older web build still posts and
++ * returns the flat one; `notificationSettingsForSend` builds the object notification-api
++ * wants for one event, filling an event the person never chose with the rule the
++ * platform already used elsewhere (SmsController.sendNotification): every channel the
++ * payload carries. Nothing here touches a database or the network.
++ *
++ * IDENTICAL COPIES
++ *
++ * The same file is kept in tenant-api and default-api (both under src/helpers/). It has
++ * no imports on purpose so it can be copied byte for byte; a test checks the copies match.
++ */
++
++/* The events a person can be told about. `forgot_password` is written by the website
++   on every save (always email+sms) and never shown; it is kept so nothing else has to
++   special-case it. */
++export const NOTIFICATION_EVENTS: readonly string[] = ["voicemail", "missed", "sms", "forgot_password"];
++
++/* The ways a notification can arrive. `socket` is the in-browser alert ("Web Alert"
++   on the page), `push` the mobile app. */
++export const NOTIFICATION_CHANNELS: readonly string[] = ["email", "socket", "sms", "push"];
++
++/* The key the old nested shape wrapped everything in. */
++const WRAPPER_KEY = "notification_settings";
++
++/* How many wrappers to peel. Real data has at most one; a hand edit or a double save
++   could have two. Anything deeper is not a settings object. */
++const MAX_WRAPPER_DEPTH = 4;
++
++export interface ChannelChoice {
++    email: boolean;
++    socket: boolean;
++    sms: boolean;
++    push: boolean;
++    /* The number text alerts go to for this event; the page keeps one per event. */
++    phone?: string;
++}
++
++export type NotificationSettings = { [event: string]: ChannelChoice };
++
++const isPlainObject = (value: any): boolean =>
++    !!value && typeof value === "object" && !Array.isArray(value);
++
++/* true / "true" / "YES" / "Y" / "1" / 1 mean on; everything else is off. */
++export const asChannelFlag = (value: any): boolean => {
++    if (value === true) return true;
++    if (typeof value === "number") return value !== 0;
++    if (typeof value !== "string") return false;
++    const word = value.trim().toUpperCase();
++    return word === "TRUE" || word === "YES" || word === "Y" || word === "1";
++};
++
++/* A JSON column read through a driver that did not parse it, or a body posted as a
++   string, both arrive as text. Anything that is not valid JSON is returned untouched. */
++export const parseJsonIfString = (raw: any): any => {
++    if (typeof raw !== "string") return raw;
++    const text = raw.trim();
++    if (!text) return null;
++    try {
++        return JSON.parse(text);
++    } catch (error) {
++        return raw;
++    }
++};
++
++/* An entry is a choice when it is an object that says something about at least one
++   channel (or carries a phone number). A stray key holding something else - a general
++   settings object passed in by mistake, a label - is not a choice and is dropped. */
++const isChannelChoice = (value: any): boolean =>
++    isPlainObject(value) &&
++    (NOTIFICATION_CHANNELS.some((channel) => value[channel] !== undefined) || value.phone !== undefined);
++
++/* One event's choice, every channel coerced to a boolean, the phone kept as text. */
++export const normaliseChannelChoice = (value: any): ChannelChoice => {
++    const source = isPlainObject(value) ? value : {};
++    const choice: ChannelChoice = {
++        email: asChannelFlag(source.email),
++        socket: asChannelFlag(source.socket),
++        sms: asChannelFlag(source.sms),
++        push: asChannelFlag(source.push),
++    };
++    if (source.phone !== undefined && source.phone !== null) {
++        choice.phone = String(source.phone).trim();
++    }
++    return choice;
++};
++
++/* Peel the old wrapper(s). `{ notification_settings: X }` where X is an object means
++   X; a wrapper holding nothing usable means nothing. Stops as soon as the object
++   carries an event key, so a person who (oddly) has an event called
++   "notification_settings" is not unwrapped into it. */
++const unwrap = (raw: any): any => {
++    let node = raw;
++    for (let depth = 0; depth < MAX_WRAPPER_DEPTH; depth += 1) {
++        if (!isPlainObject(node)) return node;
++        const hasEvent = NOTIFICATION_EVENTS.some((event) => isChannelChoice(node[event]));
++        if (hasEvent) return node;
++        const inner = node[WRAPPER_KEY];
++        if (inner === undefined) return node;
++        node = parseJsonIfString(inner);
++    }
++    return node;
++};
++
++/**
++ * The flat shape, from whatever is stored or posted.
++ *
++ * Accepts: the flat object; the old `{ notification_settings: {...} }` wrapper (any
++ * depth up to MAX_WRAPPER_DEPTH); either of those as a JSON string. Keeps every key
++ * whose value looks like a channel choice - the four known events and any other the
++ * caller stores (notification-api reads by type name, so an extra event such as
++ * `security_alert` must survive). Returns null when there is nothing usable at all:
++ * null, undefined, "", a non-object, or an object with no choice in it.
++ */
++export const flattenNotificationSettings = (raw: any): NotificationSettings | null => {
++    const node = unwrap(parseJsonIfString(raw));
++    if (!isPlainObject(node)) return null;
++
++    const flat: NotificationSettings = {};
++    Object.keys(node).forEach((key) => {
++        if (key === WRAPPER_KEY) return;
++        const value = parseJsonIfString(node[key]);
++        if (!isChannelChoice(value)) return;
++        flat[key] = normaliseChannelChoice(value);
++    });
++
++    return Object.keys(flat).length ? flat : null;
++};
++
++/* True when the value is (or parses to) the old wrapped shape. For logs and tests. */
++export const isLegacyNestedShape = (raw: any): boolean => {
++    const node = parseJsonIfString(raw);
++    if (!isPlainObject(node)) return false;
++    if (NOTIFICATION_EVENTS.some((event) => isChannelChoice(node[event]))) return false;
++    return isPlainObject(parseJsonIfString(node[WRAPPER_KEY]));
++};
++
++/* Which channels a `notification/send` payload actually carries. A channel the
++   payload has no content for cannot be sent whatever the person chose. */
++export const channelsCarriedByPayload = (payload: any): ChannelChoice => ({
++    email: !!payload?.email_notification,
++    socket: !!payload?.socket_notification,
++    sms: !!payload?.sms_notification,
++    push: !!(payload?.device_notification || payload?.push_notification),
++});
++
++/**
++ * The `notification_settings` object to send to notification-api for one event.
++ *
++ * The person's flat choices, with the entry for `type` guaranteed present: their own
++ * choice when they made one, otherwise every channel the payload carries. That
++ * fallback is the rule default-api's SmsController has always applied to an event a
++ * person never set; it is what "no preference" has meant on this platform, so a
++ * person who never opened the Notifications page keeps getting voicemail emails.
++ *
++ * Pass `fallback` to use a different rule for the unset case (for example, nothing
++ * at all: `{ email: false, socket: false, sms: false, push: false }`).
++ */
++export const notificationSettingsForSend = (
++    raw: any,
++    type: string,
++    payload?: any,
++    fallback?: ChannelChoice,
++): NotificationSettings => {
++    const flat = flattenNotificationSettings(raw) || {};
++    const chosen = flat[type];
++    return {
++        ...flat,
++        [type]: chosen ? chosen : fallback ? normaliseChannelChoice(fallback) : channelsCarriedByPayload(payload),
++    };
++};
++
++/* The number a text alert for `type` should go to: the one the person typed for that
++   event on the page, else the account phone the caller passes in, else nothing. */
++export const smsRecipientFor = (raw: any, type: string, accountPhone?: string | null): string => {
++    const flat = flattenNotificationSettings(raw);
++    const chosen = flat?.[type]?.phone;
++    if (chosen && chosen.trim()) return chosen.trim();
++    return accountPhone ? String(accountPhone).trim() : "";
++};
+--- a/src/helpers/mediaOwnership.ts
++++ b/src/helpers/mediaOwnership.ts
+@@ -0,0 +1,119 @@
++/* Who may delete a recording in the company's audio library.
++ *
++ * The library is the `ivrfiles` table in the company's own database: one row per
++ * recording, `user_uuid` = the person who uploaded it, `type` = greeting / prompt /
++ * voicemail, `is_default` = a stock recording the product ships. The audio itself is
++ * an object in the media bucket at `<company uuid>/<folder>/<filename>`.
++ *
++ * Deleting is two calls from the website: the row (`DELETE /api/tenant/greeting/delete`)
++ * and then the file (`DELETE /api/media/delete`). Until 3 Sep 2026 neither call asked
++ * who was calling: any signed-in person with the plan's "delete" permission could
++ * remove any recording in the company, including the ones a queue or an IVR plays,
++ * and the file route did not even check that the company in the path was the caller's.
++ *
++ * THE RULE, IN ONE LINE
++ *
++ *   The file must belong to the caller's company, AND the caller is an admin OR the
++ *   caller is the person who uploaded it. Stock recordings are never deleted.
++ *
++ * Both calls apply this rule against the same row, so the answer is the same
++ * whichever call is made first. Nothing here touches a database or the network.
++ *
++ * IDENTICAL COPIES
++ *
++ * The same file is kept in tenant-api and default-api (both under src/helpers/). It has
++ * no imports on purpose so it can be copied byte for byte; a test checks the copies match.
++ */
++
++/* The folders of the audio library. Every other media type (profile, recording, fax,
++   ...) is somebody else's and is not governed by the row rule. */
++export const LIBRARY_TYPES: readonly string[] = ["greeting", "prompt", "voicemail"];
++
++/* What a recording is filed as when the client does not say, or says something that
++   is not a library type. */
++export const DEFAULT_LIBRARY_TYPE = "greeting";
++
++/* The role string that means "runs the company". Matches CompanyPolicyLock and the
++   rest of default-api: `users.role` compared as an upper-cased word. */
++export const isAdminRole = (role: unknown): boolean =>
++    String(role ?? "").trim().toUpperCase() === "ADMIN";
++
++export const isLibraryType = (type: unknown): boolean =>
++    LIBRARY_TYPES.indexOf(String(type ?? "").trim().toLowerCase()) !== -1;
++
++/* The type to store for an upload: the client's choice when it is a library type,
++   else the default. Case and whitespace are forgiven. */
++export const normaliseLibraryType = (type: unknown): string => {
++    const word = String(type ?? "").trim().toLowerCase();
++    return isLibraryType(word) ? word : DEFAULT_LIBRARY_TYPE;
++};
++
++export interface LibraryCaller {
++    uuid: string | null | undefined;
++    role: string | null | undefined;
++}
++
++/* The parts of an `ivrfiles` row the rule looks at. */
++export interface LibraryRow {
++    user_uuid?: string | null;
++    is_default?: boolean | number | string | null;
++}
++
++export interface DeleteDecision {
++    allowed: boolean;
++    /* Plain English for the person, when refused. */
++    reason: string;
++}
++
++const asFlag = (value: unknown): boolean =>
++    value === true || value === 1 || value === "1" || String(value ?? "").trim().toLowerCase() === "true";
++
++const sameUuid = (a: unknown, b: unknown): boolean => {
++    const left = String(a ?? "").trim().toLowerCase();
++    const right = String(b ?? "").trim().toLowerCase();
++    return left !== "" && left === right;
++};
++
++/**
++ * May `caller` delete the recording described by `row`?
++ *
++ * `row` null means the library has no record of the file. That happens for an
++ * orphan (the row went, the file stayed) and for a file name that was never in the
++ * library. Only an admin may clear those up: with no row there is nobody to be "the
++ * uploader".
++ */
++export const libraryDeleteDecision = (caller: LibraryCaller, row: LibraryRow | null | undefined): DeleteDecision => {
++    if (!caller || !String(caller.uuid ?? "").trim()) {
++        return { allowed: false, reason: "Sign in to delete recordings." };
++    }
++    if (row && asFlag(row.is_default)) {
++        return { allowed: false, reason: "Stock recordings cannot be deleted." };
++    }
++    if (isAdminRole(caller.role)) {
++        return { allowed: true, reason: "" };
++    }
++    if (!row) {
++        return {
++            allowed: false,
++            reason: "This file is not in the library. Ask an admin to remove it.",
++        };
++    }
++    if (sameUuid(row.user_uuid, caller.uuid)) {
++        return { allowed: true, reason: "" };
++    }
++    return {
++        allowed: false,
++        reason: "Only the person who uploaded this recording, or an admin, can delete it.",
++    };
++};
++
++/**
++ * May `caller` delete a file at `<pathUuid>/<type>/<name>` at all, before the row is
++ * even looked at? The company in the path must be the caller's own. A person's own
++ * uuid is accepted too: some older paths file a person's recordings under the
++ * person, not the company.
++ */
++export const fileBelongsToCaller = (
++    caller: { uuid: string | null | undefined; company_uuid: string | null | undefined },
++    pathUuid: unknown,
++): boolean => sameUuid(pathUuid, caller?.company_uuid) || sameUuid(pathUuid, caller?.uuid);

@@ -15,6 +15,7 @@ import {
 
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -641,6 +642,7 @@ const CompanySecurity = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [SECURITY_KEY],
     });
   };
 
@@ -655,11 +657,11 @@ const CompanySecurity = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Security</p>
-        <p className="text-xs text-gray-500">
-          Security rules for everyone in the company. The Security &amp; Privacy page under My
-          Account covers only your own password and devices — this one is company-wide.
-        </p>
+        <SectionHeading
+          icon={<ShieldCheck className="h-[18px] w-[18px]" />}
+          title="Security"
+          description="Security rules for everyone in the company. The Security &amp; Privacy page under My Account covers only your own password and devices — this one is company-wide."
+        />
       </div>
 
       <div className="w-full">
@@ -861,7 +863,7 @@ const CompanySecurity = () => {
             icon={<Network className="h-5 w-5" />}
             title="IP allowlist / blocklist"
             description="The networks people may — or may not — sign in from: individual addresses or CIDR blocks, IPv4 or IPv6."
-            note="Stored, validated and ready — server-side enforcement is written and tested (backend-patches/default-api/) but has not been deployed, so signing in is not restricted by network yet. Everything below is real: what you save here is what starts enforcing the moment it is."
+            note="Enforced at sign-in and on every request since 2 September 2026. What you save here is what the server checks, so add your own network before switching the allow list on — the break-glass window below is the way back in if you lock yourself out."
           >
             {/* Two independent lists - own toggle, own entries, own table -
                 shown one at a time. Switching tabs never mixes the two

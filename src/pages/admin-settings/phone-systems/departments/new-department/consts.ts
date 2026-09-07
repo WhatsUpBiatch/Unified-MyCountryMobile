@@ -24,18 +24,21 @@ export const OPERATIONAL_HOUR_TYPE = {
   '24_HOURS': '24_hours',
 };
 
+/* These values are both the tab titles a person reads and the keys the form's
+   validation and error maps are indexed by, so every use goes through the
+   constant and the wording can change in one place. */
 export const DEPARTMENT_TAB_CONSTANT = {
-  BASIC_INFORMATION: 'Department Information',
+  BASIC_INFORMATION: 'Group information',
   SETTING_PERMISSIONS: 'Settings & Permissions',
-  ADD_MEMBER: 'Add Members',
+  ADD_MEMBER: 'Add people',
   RING_STRETEGY: 'Ring Strategy',
   GREETING_NOTIFICATION: 'Media',
 };
 
 export const DEPARTMENT_ERROR_TYPES_MESSAGES = {
-  [DEPARTMENT_TAB_CONSTANT.BASIC_INFORMATION]: 'Department information is required',
+  [DEPARTMENT_TAB_CONSTANT.BASIC_INFORMATION]: 'Group information is required',
   [DEPARTMENT_TAB_CONSTANT.SETTING_PERMISSIONS]: 'Settings are required',
   [DEPARTMENT_TAB_CONSTANT.GREETING_NOTIFICATION]: 'Media is required',
-  [DEPARTMENT_TAB_CONSTANT.RING_STRETEGY]: 'Key pressess is required',
-  [DEPARTMENT_TAB_CONSTANT.ADD_MEMBER]: 'Memebers & managers is required',
+  [DEPARTMENT_TAB_CONSTANT.RING_STRETEGY]: 'Key presses are required',
+  [DEPARTMENT_TAB_CONSTANT.ADD_MEMBER]: 'People and a manager are required',
 };

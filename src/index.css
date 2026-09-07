@@ -164,7 +164,15 @@
   --mcm-sans:
     'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', sans-serif;
-  --mcm-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* 'Twemoji Country Flags' belongs in the MONO stack too, not only the sans
+     one. Phone numbers are rendered in monospace (`.num`), and that is exactly
+     where the country flags sit — so a stack without it fell back to the bare
+     regional-indicator letters and every number read "IN +91 90045 83988" or
+     "US +1 605 971 3935" instead of showing a flag. Windows has no flag emoji
+     font of its own, so the webfont the polyfill injects is the only thing that
+     draws them; its @font-face carries a unicode-range covering nothing but
+     those codepoints, so listing it first cannot affect the digits. */
+  --mcm-mono: 'Twemoji Country Flags', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -683,9 +691,37 @@
     border-color: var(--color-red-500) !important;
   }
 
-  .react-tel-input .flag-dropdown {
+  /* The flag belongs INSIDE the field, not beside it.
+     react-phone-input-2 renders the flag picker as its own bordered, rounded
+     box overlaying the input's left edge — and with the input rounded on all
+     four corners you saw two separate boxes butted together instead of one
+     phone field. Stripping the picker's own border and background lets it read
+     as part of the input it sits in. */
+  .react-tel-input .flag-dropdown,
+  .react-tel-input .flag-dropdown.open,
+  .react-tel-input .flag-dropdown:hover,
+  .react-tel-input .flag-dropdown:focus,
+  .react-tel-input .selected-flag,
+  .react-tel-input .selected-flag:hover,
+  .react-tel-input .selected-flag:focus,
+  .react-tel-input .flag-dropdown.open .selected-flag {
+    background-color: transparent !important;
+    border: 0 !important;
     border-radius: 0.8rem 0 0 0.8rem !important;
     min-height: 2rem !important;
+  }
+  /* Room for the flag the input now contains. */
+  .react-tel-input .form-control {
+    padding-left: 3rem !important;
+  }
+  /* The country menu is a child of .flag-dropdown, so it has to opt back out of
+     the transparent background above or it renders over the page unreadably. */
+  .react-tel-input .country-list {
+    background-color: var(--color-white) !important;
+    border-radius: 0.6rem !important;
+    box-shadow:
+      0 8px 24px rgb(0 0 0 / 0.12),
+      0 2px 6px rgb(0 0 0 / 0.08) !important;
   }
 
   .team_chat.custom-react-select__control {

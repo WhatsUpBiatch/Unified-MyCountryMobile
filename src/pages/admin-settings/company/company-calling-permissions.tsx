@@ -5,6 +5,7 @@ import { ArrowRightLeft, Globe2, PhoneForwarded, PhoneOutgoing, ShieldAlert } fr
 
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
+import { SectionHeading } from './section-heading';
 import { SectionActions } from './section-actions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -540,6 +541,7 @@ const CompanyCallingPermissions = () => {
       uuid: companyDefaultTemplate?.uuid,
       settings: nextSettings,
       greetings: toGreetingsObject(companyDefaultTemplate?.greetings),
+      only: [PERMISSIONS_KEY],
     });
   };
 
@@ -554,11 +556,11 @@ const CompanyCallingPermissions = () => {
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
-        <p className="text-lg font-semibold text-gray-900">Calling permissions</p>
-        <p className="text-xs text-gray-500">
-          Which countries your team can phone, which number they show when they call out, and where
-          they may send a call once it is connected.
-        </p>
+        <SectionHeading
+          icon={<Globe2 className="h-[18px] w-[18px]" />}
+          title="Calling permissions"
+          description="Which countries your team can phone, which number they show when they call out, and where they may send a call once it is connected."
+        />
       </div>
 
       <div className="w-full">

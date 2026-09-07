@@ -586,6 +586,7 @@ interface SocketEventsType {
   setLiveCalls: any;
   eventLiveCallsData: any;
   setEventLiveCallsData: any;
+  callHistoryLiveUpdate: { payload: any; receivedAt: number } | null;
   liveQueueCalls: Array<any>;
   setLiveQueueCalls: any;
   activeCampaigns: Array<any>;
@@ -755,6 +756,7 @@ export const SocketEvents = createContext<SocketEventsType>({
   setLiveCalls: () => void 0,
   eventLiveCallsData: null,
   setEventLiveCallsData: () => void 0,
+  callHistoryLiveUpdate: null,
   liveQueueCalls: [],
   setLiveQueueCalls: () => void 0,
   activeCampaigns: [],
@@ -797,6 +799,15 @@ export const SocketEventsProvider = ({ children }: { children: ReactNode }) => {
   const [ongoingLiveCalls, setOngoingLiveCalls] = useState<any>({});
   const [allLiveCalls, setAllLiveCalls] = useState<any>([]);
   const [eventLiveCallsData, setEventLiveCallsData] = useState<any>(null);
+  /* Fires once per completed/updated call_history row (cdr-ingest, server
+     121, pushes this the moment it inserts or merges a row - see
+     [[live-call-history-push]]). Consumers re-fetch their own call list off
+     this rather than the payload being spliced in directly, so pagination
+     and active filters stay exactly as correct as a normal fetch. */
+  const [callHistoryLiveUpdate, setCallHistoryLiveUpdate] = useState<{
+    payload: any;
+    receivedAt: number;
+  } | null>(null);
   const [conferenceParticipants, setConferenceParticipants] = useState<Array<any>>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadSMSCount, setUnreadSMSCount] = useState(0);
@@ -2095,6 +2106,9 @@ export const SocketEventsProvider = ({ children }: { children: ReactNode }) => {
           console.log('dash-live-queue-calls-response', data);
           const result = data?.data?.result || [];
           setLiveQueueCalls(Array.isArray(result) ? result : []);
+        });
+        getSocketConnection.on('call-history-updated', (data: any) => {
+          setCallHistoryLiveUpdate({ payload: data, receivedAt: Date.now() });
         });
 
         getSocketConnection.on(chatEvents.RECENT_MEETINGS, (data: any) => {
@@ -4814,6 +4828,7 @@ export const SocketEventsProvider = ({ children }: { children: ReactNode }) => {
         setLiveCalls,
         eventLiveCallsData,
         setEventLiveCallsData,
+        callHistoryLiveUpdate,
         liveQueueCalls,
         setLiveQueueCalls,
         activeCampaigns,

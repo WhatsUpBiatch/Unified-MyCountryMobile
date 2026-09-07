@@ -79,6 +79,7 @@ const ListItem = ({
   isCompactLayout = false,
   focusNumber = '',
   onFocusHandled,
+  onOpenConversation,
 }: {
   tabType: string;
   selectedDID?: any;
@@ -91,6 +92,11 @@ const ListItem = ({
   isCompactLayout?: boolean;
   focusNumber?: string;
   onFocusHandled?: () => void;
+  /* Fired on every row click, not only when the selection changes: the list
+     auto-selects a conversation, so clicking the already-selected one changes
+     nothing — and the composer rendered in the same space would stay on top of
+     it with no way back. */
+  onOpenConversation?: () => void;
 }) => {
   const { setParam, getAllParams } = useSearchParamManager();
   const { formState, chatId, faxMessageId } = getAllParams();
@@ -152,6 +158,13 @@ const ListItem = ({
   const activeListing = isFaxTab ? faxListing : chatListing;
   const activeConversationId = isFaxTab ? faxMessageId : chatId;
 
+  /* Resolve the conversation id in the URL to the row it names.
+
+     `selectedChat` is in the deps on purpose: a chatId in the URL with no
+     selection is the thread's loading state, so if anything clears the
+     selection while the id stays put, this has to run again to recover. Without
+     it the effect had already fired for that id and never re-ran, and the
+     thread sat on skeletons for ever. */
   useEffect(() => {
     if (!selectedDID?.value || formState === 'contact' || !activeConversationId) return;
 
@@ -167,6 +180,7 @@ const ListItem = ({
     activeListing,
     formState,
     isFaxTab,
+    selectedChat,
     selectedDID?.value,
     setSelectedChat,
   ]);
@@ -276,6 +290,7 @@ const ListItem = ({
               aria-current={isSelected ? 'true' : undefined}
               className={cn('mcm-row', isSelected && 'is-active')}
               onClick={() => {
+                onOpenConversation?.();
                 setSelectedChat(conversation);
                 if (isFaxTab) {
                   setParam({ faxMessageId: conversation?.faxMessageId });
@@ -332,7 +347,7 @@ const ListItem = ({
                 </span>
 
                 {!isUnknownContact && displayNumber ? (
-                  <span className="mcm-row-sub mcm-num">{displayNumber}</span>
+                  <NumberWithFlag number={displayNumber} className="mcm-row-sub mcm-num" />
                 ) : null}
 
                 <span className="mcm-row-sub">

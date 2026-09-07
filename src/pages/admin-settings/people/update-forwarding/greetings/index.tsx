@@ -1,16 +1,20 @@
 import CommonGreetingNotification from '@/components/common-greetings';
-import { GreetingItem, useGetGreetings } from '@/hooks/common';
+import { useGetGreetings } from '@/hooks/common';
+import { greetingOptionsForSlots } from '@/lib/greeting-slots';
 
 const GreetingNotification = ({ customClass }: any) => {
-  const { greetingList, voicemailList } = useGetGreetings();
+  /* The whole library, not the pre-filtered lists: those filter on the
+     original `greeting` type and so cannot see the stock recordings, which
+     are typed by slot. greeting-slots.ts holds the mapping. */
+  const { allGreetings } = useGetGreetings();
 
-  const optionsData: Record<string, GreetingItem[]> = {
-    welcome_greeting: greetingList,
-    on_hold: greetingList,
-    on_hold_music: greetingList,
-    ring_tone: greetingList,
-    voicemail: voicemailList,
-  };
+  const optionsData = greetingOptionsForSlots(allGreetings, [
+    'welcome_greeting',
+    'on_hold',
+    'on_hold_music',
+    'ring_tone',
+    'voicemail',
+  ]);
 
   const mediaOptionsGreetingNotifications = [
     {
