@@ -61,6 +61,7 @@ const CALL_STATUS = ['answered', 'missed', 'voicemail', 'abandoned'];
 
 /* The first three locations get people; the fourth deliberately gets none. */
 const SITE_UUIDS = [f.uuid('site0'), f.uuid('site1'), f.uuid('site2')];
+const SITE_NAMES = ['Austin HQ', 'London', 'Singapore'];
 
 const user = (i) => {
   const p = f.person(`u${i}`);
@@ -82,7 +83,15 @@ const user = (i) => {
        them. Uneven on purpose: a location with nobody in it is a real state
        the card has copy for. */
     site_uuid: SITE_UUIDS[i % 3],
-    site_detail: { name: f.city(i) },
+    /* `site.name` as well as `site_detail`: the People roster reads
+       `person.site.name` for the Location column and joins `site_uuid` to the
+       site list for the "City, Country" line under it. With only
+       `site_detail` the column showed a dash above a place. */
+    site: { name: SITE_NAMES[i % 3], uuid: SITE_UUIDS[i % 3] },
+    site_detail: { name: SITE_NAMES[i % 3] },
+    /* The outbound number, shown under the extension. Not everyone has one —
+       the column has copy for that and it should be reachable. */
+    caller_id: i % 3 === 0 ? f.phone(`cid${i}`) : '',
     department: f.department(i),
     created_at: f.daysAgo(i * 3 + 2),
     profile: null,
@@ -107,8 +116,14 @@ const call = (i) => ({
   date: f.minutesAgo(i * 17 + 4),
 });
 
+/* Queue membership is the platform's nearest thing to an ACD skill, and it is
+   what the roster's "ACD skills" column lists. Without `members` the column was
+   a dash on every row. */
 const queue = (i) => ({
   uuid: f.uuid(`q${i}`),
+  members: f
+    .seq(f.number(`qm${i}`, 2, 6), (n) => n)
+    .map((n) => ({ user_uuid: f.uuid(`u${(i * 3 + n) % 24}`) })),
   name: `${f.department(i)} Queue`,
   extension: String(6000 + i),
   strategy: f.choice(['ring-all', 'longest-idle', 'round-robin'], `str${i}`),
@@ -159,14 +174,30 @@ const contact = (i) => {
   };
 };
 
-const department = (i) => ({
-  uuid: f.uuid(`d${i}`),
-  name: f.department(i),
-  extension: String(7000 + i),
-  members_count: f.number(`mc${i}`, 2, 20),
-  site_name: f.city(i),
-  status: 'active',
-});
+const DEPT_NAMES = ['Billing', 'Onboarding', 'Retention', 'Support', 'Sales', 'Engineering'];
+
+/* Departments carry their members, because that is how the People roster fills
+   its Groups column — `departmentByUser` walks each department's `members` and
+   maps user uuid to group name. A count alone left the column reading "—" for
+   everybody. Deliberately partial: a person in no group is a real row and the
+   column has to survive it. */
+const department = (i) => {
+  const members = f
+    .seq(f.number(`dm${i}`, 2, 5), (n) => n)
+    .map((n) => ({ user_uuid: f.uuid(`u${(i + n * 4) % 24}`) }));
+  return {
+    uuid: f.uuid(`d${i}`),
+    /* Distinct names. `f.department` picks from a short list by hash, so six
+       departments drew the same name twice — and a person in both then read
+       "Onboarding, Onboarding" in the roster's Groups column. */
+    name: DEPT_NAMES[i % DEPT_NAMES.length],
+    extension: String(7000 + i),
+    members,
+    members_count: members.length,
+    site_name: f.city(i),
+    status: 'active',
+  };
+};
 
 const message = (i) => ({
   uuid: f.uuid(`m${i}`),
@@ -195,8 +226,21 @@ const role = (i) => {
   const names = ['ADMIN', 'MANAGER', 'SUB-ADMIN', 'AGENT', 'Sales lead', 'Call reviewer'];
   return {
     uuid: f.uuid(`rl${i}`),
+    /* `type` and `role_uuid` as well as `uuid`. Every role picker in the
+       product identifies a role by `uuid` when it is custom and by `role_uuid`
+       when it is not, so with neither field set they all resolved to the empty
+       string — which react-select read as "every option is the selected one"
+       and drew the whole menu as selected. `company_uuid` is what tells a
+       platform role from a company's own. */
+    role_uuid: f.uuid(`rlsys${i}`),
+    type: i >= 4 ? 'custom' : 'system',
+    company_uuid: i >= 4 ? COMPANY_UUID : 'PREDEFINED',
     name: names[i % names.length],
     description: 'Sandbox role',
+    /* `user_count` as well: the roles screen reads five different key spellings
+       depending on which endpoint answered, and the real list endpoint sends
+       this one. */
+    user_count: f.number(`uc${i}`, 1, 30),
     users_count: f.number(`uc${i}`, 1, 30),
     is_custom: i >= 4,
   };
@@ -370,6 +414,37 @@ const SESSIONS = (role) => {
 
 const EXTENSIONS_FOR_SESSIONS = { ADMIN: '1001', MANAGER: '1002', 'SUB-ADMIN': '1003', AGENT: '1004' };
 
+/* The administrators and their scopes, for the Admin scope screen. See the
+   handler below for why they are shaped this way. */
+const ADMIN_SCOPES = () => [
+  { uuid: f.uuid(`user-${currentRole}`), system_role: 'ADMIN', admin_scope: null },
+  {
+    uuid: f.uuid('u4'),
+    system_role: 'SUB-ADMIN',
+    admin_scope: { level: 'location', location_uuids: [SITE_UUIDS[0], SITE_UUIDS[1]], group_uuids: [] },
+  },
+  {
+    uuid: f.uuid('u7'),
+    system_role: 'SUB-ADMIN',
+    admin_scope: { level: 'group', location_uuids: [], group_uuids: [f.uuid('d1')] },
+  },
+  { uuid: f.uuid('u1'), system_role: 'MANAGER', admin_scope: null },
+  { uuid: f.uuid('u13'), system_role: 'SUB-ADMIN', admin_scope: null },
+];
+
+/* Every person's account state. `/api/user/list` does not carry it, so the
+   roster asks for all of them at once and joins by uuid; with no handler the
+   request failed and the screen showed no pill at all rather than a wrong one —
+   correct behaviour, but it meant the column could never be seen working.
+
+   Mostly ACTIVE, with one of each other state: the three read differently and
+   each has its own note. */
+const PERSON_STATES = () =>
+  f.seq(24, (i) => ({
+    uuid: f.uuid(`u${i}`),
+    state: i === 5 ? 'PENDING' : i === 11 ? 'SUSPENDED' : 'ACTIVE',
+  }));
+
 /* Named handlers, matched on the path ending. */
 const HANDLERS = [
   ['/api/user/info', () => ok(persona(currentRole))],
@@ -381,8 +456,14 @@ const HANDLERS = [
       /* Non-empty or OrganizationProvider renders a loader forever. Not a real
          key — Stripe Elements simply will not initialise, which is fine here. */
       stripe_publish_key: 'pk_test_sandbox_placeholder_not_a_real_key',
-      primary_color: '',
-      secondary_color: '',
+      /* A real company always has a brand colour, and a great deal is keyed
+         on it: the selected row of every react-select menu, the primary button
+         in every portalled dialog. Left empty, OrganizationProvider never sets
+         --primary and all of it falls back to shadcn's near-black, which reads
+         as a rendering fault rather than as an unbranded account. Same blue as
+         the --accent token so the sandbox is one colour throughout. */
+      primary_color: '#2563eb',
+      secondary_color: '#dbeafe',
       large_logo: '',
       small_logo: '',
       login_image: '',
@@ -405,16 +486,47 @@ const HANDLERS = [
         : rows,
     );
   }],
+  ['/api/person/state', (b) => page(PERSON_STATES(), b)],
+
+  /* Who is an administrator, and how far each one reaches.
+
+     Admin scope builds its whole list from this endpoint: a person only
+     appears there if a row here gives them MANAGER or SUB-ADMIN. With no
+     handler the screen said "Nobody holds an admin role yet", which is a real
+     state but the one state where none of the screen can be seen. The signed-in
+     persona is ADMIN so the editing path is reachable; the rest are deliberately
+     uneven — one already narrowed to two locations, one to a group, the others
+     still company-wide, because the list sorts the narrowed ones first and that
+     ordering is worth being able to see. */
+  /* Matching is by prefix, so this answers the save at
+     /api/person/scope/<uuid> too. The screen only checks that the save
+     succeeded and then refetches, so a saved scope does not stick between
+     reloads — enough to walk the form. */
+  ['/api/person/scope', () => page(ADMIN_SCOPES(), { page: 1, limit: 50 })],
   ['/api/tenant/greeting/list', (b) => page(GREETINGS, b)],
   ['/api/site/list', (b) => page(SITES, b)],
   ['/api/user/list', (b) => {
-    /* `filters: [{key, value}]` is how the console narrows this list, and the
-       Company screen counts a location's people by asking for one row and
-       reading the total. Ignoring the filter made every location report the
-       whole company. */
-    const siteFilter = (b?.filters || []).find((x) => x?.key === 'site_uuid')?.value;
-    const rows = f.seq(24, user);
-    return page(siteFilter ? rows.filter((r) => r.site_uuid === siteFilter) : rows, b);
+    /* The console narrows this list by a filter array, and screens count a
+       cohort by asking for one row and reading the total back. Ignoring the
+       filter made every such count report the whole company — a location with
+       four people claiming 24, and the Roles screen crediting the owner role
+       with every account on the tenant.
+
+       Both spellings are accepted because both are sent: People passes
+       `filters`, the roles screen's owner count passes `filter`. */
+    const clauses = [...(b?.filters || []), ...(b?.filter || [])];
+    const valueOf = (key) => clauses.find((x) => x?.key === key)?.value;
+    const siteFilter = valueOf('site_uuid');
+    const roleFilter = valueOf('role');
+
+    let rows = f.seq(24, user);
+    if (siteFilter) rows = rows.filter((r) => r.site_uuid === siteFilter);
+    if (roleFilter) {
+      /* Sent either bare or wrapped in an array, depending on the caller. */
+      const wanted = [].concat(roleFilter).map(String);
+      rows = rows.filter((r) => wanted.includes(String(r.role)));
+    }
+    return page(rows, b);
   }],
   ['/api/user/role/list', (b) => page(f.seq(6, role), b)],
   ['/api/call-queue/list', (b) => page(f.seq(6, queue), b)],

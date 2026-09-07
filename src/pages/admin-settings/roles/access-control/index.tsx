@@ -10,8 +10,8 @@
  *
  *   1. Decide which kind of person somebody is.
  *   2. Set what that kind of person can do.
- *   3. Set how far it reaches.
- *   4. Choose what a brand-new person starts on.
+ *   3. Choose what a brand-new person starts on.
+ *   4. Set how far it reaches.
  *
  * Each step says what it decides, what happens if it is skipped, and opens the
  * screen that does it. Nothing is saved here — it is a map, and a map that saved
@@ -65,40 +65,60 @@ const AccessControlPage = () => {
     <AdminPage
       section="People"
       title="How access works"
-      description="Who can do what, in three steps. Start here, then work down: the later steps assume the earlier ones have been answered."
+      description="Who can do what, in four steps. Start here, then work down: the later steps assume the earlier ones have been answered."
       actions={<AreaNav current="/admin-settings/access-control" />}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
         <SettingCard
-          title="The three steps, in order"
+          title="The four steps, in order"
           icon={<Compass className="h-4 w-4" />}
-          description="Access is one decision made in three places. Doing them out of order still works, but each one is easier once the one above it is settled. Only Roles is in the sidebar; the strip at the top of each step leads to the others."
+          description="Access is one decision made in four places. Doing them out of order still works, but each one is easier once the one above it is settled. Only Roles is in the sidebar; the strip at the top of each step leads to the others."
         >
-          {ACCESS_STEPS.map((item) => {
-            const note = STEP_NOTES[item.path];
-            const here = item.path === '/admin-settings/access-control';
-            return (
-              <SettingRow
-                key={item.path}
-                label={`Step ${item.step} — ${item.title}`}
-                description={
-                  <>
-                    <strong>Decides:</strong> {note.decides} <br />
-                    <strong>If it is skipped:</strong> {note.ifSkipped}
-                  </>
-                }
-                control={
-                  here ? (
-                    <span className="text-xs font-semibold text-primary">You are here</span>
+          {/* A numbered list, not a settings list.
+
+              These four are an order to work through, and SettingRow drew them
+              as four unrelated settings: the step number was typed into the
+              label ("Step 2 — Roles") and the two things that matter about each
+              one — what it decides, and what breaks when it is skipped — ran
+              together as one paragraph of bold-led prose. The number is a rail
+              here, and the two facts are two lines with their own headings, so
+              the shape of the decision is visible before any of it is read. */}
+          <ol className="mcm-amap">
+            {ACCESS_STEPS.map((item) => {
+              const note = STEP_NOTES[item.path];
+              const here = item.path === '/admin-settings/access-control';
+              return (
+                <li key={item.path} className={`mcm-amap-i${here ? ' is-here' : ''}`}>
+                  <span className="mcm-amap-n" aria-hidden="true">
+                    {item.step}
+                  </span>
+                  <div className="mcm-amap-t">
+                    <b>{item.title}</b>
+                    <p>
+                      <span className="mcm-amap-k">Decides</span>
+                      {note.decides}
+                    </p>
+                    <p className="is-risk">
+                      <span className="mcm-amap-k">If skipped</span>
+                      {note.ifSkipped}
+                    </p>
+                  </div>
+                  {here ? (
+                    <span className="mcm-amap-you">You are here</span>
                   ) : (
-                    <Button type="button" variant="transparent" onClick={() => navigate(item.path)}>
-                      Open <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                    </Button>
-                  )
-                }
-              />
-            );
-          })}
+                    <button
+                      type="button"
+                      className="mcm-amap-go"
+                      onClick={() => navigate(item.path)}
+                    >
+                      Open
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </SettingCard>
 
         <SettingCard
@@ -132,9 +152,7 @@ const AccessControlPage = () => {
                 </>
               }
               control={
-                <span className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600">
-                  {SCOPE_LABEL[tier.scope]}
-                </span>
+                <span className="mcm-scope">{SCOPE_LABEL[tier.scope]}</span>
               }
             />
           ))}

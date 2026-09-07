@@ -59,6 +59,19 @@ const usersOn = (role: Role) =>
   (Array.isArray(role?.users) ? role.users.length : 0) ??
   0;
 
+/** Whether the count is known at all, tested against the same keys `usersOn`
+    reads. The owner row hid its number behind a check on `user_count` alone —
+    so a server answering with `users_count`, which `usersOn` accepts happily,
+    printed a dash with the real figure sitting one key over. Two functions
+    disagreeing about where the count lives is exactly the drift this file's
+    own comment warns about. */
+const hasUserCount = (role: Role) =>
+  role?.user_count !== undefined ||
+  role?.users_count !== undefined ||
+  role?.total_users !== undefined ||
+  role?.usersCount !== undefined ||
+  Array.isArray(role?.users);
+
 /** A predefined role belongs to the platform and cannot be edited or removed. */
 const isSystemRole = (role: Role) => role?.company_uuid === 'PREDEFINED';
 
@@ -208,7 +221,7 @@ const Roles = () => {
                       </span>
                     </td>
                     <td className="num">
-                      {owner && role?.user_count === undefined ? '—' : usersOn(role)}
+                      {owner && !hasUserCount(role) ? '—' : usersOn(role)}
                     </td>
                     <td>
                       <span className="flex items-center gap-1">

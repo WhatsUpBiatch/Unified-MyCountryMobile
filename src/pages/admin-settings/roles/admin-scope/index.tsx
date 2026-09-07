@@ -264,36 +264,54 @@ const AdminScopePage = () => {
                 icon={<Users className="h-4 w-4" />}
                 description="Everything inside the scope is theirs to administer. Everything outside it is not."
               >
-                {LEVELS.map((item) => (
-                  <SettingRow
-                    key={item.level}
-                    label={item.label}
-                    description={item.description}
-                    control={
+                {/* The three levels as three choices, not three settings rows.
+
+                    They were a label, a sentence and a bare radio thrown to the
+                    far right of a full-width row — the control a screen away
+                    from the words it belongs to. A whole option is the target
+                    here, which is also what makes the sentence readable: it is
+                    describing the thing you are about to pick. */}
+                <div className="mcm-lvls" role="radiogroup" aria-label="How far they reach">
+                  {LEVELS.map((item) => (
+                    <label
+                      key={item.level}
+                      className={`mcm-lvl${draft.level === item.level ? ' is-on' : ''}`}
+                    >
                       <input
                         type="radio"
                         name="admin-scope-level"
-                        aria-label={item.label}
                         checked={draft.level === item.level}
                         onChange={() => setLevel(item.level)}
                       />
-                    }
-                  />
-                ))}
+                      <span className="mcm-lvl-t">
+                        <b>{item.label}</b>
+                        <span>{item.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
 
                 {draft.level === 'location' ? (
-                  <SettingRow
-                    label="Locations they manage"
-                    description="One for a location admin, several for somebody who covers a region."
-                  >
-                    <div className="flex flex-col gap-2">
-                      {directory.locations.length === 0 ? (
-                        <p className="text-sm text-gray-600">
-                          No locations yet. Add one under Company before using this scope.
-                        </p>
-                      ) : (
-                        directory.locations.map((location) => (
-                          <label key={location.uuid} className="flex items-center gap-3 text-sm">
+                  <div className="mcm-pick">
+                    <div className="mcm-pick-h">
+                      <b>Locations they manage</b>
+                      <span>
+                        One for a location admin, several for somebody who covers a region.
+                      </span>
+                    </div>
+                    {directory.locations.length === 0 ? (
+                      <p className="mcm-pick-none">
+                        No locations yet. Add one under Company before using this scope.
+                      </p>
+                    ) : (
+                      <div className="mcm-pick-l">
+                        {directory.locations.map((location) => (
+                          <label
+                            key={location.uuid}
+                            className={`mcm-pick-i${
+                              draft.location_uuids.includes(location.uuid) ? ' is-on' : ''
+                            }`}
+                          >
                             <Checkbox
                               checked={draft.location_uuids.includes(location.uuid)}
                               onCheckedChange={() =>
@@ -301,77 +319,96 @@ const AdminScopePage = () => {
                                   current
                                     ? {
                                         ...current,
-                                        location_uuids: toggleIn(current.location_uuids, location.uuid),
+                                        location_uuids: toggleIn(
+                                          current.location_uuids,
+                                          location.uuid,
+                                        ),
                                       }
                                     : current,
                                 )
                               }
                             />
-                            <Building2 className="h-3.5 w-3.5 text-gray-500" />
+                            <Building2 className="h-3.5 w-3.5" />
                             {location.name}
                           </label>
-                        ))
-                      )}
-                    </div>
-                  </SettingRow>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : null}
 
                 {draft.level === 'group' ? (
-                  <SettingRow
-                    label="Groups they manage"
-                    description="They reach the people in these groups, wherever those people sit."
-                  >
-                    <div className="flex flex-col gap-2">
-                      {directory.groups.length === 0 ? (
-                        <p className="text-sm text-gray-600">
-                          No groups yet. Add one under Phone System before using this scope.
-                        </p>
-                      ) : (
-                        directory.groups.map((group) => (
-                          <label key={group.uuid} className="flex items-center gap-3 text-sm">
+                  <div className="mcm-pick">
+                    <div className="mcm-pick-h">
+                      <b>Groups they manage</b>
+                      <span>They reach the people in these groups, wherever those people sit.</span>
+                    </div>
+                    {directory.groups.length === 0 ? (
+                      <p className="mcm-pick-none">
+                        No groups yet. Add one under Phone System before using this scope.
+                      </p>
+                    ) : (
+                      <div className="mcm-pick-l">
+                        {directory.groups.map((group) => (
+                          <label
+                            key={group.uuid}
+                            className={`mcm-pick-i${
+                              draft.group_uuids.includes(group.uuid) ? ' is-on' : ''
+                            }`}
+                          >
                             <Checkbox
                               checked={draft.group_uuids.includes(group.uuid)}
                               onCheckedChange={() =>
                                 setDraft((current) =>
                                   current
-                                    ? { ...current, group_uuids: toggleIn(current.group_uuids, group.uuid) }
+                                    ? {
+                                        ...current,
+                                        group_uuids: toggleIn(current.group_uuids, group.uuid),
+                                      }
                                     : current,
                                 )
                               }
                             />
+                            <Users className="h-3.5 w-3.5" />
                             {group.name}
                           </label>
-                        ))
-                      )}
-                    </div>
-                  </SettingRow>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : null}
 
+                {/* How many people this actually comes to. It is the answer to
+                    the question the whole card is asking, and it was the last
+                    grey settings row on the screen. */}
                 {reach ? (
-                  <SettingRow
-                    label="What this reaches"
-                    description={
-                      draft.level === 'company'
-                        ? `Everybody — all ${reach.totalPeople} people.`
-                        : `${reach.people} of ${reach.totalPeople} people${
-                            reach.unplaced > 0
-                              ? `. ${reach.unplaced} ${
-                                  draft.level === 'location'
-                                    ? 'have no location set and are left out'
-                                    : 'are in no group and are left out'
-                                }`
-                              : ''
-                          }.`
-                    }
-                  />
+                  <div className="mcm-reach">
+                    <b>
+                      {draft.level === 'company' ? reach.totalPeople : reach.people}
+                      <span> of {reach.totalPeople} people</span>
+                    </b>
+                    <p>
+                      {draft.level === 'company'
+                        ? 'Everybody in the company.'
+                        : reach.unplaced > 0
+                          ? `${reach.unplaced} ${
+                              draft.level === 'location'
+                                ? 'have no location set and are left out'
+                                : 'are in no group and are left out'
+                            }.`
+                          : 'Everybody is placed, so nobody is left out by accident.'}
+                    </p>
+                  </div>
                 ) : null}
 
                 {problems.map((problem, index) => (
-                  <SettingRow
+                  <p
                     key={`${problem.field}-${index}`}
-                    label={problem.blocking ? 'Needs fixing' : 'Worth knowing'}
-                    description={problem.message}
-                  />
+                    className={`mcm-scope-p${problem.blocking ? ' is-block' : ''}`}
+                  >
+                    <b>{problem.blocking ? 'Needs fixing' : 'Worth knowing'}</b>
+                    {problem.message}
+                  </p>
                 ))}
 
                 <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">

@@ -76,26 +76,36 @@ export const AreaNav = ({ current }: { current: string }) => {
   const navigate = useNavigate();
 
   return (
-    <nav className="flex flex-wrap items-center gap-1.5" aria-label="Access control steps">
-      {[...ACCESS_STEPS, REFERENCE].map((item) => {
+    <nav className="mcm-asteps" aria-label="Access control steps">
+      {ACCESS_STEPS.map((item) => {
         const here = item.path === current;
         return (
           <button
             key={item.path}
             type="button"
-            disabled={here}
             title={item.purpose}
+            aria-current={here ? 'step' : undefined}
             onClick={() => navigate(item.path)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              here
-                ? 'border-primary bg-primary/10 text-primary cursor-default'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-primary hover:text-primary'
-            }`}
+            className={`mcm-astep${here ? ' is-here' : ''}`}
           >
-            {item.step ? <span className="opacity-60">{item.step}.</span> : null} {item.title}
+            <span className="mcm-astep-n" aria-hidden="true">
+              {item.step}
+            </span>
+            {item.title}
           </button>
         );
       })}
+      {/* Not a step, so it sits past the rule rather than in the count. */}
+      <span className="mcm-asteps-sep" aria-hidden="true" />
+      <button
+        type="button"
+        aria-current={REFERENCE.path === current ? 'page' : undefined}
+        title={REFERENCE.purpose}
+        onClick={() => navigate(REFERENCE.path)}
+        className={`mcm-astep is-ref${REFERENCE.path === current ? ' is-here' : ''}`}
+      >
+        {REFERENCE.title}
+      </button>
     </nav>
   );
 };

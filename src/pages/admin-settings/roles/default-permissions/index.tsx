@@ -49,6 +49,7 @@ import { upsertCustomRole, userRolesList } from '@/services/api';
 import {
   NEW_PERSON_ROLE_KEY,
   PER_PERSON_GAPS,
+  SCOPE_LABEL,
   TIER_ORDER,
   buildDefaultPermission,
   comparePermissions,
@@ -214,7 +215,7 @@ const DefaultPermissionsPage = () => {
     <AdminPage
       section="People"
       title="Default permissions"
-      description="Step 3 of three. What each kind of person should be able to do on their first day, and why. Write a recommendation down as a role, then pick it when adding people."
+      description="Step 3 of four. What each kind of person should be able to do on their first day, and why. Write a recommendation down as a role, then pick it when adding people."
       actions={<AreaNav current="/admin-settings/default-permissions" />}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
@@ -264,108 +265,141 @@ const DefaultPermissionsPage = () => {
                 </>
               }
             >
-              {defaults.map(({ tier, info, result }) => {
-                const existing = roleForTier.get(tier);
-                const differences = existing
-                  ? comparePermissions(extractPlanFeatures(existing.permission), result.permission)
-                  : [];
-                const extra = differences.filter((item) => item.kind === 'extra').length;
-                const missing = differences.filter((item) => item.kind === 'missing').length;
-                const isOpen = openTier === tier;
+              {/* One block per kind of person, not a settings row.
 
-                return (
-                  <SettingRow
-                    key={tier}
-                    label={info.label}
-                    description={
-                      <>
+                  SettingRow puts a label left, a control right and anything
+                  else full-width underneath — which for these six meant the
+                  name floated on its own line, the two buttons sat a paragraph
+                  below the sentence they act on, and the opened reasoning (up
+                  to forty rules) unrolled as one flat run of bold-led
+                  paragraphs. These are records with a header, a state and a
+                  drawer, so they are built as that. */}
+              <div className="mcm-tiers">
+                {defaults.map(({ tier, info, result }) => {
+                  const existing = roleForTier.get(tier);
+                  const differences = existing
+                    ? comparePermissions(extractPlanFeatures(existing.permission), result.permission)
+                    : [];
+                  const extra = differences.filter((item) => item.kind === 'extra').length;
+                  const missing = differences.filter((item) => item.kind === 'missing').length;
+                  const isOpen = openTier === tier;
+
+                  return (
+                    <section className={`mcm-tier${isOpen ? ' is-open' : ''}`} key={tier}>
+                      <header className="mcm-tier-h">
+                        <div className="mcm-tier-id">
+                          <b>{info.label}</b>
+                          <span className="mcm-scope">{SCOPE_LABEL[info.scope]}</span>
+                        </div>
+                        <div className="mcm-tier-acts">
+                          <button
+                            type="button"
+                            className="mcm-tier-why"
+                            aria-expanded={isOpen}
+                            onClick={() => setOpenTier(isOpen ? null : tier)}
+                          >
+                            {isOpen ? 'Hide the reasons' : 'Why this split'}
+                          </button>
+                          <Button
+                            type="button"
+                            variant="primary"
+                            disabled={writingRole || result.total === 0}
+                            onClick={() => applyDefault(tier)}
+                          >
+                            {existing && !isSystemRole(existing) ? 'Update this role' : 'Create role'}
+                          </Button>
+                        </div>
+                      </header>
+
+                      <p className="mcm-tier-d">
                         {info.description} <strong>{info.boundary}</strong>
-                        <br />
-                        {result.granted} of {result.total} things your plan offers.{' '}
+                      </p>
+
+                      {/* What the recommendation comes to, and how far the
+                          company's own role is from it. The count on its own
+                          said nothing about whether anything needed doing. */}
+                      <div className="mcm-tier-stats">
+                        <span className="mcm-tier-stat">
+                          <b>
+                            {result.granted} of {result.total}
+                          </b>{' '}
+                          things your plan offers
+                        </span>
                         {existing ? (
                           differences.length === 0 ? (
-                            <>Your &ldquo;{existing.name}&rdquo; role already matches this.</>
+                            <span className="mcm-tier-drift is-match">
+                              &ldquo;{existing.name}&rdquo; already matches
+                            </span>
                           ) : (
                             <>
-                              Your &ldquo;{existing.name}&rdquo; role grants {extra} thing
-                              {extra === 1 ? '' : 's'} this would take away
-                              {missing > 0 ? <> and is missing {missing}</> : null}.
-                              {isSystemRole(existing) ? (
-                                <> It is a system role, so it is left as it is.</>
+                              {extra > 0 ? (
+                                <span className="mcm-tier-drift is-extra">{extra} to take away</span>
                               ) : null}
+                              {missing > 0 ? (
+                                <span className="mcm-tier-drift is-missing">{missing} missing</span>
+                              ) : null}
+                              <span className="mcm-tier-of">
+                                from &ldquo;{existing.name}&rdquo;
+                                {isSystemRole(existing)
+                                  ? ' — a system role, so it is left as it is'
+                                  : ''}
+                              </span>
                             </>
                           )
                         ) : (
-                          <>You have no role for this kind of person yet.</>
+                          <span className="mcm-tier-drift is-none">No role for this kind yet</span>
                         )}
-                      </>
-                    }
-                    control={
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          variant="transparent"
-                          onClick={() => setOpenTier(isOpen ? null : tier)}
-                        >
-                          {isOpen ? 'Hide the reasons' : 'Why this split'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="primary"
-                          disabled={writingRole || result.total === 0}
-                          onClick={() => applyDefault(tier)}
-                        >
-                          {existing && !isSystemRole(existing) ? 'Update this role' : 'Create role'}
-                        </Button>
                       </div>
-                    }
-                  >
-                    {isOpen ? (
-                      <div className="flex flex-col gap-4 text-sm">
-                        <div className="flex flex-col gap-2">
-                          <p className="font-semibold text-gray-900">What they are given</p>
-                          {result.allowed.map((rule) => (
-                            <p key={rule.id} className="text-gray-700">
-                              <span className="font-medium text-gray-900">{rule.title}.</span>{' '}
-                              {rule.why}
-                            </p>
-                          ))}
-                        </div>
 
-                        {result.withheld.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            <p className="font-semibold text-gray-900">
-                              What is held back, and why
-                            </p>
-                            {result.withheld.map((rule) => (
-                              <p key={rule.id} className="text-gray-700">
-                                <span className="font-medium text-gray-900">{rule.title}.</span>{' '}
-                                {rule.why}
+                      {isOpen ? (
+                        <div className="mcm-tier-body">
+                          <div className="mcm-why">
+                            <h4 className="is-yes">What they are given</h4>
+                            <ul>
+                              {result.allowed.map((rule) => (
+                                <li key={rule.id}>
+                                  <b>{rule.title}</b>
+                                  <span>{rule.why}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {result.withheld.length > 0 ? (
+                            <div className="mcm-why">
+                              <h4 className="is-no">What is held back, and why</h4>
+                              <ul>
+                                {result.withheld.map((rule) => (
+                                  <li key={rule.id}>
+                                    <b>{rule.title}</b>
+                                    <span>{rule.why}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
+
+                          {result.undecided.length > 0 ? (
+                            <div className="mcm-why">
+                              <h4>Not decided here</h4>
+                              <p>
+                                Your plan includes {result.undecided.length} thing
+                                {result.undecided.length === 1 ? '' : 's'} these rules do not
+                                recognise, so {result.undecided.length === 1 ? 'it is' : 'they are'}{' '}
+                                switched off rather than guessed at. Turn{' '}
+                                {result.undecided.length === 1 ? 'it' : 'them'} on by hand on the
+                                Roles screen if this kind of person needs{' '}
+                                {result.undecided.length === 1 ? 'it' : 'them'}:{' '}
+                                {result.undecided.join(', ')}.
                               </p>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {result.undecided.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            <p className="font-semibold text-gray-900">Not decided here</p>
-                            <p className="text-gray-700">
-                              Your plan includes {result.undecided.length} thing
-                              {result.undecided.length === 1 ? '' : 's'} these rules do not
-                              recognise, so {result.undecided.length === 1 ? 'it is' : 'they are'}{' '}
-                              switched off rather than guessed at. Turn{' '}
-                              {result.undecided.length === 1 ? 'it' : 'them'} on by hand on the
-                              Roles screen if this kind of person needs{' '}
-                              {result.undecided.length === 1 ? 'it' : 'them'}:{' '}
-                              {result.undecided.join(', ')}.
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </SettingRow>
-                );
-              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
             </SettingCard>
 
             <SettingCard

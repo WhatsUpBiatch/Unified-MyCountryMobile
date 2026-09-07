@@ -40,13 +40,8 @@ import {
 /* A yes and a no, told apart by shape as well as by colour — a table read at a
    glance by somebody who cannot distinguish green from grey still has to work. */
 const Cell = ({ allowed, label }: { allowed: boolean; label: string }) => (
-  <td className="px-3 py-2 text-center align-middle">
-    <span
-      className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
-        allowed ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
-      }`}
-      title={label}
-    >
+  <td className="mcm-cap-c">
+    <span className={`mcm-cap-m${allowed ? ' is-yes' : ''}`} title={label}>
       {allowed ? <Check className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
       <span className="sr-only">{label}</span>
     </span>
@@ -95,6 +90,7 @@ const CapabilityMatrixPage = () => {
             <SettingRow
               key={tier.tier}
               label={tier.label}
+              control={<span className="mcm-scope">{SCOPE_LABEL[tier.scope]}</span>}
               description={
                 <>
                   <strong>Reaches: {SCOPE_LABEL[tier.scope].toLowerCase()}.</strong>{' '}
@@ -121,22 +117,21 @@ const CapabilityMatrixPage = () => {
         >
           {/* Wide on purpose: seven columns do not fold onto a phone, so the
               table scrolls inside its own box rather than the whole page moving
-              sideways underneath the reader. */}
-          <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+              sideways underneath the reader.
+
+              The capability column is pinned. Scrolled two columns right, every
+              row became six identical ticks with no way to tell which
+              capability they belonged to — the one thing the reader is holding
+              in their head is exactly the thing that had left the screen. */}
+          <div className="mcm-cap-wrap">
+            <table className="mcm-cap">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-3 py-2 text-left font-semibold text-gray-900">Capability</th>
+                <tr>
+                  <th scope="col">Capability</th>
                   {tiers.map((tier) => (
-                    <th
-                      key={tier.tier}
-                      className="px-3 py-2 text-center font-semibold text-gray-900"
-                      title={tier.description}
-                    >
-                      <span className="block">{tier.label}</span>
-                      <span className="block text-[11px] font-normal text-gray-500">
-                        {SCOPE_LABEL[tier.scope]}
-                      </span>
+                    <th scope="col" key={tier.tier} title={tier.description}>
+                      <span>{tier.label}</span>
+                      <span className="mcm-cap-scope">{SCOPE_LABEL[tier.scope]}</span>
                     </th>
                   ))}
                 </tr>
@@ -144,23 +139,18 @@ const CapabilityMatrixPage = () => {
               <tbody>
                 {sections.map((section) => (
                   <Fragment key={section.area}>
-                    <tr className="bg-gray-50">
-                      <td
-                        colSpan={tiers.length + 1}
-                        className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-700"
-                      >
-                        {section.title}
-                        <span className="ml-2 font-normal normal-case tracking-normal text-gray-500">
-                          {section.blurb}
-                        </span>
+                    <tr className="mcm-cap-sec">
+                      <td colSpan={tiers.length + 1}>
+                        <b>{section.title}</b>
+                        <span>{section.blurb}</span>
                       </td>
                     </tr>
                     {section.rows.map((row) => (
-                      <tr key={row.rule.id} className="border-b border-gray-100">
-                        <td className="px-3 py-2 align-top">
-                          <span className="font-medium text-gray-900">{row.rule.title}</span>
-                          <span className="block text-xs text-gray-600">{row.rule.why}</span>
-                        </td>
+                      <tr key={row.rule.id}>
+                        <th scope="row">
+                          <b>{row.rule.title}</b>
+                          <span>{row.rule.why}</span>
+                        </th>
                         {row.cells.map((cell) => (
                           <Cell
                             key={cell.tier}

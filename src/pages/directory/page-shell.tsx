@@ -1,4 +1,12 @@
 import type { ReactNode } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Ic, McmIconSprite } from '@/components/mcm/icons';
 
 /**
@@ -47,7 +55,17 @@ export const DirectoryPage = ({
   </div>
 );
 
-/** A filter chip that wraps a native control, so the chip is the whole hit area. */
+/** A filter chip.
+ *
+ * It wrapped a native `<select>`. The option list of one of those is drawn by
+ * the operating system: no CSS reaches it, so a filter menu opened as a plain
+ * white box with a hard blue highlight in the middle of a themed page, and its
+ * rows could not carry a tick, a count or anything else.
+ *
+ * Radix's radio group is the same choice a select makes — one value, arrow
+ * keys, type-ahead, announced as a choice — and it is already a dependency.
+ * Shared by People, Favourites and Locations, so all three change together.
+ */
 export const FilterChip = ({
   label,
   value,
@@ -59,20 +77,25 @@ export const FilterChip = ({
   options: string[];
   onChange: (value: string) => void;
 }) => (
-  <label className="fchip">
-    {label}:
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      style={{ border: 0, background: 'transparent', fontWeight: 700, outline: 'none' }}
-    >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  </label>
+  <DropdownMenu>
+    <DropdownMenuTrigger className="fchip fchip-btn" aria-label={`${label}: ${value}`}>
+      <span className="fchip-l">{label}</span>
+      <span className="fchip-v">{value}</span>
+      <ChevronDown size={13} strokeWidth={2.5} aria-hidden="true" />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="mcm-fchip-menu">
+      <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+        {options.map((option) => (
+          <DropdownMenuRadioItem key={option} value={option}>
+            <span>{option}</span>
+            {option === value ? (
+              <Check size={14} strokeWidth={2.5} aria-hidden="true" />
+            ) : null}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  </DropdownMenu>
 );
 
 export const SearchChip = ({

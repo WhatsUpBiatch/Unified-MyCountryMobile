@@ -28,7 +28,17 @@ const readDismissed = (): boolean => {
   }
 };
 
-const SetupGuide = ({ companyInfo }: { companyInfo?: any }) => {
+const SetupGuide = ({
+  companyInfo,
+  defaultExpanded = true,
+}: {
+  companyInfo?: any;
+  /* Open on the screens where setting the company up is the subject, shut where
+     it is a reminder sitting on top of somebody else's work. Collapsed it is
+     still a row with the count and a chevron, so nothing is hidden — the roster
+     just gets the top of its own page back. */
+  defaultExpanded?: boolean;
+}) => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [dismissed, setDismissed] = useState(readDismissed);
@@ -49,7 +59,7 @@ const SetupGuide = ({ companyInfo }: { companyInfo?: any }) => {
     }
     navigate(path);
   };
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const { steps, completed, total, next, isLoading, licences } = useSetupProgress(companyInfo);
 
   /* Nothing is shown while the counts are still arriving: a half-loaded guide

@@ -216,9 +216,22 @@ const People = () => {
   const [open, setOpen] = useState<PersonRow | null>(null);
   const [editing, setEditing] = useState<PersonRow | null>(null);
 
+  /* One entry per group, not one per combination a person happens to be in.
+     `row.department` is the joined string — "Billing, Retention" for somebody
+     in two — so adding it whole put "Billing, Retention" in the menu as though
+     it were a group, next to "Billing" and "Retention" themselves. A tenant
+     with a handful of groups got a list the length of its distinct
+     memberships. The export below already split on the same separator. */
   const departments = useMemo(() => {
     const found = new Set<string>();
-    rows.forEach((row) => row.department !== '—' && found.add(row.department));
+    rows.forEach((row) => {
+      if (row.department === '—') return;
+      row.department
+        .split(', ')
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .forEach((name) => found.add(name));
+    });
     return ['All', ...Array.from(found).sort()];
   }, [rows]);
 
@@ -237,7 +250,18 @@ const People = () => {
   const visible = useMemo(
     () =>
       rows.filter((row) => {
-        if (department !== 'All' && row.department !== department) return false;
+        /* Membership, not string equality: somebody in "Billing, Retention"
+           belongs to Billing, and comparing the whole string excluded them
+           from it. */
+        if (
+          department !== 'All' &&
+          !row.department
+            .split(', ')
+            .map((name) => name.trim())
+            .includes(department)
+        ) {
+          return false;
+        }
         if (presence !== 'Any' && row.presence !== presence) return false;
         return true;
       }),
@@ -364,7 +388,12 @@ const People = () => {
         {/* A new admin adding their first people is exactly who needs to see
             how far through setup they are. The guide hides itself once
             everything is done, so an established account never sees it. */}
-        <SetupGuide companyInfo={user?.company_info} />
+        {/* Shut by default here. This page's subject is the roster, and an
+            expanded five-step company checklist pushed the first person about
+            700px down — a screenful of somebody else's task before the thing
+            you came for. It stays one click from open, and still disappears
+            for good once setup is done or dismissed. */}
+        <SetupGuide companyInfo={user?.company_info} defaultExpanded={false} />
 
         {/* Two views of the same roster: the people here now, and the people
             removed in the last 72 hours who can still be brought back. */}
@@ -400,7 +429,7 @@ const People = () => {
         {tab === 'removed' ? (
           <RemovedPeople canRestore={canDelete} />
         ) : (
-        <table>
+        <table className="mcm-roster">
           <thead>
             <tr>
               <th>Person</th>
@@ -461,10 +490,15 @@ const People = () => {
                     )}
                   </td>
                   <td>{row.department}</td>
-                  <td>
-                    <span style={{ display: 'block' }}>{row.location}</span>
+                  <td className="loc">
+                    <span style={{ display: 'block' }} title={row.location}>
+                      {row.location}
+                    </span>
                     {row.locationPlace ? (
-                      <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+                      <span
+                        style={{ fontSize: 11, color: 'var(--ink-4)' }}
+                        title={row.locationPlace}
+                      >
                         {row.locationPlace}
                       </span>
                     ) : null}
@@ -478,7 +512,11 @@ const People = () => {
                       <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{row.callerId}</span>
                     ) : null}
                   </td>
-                  <td>
+                  {/* A person can sit in several queues, so this is the cell
+                      most likely to run long. One line, with the rest on
+                      hover, rather than a cell that doubles the row's height
+                      for everybody else. */}
+                  <td className="skills" title={row.skills.join(', ')}>
                     {row.skills.length ? (
                       row.skills.join(', ')
                     ) : (
