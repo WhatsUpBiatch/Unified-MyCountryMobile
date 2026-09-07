@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
+import { RuleCard, RuleToggle } from '@/components/mcm/rule-card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  KeyRound,
   ShieldCheck,
-  Timer,
-  Network,
   Info,
-  UserMinus,
   History,
   Unlock,
   AlertTriangle,
@@ -654,6 +650,21 @@ const CompanySecurity = () => {
     );
   }
 
+  const exemptCount = form.mfa_exempt_user_uuids?.length || 0;
+
+  /* Two independent lists, and which one is switched on changes what the rule
+     actually says - an allow list admits only what is on it, a block list
+     admits everything except what is on it. Turning both on is a real state and
+     the strictest one, so it is named rather than summed. */
+  const describeIpRules = (values: typeof form) => {
+    const allow = values.ip_allow_enabled ? values.ip_allow_entries?.length || 0 : null;
+    const block = values.ip_block_enabled ? values.ip_block_entries?.length || 0 : null;
+    if (allow === null && block === null) return 'Anywhere';
+    const parts: string[] = [];
+    if (allow !== null) parts.push(`${allow} allowed ${allow === 1 ? 'network' : 'networks'} only`);
+    if (block !== null) parts.push(`${block} blocked`);
+    return parts.join(' · ');
+  };
   return (
     <section className="cs-section flex w-full flex-col gap-4">
       <div className="cs-block">
@@ -704,14 +715,17 @@ const CompanySecurity = () => {
             </div>
           )}
 
-          <SettingCard
-            icon={<ShieldCheck className="h-5 w-5" />}
+          <RuleCard
+            tone="rose"
             title="Require multi-factor authentication"
             description="Whether everyone signing in with a password must also pass a second check."
             status="coming-soon"
+            valueLabel="Second check at sign-in"
+            value={form.mfa_required ? 'Required' : 'Not required'}
+            valueHint={form.mfa_required ? undefined : 'A password alone gets somebody in.'}
             note="Coming soon. Signing in does not ask for a second step yet, so this does not protect anything today. What you choose is saved and ready for the day it does."
           >
-            <SettingRow
+            <RuleToggle
               label="Require MFA for password sign-in"
               description="On by default, which is established systems's posture: there MFA is mandatory for every user who is not signing in through SSO, and cannot be switched off. established systems treat it as optional and applies it to native logins only — an SSO user is never prompted, because the identity provider has already done the checking. Recording the stricter of the two is the safer intent to write down."
               control={
@@ -721,13 +735,16 @@ const CompanySecurity = () => {
                 />
               }
             />
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<UserMinus className="h-5 w-5" />}
+          <RuleCard
+            tone="violet"
             title="MFA exception list"
             description="The named people who would be allowed to sign in without the second check."
             status="coming-soon"
+            valueLabel="People let off the second check"
+            value={exemptCount === 0 ? 'Nobody exempted' : `${exemptCount} ${exemptCount === 1 ? 'person' : 'people'} exempted`}
+            valueHint={form.mfa_required ? undefined : 'Nothing to except anyone from while MFA is off.'}
             note="Coming soon, along with the requirement above. Nobody is being asked for a second step yet, so nobody is being let off one."
           >
             {!form.mfa_required && (
@@ -808,16 +825,19 @@ const CompanySecurity = () => {
                 );
               })}
             </div>
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<Timer className="h-5 w-5" />}
+          <RuleCard
+            tone="cyan"
             title="Idle timeout"
             description="How long someone can leave the console untouched before they are signed out."
             status="app-only"
+            valueLabel="Signed out after"
+            value={form.idle_timeout_enabled ? `${form.idle_timeout_minutes || '—'} minutes idle` : 'Never'}
+            valueHint={form.idle_timeout_enabled ? 'A warning comes first, and the clock waits during a call.' : 'A session stays open until somebody signs out.'}
             note="Works in this app. Somebody who leaves this app untouched for this long is signed out of it, with a warning first and a chance to stay signed in, and the clock waits while they are on a call. It only reaches this app — it does not sign anybody out of anything else."
           >
-            <SettingRow
+            <RuleToggle
               label="Sign people out when idle"
               description="Off by default. Switch it on if you want people signed out after a period of inactivity."
               control={
@@ -857,12 +877,14 @@ const CompanySecurity = () => {
                 </div>
               </div>
             )}
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<Network className="h-5 w-5" />}
+          <RuleCard
+            tone="teal"
             title="IP allowlist / blocklist"
             description="The networks people may — or may not — sign in from: individual addresses or CIDR blocks, IPv4 or IPv6."
+            valueLabel="Where people may sign in from"
+            value={describeIpRules(form)}
             note="Enforced at sign-in and on every request since 2 September 2026. What you save here is what the server checks, so add your own network before switching the allow list on — the break-glass window below is the way back in if you lock yourself out."
           >
             {/* Two independent lists - own toggle, own entries, own table -
@@ -1011,16 +1033,19 @@ const CompanySecurity = () => {
                 </div>
               )}
             </div>
-          </SettingCard>
+          </RuleCard>
 
-          <SettingCard
-            icon={<KeyRound className="h-5 w-5" />}
+          <RuleCard
+            tone="sky"
             title="Single sign-on (SAML)"
             description="Where your identity provider lives, so sign-in can be handed over to it."
             status="coming-soon"
+            valueLabel="Identity provider"
+            value={form.sso_enabled ? (form.sso_idp_entity_id || 'Details recorded') : 'Not recorded'}
+            valueHint={form.sso_enabled ? undefined : 'Everyone signs in with an email address and password.'}
             note="Coming soon. Everyone still signs in with their email address and password. These details are saved and waiting for the day sign-in can be handed over."
           >
-            <SettingRow
+            <RuleToggle
               label="Record SAML SSO details"
               description="Your identity provider gives you these when you add this platform as an application. The certificate is a public key, not a secret — but this record is ordinary account data, not a secrets store, so do not paste anything private into it."
               control={
@@ -1105,7 +1130,7 @@ const CompanySecurity = () => {
                 </div>
               </>
             )}
-          </SettingCard>
+          </RuleCard>
 
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="flex flex-wrap items-start gap-3 border-b border-gray-200 p-4">
