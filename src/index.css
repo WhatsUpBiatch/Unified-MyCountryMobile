@@ -1047,24 +1047,36 @@
   flex-shrink: 0;
 }
 
+/* Tokens rather than hex, so the bar follows the theme with everything else.
+   The fallbacks keep this honest anywhere the tokens are not in scope - this
+   rule is global, and only the header carries .mcm-topbar. */
 .global-search-input-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0 12px;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 999px;
+  padding: 0 14px;
   height: 38px;
   transition:
     border-color 0.2s,
+    background 0.2s,
     box-shadow 0.2s;
 }
 
+.global-search-input-wrapper:hover {
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 30%, var(--line, #e2e8f0));
+}
+
+/* Focus is the one moment this control should be the loudest thing in the bar,
+   so it takes the surface and an accent ring rather than a slightly darker
+   grey border, which was easy to miss while typing. */
 .global-search-input-wrapper:focus-within,
 .global-search-input-wrapper.is-open {
-  border-color: #cbd5e1;
-  background: #ffffff;
+  border-color: var(--accent, #cbd5e1);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
 }
 
 .global-search-input {
@@ -1825,12 +1837,19 @@
 .mcm-notsaved strong {
   font-weight: 700;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .mcm-notsaved {
-    border-color: #6b4a1c;
-    background: #2a2013;
-    color: #e8c98d;
-  }
+/* Keyed on the app's own theme class, not on the operating system's.
+
+   This was the one rule in the file written against `prefers-color-scheme`,
+   guarded by `:root:not([data-theme='light'])` — an attribute nothing in this
+   app ever sets. So on any machine whose OS is in dark mode the guard passed
+   and the note painted itself near-black-brown on #e8c98d, in the middle of a
+   white page, while every other dark rule in the console waits for `.dark` on
+   the root. That is what the amber note on Preferences and My Phone looked
+   like for anyone running a dark desktop. */
+.dark .mcm-notsaved {
+  border-color: #6b4a1c;
+  background: #2a2013;
+  color: #e8c98d;
 }
 
 /* ── "How your calls reach you" on Basic Info ─────────────────────────────

@@ -1,17 +1,45 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  MessageSquare, Settings2, MessagesSquare, Send,
-  User, Bot, UserCheck, Search, Plus, Globe, Trash2, ChevronDown,
+  Bot,
+  ChevronDown,
+  Globe,
+  MessageSquare,
+  MessagesSquare,
+  Plus,
+  Search,
+  Send,
+  Settings2,
+  Trash2,
+  TriangleAlert,
+  User,
+  UserCheck,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useUser } from '@/hooks/use-user';
 import { useSelectedAssistant } from './assistant-switcher';
 import InboxDetail, { InboxSummary } from './inbox-detail';
 import AddInboxWizard from './add-inbox-wizard';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * Captain — Inboxes.
+ *
+ * The places a customer can start a conversation, and the conversations
+ * themselves.
+ *
+ * The conversation viewer was in this file twice: two dialogs of about 110
+ * lines each, character-identical apart from which state they read, plus a full
+ * parallel set of state and handlers behind each — one for inboxes and one for
+ * the legacy per-assistant widget. Both then called the same
+ * `/widget-conversations/:id` endpoints to read a thread, reply and hand back;
+ * only the very first fetch differed. Two copies of a takeover UI is two places
+ * for "reply as a human" to drift.
+ *
+ * It is one viewer and one set of state now, and opening it picks the URL.
+ */
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
 
@@ -50,9 +78,15 @@ const CaptainInboxes = () => {
   const [inboxes, setInboxes] = useState<InboxSummary[]>([]);
   const [isLoadingInboxes, setIsLoadingInboxes] = useState(true);
   const [isAddInboxOpen, setIsAddInboxOpen] = useState(false);
-  const [conversationsInboxId, setConversationsInboxId] = useState<string | null>(null);
+  /* `conversationsInboxId` used to live here, holding only the id so the dialog
+     could know it was open. `openInbox` below holds the inbox itself, which is
+     what lets the viewer name the inbox in its header. */
   const [inboxSearch, setInboxSearch] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  /* Which row is asking "are you sure". Inline rather than window.confirm: this
+     one stops a script that is live on a customer's website, and an OS dialog
+     cannot name which inbox it means. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const fetchInboxes = async () => {
     setIsLoadingInboxes(true);
@@ -72,7 +106,7 @@ const CaptainInboxes = () => {
   }, []);
 
   const deleteInbox = async (id: string) => {
-    if (!window.confirm('Delete this website inbox? Its embed script will stop working immediately.')) return;
+    setConfirmDeleteId(null);
     try {
       await fetch(`${CAPTAIN_API_BASE}/inboxes/${id}`, { method: 'DELETE' });
       setInboxes((prev) => prev.filter((i) => i.id !== id));
@@ -116,80 +150,18 @@ const CaptainInboxes = () => {
     return groups;
   }, [inboxes, inboxSearch]);
 
-  // Inbox-scoped conversation viewer for the new multi-inbox model — separate
-  // state from the legacy per-assistant conversations dialog below it, but
-  // reuses the same generic session-keyed message/reply/hand-back endpoints.
-  const [inboxConversations, setInboxConversations] = useState<Conversation[]>([]);
-  const [activeInboxConversationId, setActiveInboxConversationId] = useState<string | null>(null);
-  const [inboxThread, setInboxThread] = useState<WidgetMessage[]>([]);
-  const [inboxReplyText, setInboxReplyText] = useState('');
-  const [isInboxReplying, setIsInboxReplying] = useState(false);
-
-  const openInboxConversations = async (id: string) => {
-    setConversationsInboxId(id);
-    setActiveInboxConversationId(null);
-    setInboxThread([]);
-    try {
-      const params = new URLSearchParams();
-      if (user?.uuid) params.set('agent_user_id', user.uuid);
-      const res = await fetch(`${CAPTAIN_API_BASE}/inboxes/${id}/conversations?${params.toString()}`);
-      const json = await res.json();
-      setInboxConversations(json.data || []);
-    } catch {
-      setInboxConversations([]);
-    }
-  };
-
-  const openInboxThread = async (id: string) => {
-    setActiveInboxConversationId(id);
-    try {
-      const res = await fetch(`${CAPTAIN_API_BASE}/widget-conversations/${id}/messages`);
-      const json = await res.json();
-      setInboxThread(json.data || []);
-    } catch {
-      setInboxThread([]);
-    }
-  };
-
-  const handleInboxReply = async () => {
-    if (!activeInboxConversationId || !inboxReplyText.trim()) return;
-    setIsInboxReplying(true);
-    try {
-      const res = await fetch(`${CAPTAIN_API_BASE}/widget-conversations/${activeInboxConversationId}/reply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inboxReplyText.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || 'Failed to send reply');
-      setInboxThread((prev) => [...prev, { id: json.data.id, role: 'agent', content: inboxReplyText.trim(), created_at: new Date().toISOString() }]);
-      setInboxReplyText('');
-      setInboxConversations((prev) => prev.map((c) => (c.id === activeInboxConversationId ? { ...c, owner: 'human' } : c)));
-    } catch (err: any) {
-      setError(err?.message || 'Failed to send reply');
-    } finally {
-      setIsInboxReplying(false);
-    }
-  };
-
-  const handInboxBackToAi = async () => {
-    if (!activeInboxConversationId) return;
-    try {
-      await fetch(`${CAPTAIN_API_BASE}/widget-conversations/${activeInboxConversationId}/hand-back-to-ai`, { method: 'POST' });
-      setInboxConversations((prev) => prev.map((c) => (c.id === activeInboxConversationId ? { ...c, owner: 'ai' } : c)));
-    } catch {
-      // non-critical
-    }
-  };
-
-  const activeInboxConversation = inboxConversations.find((c) => c.id === activeInboxConversationId) || null;
-
-  const [isConversationsOpen, setIsConversationsOpen] = useState(false);
+  /* One set of conversation state for both kinds of inbox. Reading a thread,
+     replying and handing back are the same three endpoints either way; only the
+     list fetch differs, and that is decided in `openConversations`. */
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [thread, setThread] = useState<WidgetMessage[]>([]);
   const [replyText, setReplyText] = useState('');
   const [isReplying, setIsReplying] = useState(false);
+  /* The inbox whose conversations are open, and what to call it in the dialog
+     header — which was previously nowhere, so the viewer never said which
+     inbox you were looking at. */
+  const [openInbox, setOpenInbox] = useState<InboxSummary | null>(null);
 
   const fetchToggles = async (assistantId: string) => {
     if (!assistantId) return;
@@ -235,17 +207,30 @@ const CaptainInboxes = () => {
     }
   };
 
-  const openConversations = async (assistantIdOverride?: string) => {
-    const targetId = assistantIdOverride || selectedId;
-    setIsConversationsOpen(true);
+  /* One entry point. A legacy inbox is the single widget that predates the
+     multi-inbox model; its conversations hang off the assistant rather than off
+     an inbox, so only the list URL forks here. */
+  const openConversations = async (inbox: InboxSummary) => {
+    setOpenInbox(inbox);
     setActiveConversationId(null);
     setThread([]);
-    if (!targetId) return;
-    if (assistantIdOverride && assistantIdOverride !== selectedId) selectAssistant(assistantIdOverride);
+    setConversations([]);
+
+    const legacyAssistantId = inbox.legacy_assistant_id;
+    const params = new URLSearchParams();
+    if (user?.uuid) params.set('agent_user_id', user.uuid);
+
+    let url: string;
+    if (legacyAssistantId) {
+      if (legacyAssistantId !== selectedId) selectAssistant(legacyAssistantId);
+      params.set('assistant_id', legacyAssistantId);
+      url = `${CAPTAIN_API_BASE}/widget-conversations?${params.toString()}`;
+    } else {
+      url = `${CAPTAIN_API_BASE}/inboxes/${inbox.id}/conversations?${params.toString()}`;
+    }
+
     try {
-      const params = new URLSearchParams({ assistant_id: targetId });
-      if (user?.uuid) params.set('agent_user_id', user.uuid);
-      const res = await fetch(`${CAPTAIN_API_BASE}/widget-conversations?${params.toString()}`);
+      const res = await fetch(url);
       const json = await res.json();
       setConversations(json.data || []);
     } catch {
@@ -285,7 +270,7 @@ const CaptainInboxes = () => {
     }
   };
 
-  const handHandBackToAi = async () => {
+  const handBackToAi = async () => {
     if (!activeConversationId) return;
     try {
       await fetch(`${CAPTAIN_API_BASE}/widget-conversations/${activeConversationId}/hand-back-to-ai`, { method: 'POST' });
@@ -320,124 +305,217 @@ const CaptainInboxes = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-5 p-6">
-      <div>
-        <h2 className="text-lg font-bold text-gray-950">Inboxes</h2>
-        <p className="text-sm text-gray-500">
-          A channel is the mode of communication your customer chooses to interact with you. An inbox is where you
-          manage interactions for a specific channel — create as many as you need, independent of one another.
-        </p>
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>
-      )}
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-          <Input type="text" value={inboxSearch} onChange={(e) => setInboxSearch(e.target.value)} placeholder="Search inboxes..." className="pl-9" />
+    <section className="mcm-adminpage mcm-inb">
+      <div className="mcm-adminpage-head">
+        <div className="mcm-adminpage-title">
+          <div className="mcm-adminpage-eyebrow">Captain</div>
+          <h1>Inboxes</h1>
+          <p>
+            Where customers can start a conversation. Each inbox is its own chat widget, with its
+            own assistant and its own site.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{inboxes.length} inbox{inboxes.length === 1 ? '' : 'es'}</span>
-          <Button type="button" variant="primary" size="sm" onClick={() => setIsAddInboxOpen(true)}>
-            <Plus className="size-3.5" />
-            Add Inbox
+        <div className="mcm-adminpage-actions">
+          <Button type="button" variant="primary" onClick={() => setIsAddInboxOpen(true)}>
+            <Plus className="size-4" />
+            Add inbox
           </Button>
         </div>
       </div>
 
-      {isLoadingInboxes ? (
-        <div className="flex h-20 items-center justify-center text-sm text-gray-500">Loading...</div>
-      ) : inboxes.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 px-5 py-6 text-center text-sm text-gray-400">
-          No inboxes yet — click "Add Inbox" to create your first one.
+      <div className="mcm-act-bar">
+        <div className="mcm-faq-search">
+          <Search size={15} strokeWidth={2} aria-hidden="true" />
+          <input
+            type="text"
+            value={inboxSearch}
+            onChange={(e) => setInboxSearch(e.target.value)}
+            placeholder="Search inboxes"
+            aria-label="Search inboxes"
+          />
         </div>
-      ) : Object.keys(groupedInboxes).length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 px-5 py-6 text-center text-sm text-gray-400">
-          No inboxes match "{inboxSearch}".
+        <span className="mcm-inb-count">
+          {inboxes.filter((i) => i.enabled).length} of {inboxes.length} live
+        </span>
+      </div>
+
+      {error ? (
+        <div className="mcm-cpg-error" role="alert">
+          <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+          {error}
         </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-4">
-          {Object.entries(groupedInboxes).map(([channelType, rows]) => {
+      ) : null}
+
+      <div className="mcm-inb-body">
+        {isLoadingInboxes ? (
+          <div className="mcm-inb-blank">Loading inboxes…</div>
+        ) : inboxes.length === 0 ? (
+          <div className="mcm-inb-blank">
+            <span className="mcm-inb-blank-mark">
+              <MessageSquare size={22} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <h2>No inboxes yet</h2>
+            <p>
+              An inbox is the chat widget you embed on a site. Add one and you will get a script to
+              paste.
+            </p>
+            <Button type="button" variant="primary" onClick={() => setIsAddInboxOpen(true)}>
+              <Plus className="size-4" />
+              Add inbox
+            </Button>
+          </div>
+        ) : Object.keys(groupedInboxes).length === 0 ? (
+          <div className="mcm-inb-blank">
+            <span className="mcm-inb-blank-mark">
+              <Search size={22} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <h2>Nothing matches “{inboxSearch}”</h2>
+            <p>Try the inbox name or its domain.</p>
+          </div>
+        ) : (
+          Object.entries(groupedInboxes).map(([channelType, rows]) => {
             const meta = CHANNEL_GROUP_META[channelType] || { label: channelType, icon: Globe };
             const GroupIcon = meta.icon;
             const isCollapsed = collapsedGroups[channelType];
             return (
-              <div key={channelType} className="rounded-2xl border border-gray-200 bg-white">
+              <section className="mcm-inb-group" key={channelType}>
                 <button
                   type="button"
-                  onClick={() => setCollapsedGroups((prev) => ({ ...prev, [channelType]: !prev[channelType] }))}
-                  className="flex w-full items-center justify-between gap-2 px-4 py-3"
+                  className="mcm-inb-grouph"
+                  aria-expanded={!isCollapsed}
+                  onClick={() =>
+                    setCollapsedGroups((prev) => ({ ...prev, [channelType]: !prev[channelType] }))
+                  }
                 >
-                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                    <GroupIcon className="size-4 text-gray-400" />
-                    {meta.label}
-                    <span className="font-normal text-gray-400">{rows.length} inbox{rows.length === 1 ? '' : 'es'}</span>
-                  </span>
-                  <ChevronDown className={`size-4 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  <ChevronDown
+                    size={15}
+                    strokeWidth={2.25}
+                    className={isCollapsed ? 'is-shut' : undefined}
+                    aria-hidden="true"
+                  />
+                  <GroupIcon size={15} strokeWidth={2} aria-hidden="true" />
+                  {meta.label}
+                  <span>{rows.length}</span>
                 </button>
+
                 {!isCollapsed && (
-                  <div className="flex flex-col divide-y divide-gray-100 border-t border-gray-100">
+                  <ul className="mcm-inb-list">
                     {rows.map((inbox) => {
                       const isLegacy = !!inbox.legacy_assistant_id;
                       return (
-                        <div key={inbox.id} className="flex items-center justify-between gap-4 px-5 py-4">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-                              <MessageSquare className="size-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-gray-900">{inbox.name}</div>
-                              <div className="truncate text-xs text-primary">
-                                {meta.label}{inbox.website_domain ? ` · ${inbox.website_domain}` : ''}{inbox.assistant_name ? ` · AI: ${inbox.assistant_name}` : ''}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <button
-                              type="button"
-                              title="Conversations"
-                              onClick={() => (isLegacy ? openConversations(inbox.legacy_assistant_id || undefined) : openInboxConversations(inbox.id))}
-                              className="flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
-                            >
-                              <MessagesSquare className="size-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Configure"
-                              onClick={() => goToInbox(inbox.id)}
-                              className="flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
-                            >
-                              <Settings2 className="size-3.5" />
-                            </button>
-                            {!isLegacy && (
-                              <button
-                                type="button"
-                                title="Delete"
-                                onClick={() => deleteInbox(inbox.id)}
-                                className="flex size-8 items-center justify-center rounded-lg border border-gray-200 text-gray-300 hover:bg-red-50 hover:text-red-500"
+                        <li
+                          className={`mcm-inb-row ${inbox.enabled ? '' : 'is-off'}`}
+                          key={inbox.id}
+                        >
+                          <span className="mcm-inb-mark" aria-hidden="true">
+                            <MessageSquare size={15} strokeWidth={2} />
+                          </span>
+
+                          <div className="mcm-inb-main">
+                            <div className="mcm-inb-t">
+                              <h3>{inbox.name}</h3>
+                              {/* Live or not is the fact this row exists to
+                                  report — a switch alone states it only if you
+                                  already know which way is on. */}
+                              <span
+                                className={`mcm-inb-state ${inbox.enabled ? 'is-live' : 'is-off'}`}
                               >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            )}
-                            <div className="ml-1 flex items-center border-l border-gray-100 pl-2.5">
-                              <Switch
-                                checked={inbox.enabled}
-                                onCheckedChange={(c) => (isLegacy ? handleLegacyToggle(inbox, c === true) : toggleInboxEnabled(inbox.id, c === true))}
-                              />
+                                {inbox.enabled ? 'Live' : 'Paused'}
+                              </span>
+                              {isLegacy ? (
+                                <span
+                                  className="mcm-inb-legacy"
+                                  title="Embedded before inboxes existed. It is managed through its assistant, not through this inbox."
+                                >
+                                  Original widget
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mcm-inb-meta">
+                              {inbox.website_domain ? (
+                                <>
+                                  <Globe size={12} strokeWidth={2} aria-hidden="true" />
+                                  <span>{inbox.website_domain}</span>
+                                </>
+                              ) : null}
+                              {inbox.assistant_name ? (
+                                <>
+                                  <i aria-hidden="true" />
+                                  <Bot size={12} strokeWidth={2} aria-hidden="true" />
+                                  <span>{inbox.assistant_name}</span>
+                                </>
+                              ) : null}
                             </div>
                           </div>
-                        </div>
+
+                          <div className="mcm-inb-acts">
+                            {confirmDeleteId === inbox.id ? (
+                              <div className="mcm-act-confirm">
+                                <span>Delete? The embed stops working.</span>
+                                <button type="button" onClick={() => setConfirmDeleteId(null)}>
+                                  Keep
+                                </button>
+                                <button
+                                  type="button"
+                                  className="is-go"
+                                  onClick={() => deleteInbox(inbox.id)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="mcm-inb-btn"
+                                  onClick={() => openConversations(inbox)}
+                                  aria-label={`Conversations in ${inbox.name}`}
+                                  title="Conversations"
+                                >
+                                  <MessagesSquare className="size-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="mcm-inb-btn"
+                                  onClick={() => goToInbox(inbox.id)}
+                                  aria-label={`Configure ${inbox.name}`}
+                                  title="Configure"
+                                >
+                                  <Settings2 className="size-4" />
+                                </button>
+                                {!isLegacy && (
+                                  <button
+                                    type="button"
+                                    className="mcm-act-kill"
+                                    onClick={() => setConfirmDeleteId(inbox.id)}
+                                    aria-label={`Delete ${inbox.name}`}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="size-4" />
+                                  </button>
+                                )}
+                                <Switch
+                                  checked={inbox.enabled}
+                                  aria-label={`${inbox.enabled ? 'Pause' : 'Start'} ${inbox.name}`}
+                                  onCheckedChange={(c) =>
+                                    isLegacy
+                                      ? handleLegacyToggle(inbox, c === true)
+                                      : toggleInboxEnabled(inbox.id, c === true)
+                                  }
+                                />
+                              </>
+                            )}
+                          </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                 )}
-              </div>
+              </section>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
       <AddInboxWizard
         open={isAddInboxOpen}
@@ -454,188 +532,132 @@ const CaptainInboxes = () => {
         }}
       />
 
-      {/* Conversation viewer + human takeover for the new multi-inbox model */}
-      <Dialog open={!!conversationsInboxId} onOpenChange={(v) => !v && setConversationsInboxId(null)}>
-        <DialogContent className="grid h-[80vh] w-full max-w-3xl grid-cols-[220px_1fr] gap-0 overflow-hidden rounded-2xl p-0">
-          <div className="flex flex-col overflow-y-auto border-r border-gray-100">
-            <div className="border-b border-gray-100 px-4 py-3 text-sm font-semibold text-gray-950">Conversations</div>
-            {inboxConversations.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-gray-400">
-                No conversations yet, or none assigned to you in this inbox.
-              </div>
-            ) : (
-              inboxConversations.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => openInboxThread(c.id)}
-                  className={`flex flex-col gap-0.5 border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50 ${
-                    activeInboxConversationId === c.id ? 'bg-primary/5' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
-                    {c.owner === 'human' ? <UserCheck className="size-3 text-amber-600" /> : <Bot className="size-3 text-primary" />}
-                    {c.visitor_name || 'Visitor'}
-                  </div>
-                  <div className="line-clamp-1 text-xs text-gray-500">{c.last_message}</div>
-                </button>
-              ))
-            )}
-          </div>
-
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-              <DialogTitle className="text-sm font-semibold text-gray-950">
-                {activeInboxConversation ? (activeInboxConversation.visitor_name || 'Visitor') : 'Select a conversation'}
-              </DialogTitle>
-              {activeInboxConversation?.owner === 'human' && (
-                <Button type="button" variant="outline" size="sm" onClick={handInboxBackToAi}>
-                  Hand back to AI
-                </Button>
-              )}
+      {/* One viewer, for both kinds of inbox. */}
+      <Dialog open={!!openInbox} onOpenChange={(v) => !v && setOpenInbox(null)}>
+        <DialogContent className="mcm-inb-dlg w-full max-w-3xl p-0">
+          <div className="mcm-inb-dlg-side">
+            <div className="mcm-inb-dlg-sideh">
+              <DialogTitle>Conversations</DialogTitle>
+              {/* Which inbox these belong to. The old viewer never said. */}
+              <p>{openInbox?.name}</p>
             </div>
-
-            <div className="flex-1 space-y-3 overflow-y-auto bg-gray-50/60 p-4">
-              {inboxThread.map((m) => (
-                <div key={m.id} className={`flex items-end gap-2 ${m.role === 'visitor' ? 'justify-start' : 'justify-end'}`}>
-                  {m.role === 'visitor' && (
-                    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500">
-                      <User className="size-3.5" />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                      m.role === 'visitor'
-                        ? 'rounded-bl-sm border border-gray-100 bg-white text-gray-800'
-                        : m.role === 'agent'
-                          ? 'rounded-br-sm bg-amber-500 text-white'
-                          : 'rounded-br-sm bg-primary text-white'
-                    }`}
-                  >
-                    {m.content}
-                  </div>
-                  {m.role !== 'visitor' && (
-                    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      {m.role === 'agent' ? <UserCheck className="size-3.5" /> : <Bot className="size-3.5" />}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {activeInboxConversationId && !inboxThread.length && (
-                <div className="pt-10 text-center text-xs text-gray-400">No messages yet.</div>
-              )}
-            </div>
-
-            {activeInboxConversationId && (
-              <div className="flex gap-2 border-t border-gray-100 p-3">
-                <Input
-                  type="text"
-                  value={inboxReplyText}
-                  onChange={(e) => setInboxReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleInboxReply()}
-                  placeholder="Reply as a human agent..."
-                  className="flex-1"
-                />
-                <Button type="button" variant="primary" onClick={handleInboxReply} disabled={isInboxReplying || !inboxReplyText.trim()}>
-                  <Send className="size-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Widget conversations viewer + human takeover */}
-      <Dialog open={isConversationsOpen} onOpenChange={setIsConversationsOpen}>
-        <DialogContent className="grid h-[80vh] w-full max-w-3xl grid-cols-[220px_1fr] gap-0 overflow-hidden rounded-2xl p-0">
-          <div className="flex flex-col overflow-y-auto border-r border-gray-100">
-            <div className="border-b border-gray-100 px-4 py-3 text-sm font-semibold text-gray-950">Conversations</div>
             {conversations.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-gray-400">
-                No conversations yet, or none assigned to you in this inbox.
+              <div className="mcm-inb-dlg-none">
+                Nothing here yet, or none of it is assigned to you.
               </div>
             ) : (
-              conversations.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => openThread(c.id)}
-                  className={`flex flex-col gap-0.5 border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50 ${
-                    activeConversationId === c.id ? 'bg-primary/5' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
-                    {c.owner === 'human' ? <UserCheck className="size-3 text-amber-600" /> : <Bot className="size-3 text-primary" />}
-                    {c.visitor_name || 'Visitor'}
-                  </div>
-                  <div className="line-clamp-1 text-xs text-gray-500">{c.last_message}</div>
-                </button>
-              ))
+              <ul>
+                {conversations.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => openThread(c.id)}
+                      className={activeConversationId === c.id ? 'is-on' : undefined}
+                    >
+                      <span className="mcm-inb-who">
+                        {c.owner === 'human' ? (
+                          <UserCheck size={12} strokeWidth={2.25} className="is-human" />
+                        ) : (
+                          <Bot size={12} strokeWidth={2.25} className="is-ai" />
+                        )}
+                        {c.visitor_name || 'Visitor'}
+                      </span>
+                      <span className="mcm-inb-last">{c.last_message}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-              <DialogTitle className="text-sm font-semibold text-gray-950">
-                {activeConversation ? (activeConversation.visitor_name || 'Visitor') : 'Select a conversation'}
-              </DialogTitle>
-              {activeConversation?.owner === 'human' && (
-                <Button type="button" variant="outline" size="sm" onClick={handHandBackToAi}>
+          <div className="mcm-inb-dlg-main">
+            <div className="mcm-inb-dlg-mainh">
+              <div>
+                <h3>{activeConversation ? activeConversation.visitor_name || 'Visitor' : 'Pick a conversation'}</h3>
+                {activeConversation?.page_url ? (
+                  <p>{activeConversation.page_url}</p>
+                ) : null}
+              </div>
+              {activeConversation?.owner === 'human' ? (
+                <Button type="button" variant="outline" size="sm" onClick={handBackToAi}>
                   Hand back to AI
                 </Button>
-              )}
+              ) : null}
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto bg-gray-50/60 p-4">
+            <div className="mcm-inb-thread">
               {thread.map((m) => (
-                <div key={m.id} className={`flex items-end gap-2 ${m.role === 'visitor' ? 'justify-start' : 'justify-end'}`}>
-                  {m.role === 'visitor' && (
-                    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500">
-                      <User className="size-3.5" />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                      m.role === 'visitor'
-                        ? 'rounded-bl-sm border border-gray-100 bg-white text-gray-800'
-                        : m.role === 'agent'
-                          ? 'rounded-br-sm bg-amber-500 text-white'
-                          : 'rounded-br-sm bg-primary text-white'
-                    }`}
-                  >
-                    {m.content}
+                <div
+                  className={`mcm-inb-turn ${m.role === 'visitor' ? 'is-them' : m.role === 'agent' ? 'is-agent' : 'is-ai'}`}
+                  key={m.id}
+                >
+                  <span className="mcm-inb-avatar" aria-hidden="true">
+                    {m.role === 'visitor' ? (
+                      <User size={13} strokeWidth={2} />
+                    ) : m.role === 'agent' ? (
+                      <UserCheck size={13} strokeWidth={2} />
+                    ) : (
+                      <Bot size={13} strokeWidth={2} />
+                    )}
+                  </span>
+                  <div className="mcm-inb-side">
+                    {/* Three speakers, and two of them are on your side. Which
+                        of your two answered is the thing this screen is for. */}
+                    <span className="mcm-inb-role">
+                      {m.role === 'visitor' ? 'Visitor' : m.role === 'agent' ? 'You' : 'Assistant'}
+                    </span>
+                    <div className="mcm-inb-bubble">{m.content}</div>
                   </div>
-                  {m.role !== 'visitor' && (
-                    <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      {m.role === 'agent' ? <UserCheck className="size-3.5" /> : <Bot className="size-3.5" />}
-                    </div>
-                  )}
                 </div>
               ))}
-              {activeConversationId && !thread.length && (
-                <div className="pt-10 text-center text-xs text-gray-400">No messages yet.</div>
-              )}
+              {activeConversationId && !thread.length ? (
+                <div className="mcm-inb-dlg-none">No messages yet.</div>
+              ) : null}
+              {!activeConversationId ? (
+                <div className="mcm-inb-dlg-none">
+                  Choose a conversation to read it, and to reply as a person.
+                </div>
+              ) : null}
             </div>
 
-            {activeConversationId && (
-              <div className="flex gap-2 border-t border-gray-100 p-3">
-                <Input
-                  type="text"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleReply()}
-                  placeholder="Reply as a human agent..."
-                  className="flex-1"
-                />
-                <Button type="button" variant="primary" onClick={handleReply} disabled={isReplying || !replyText.trim()}>
-                  <Send className="size-4" />
-                </Button>
+            {activeConversationId ? (
+              <div className="mcm-inb-reply">
+                <div className="mcm-cpg-field">
+                  <textarea
+                    rows={1}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' || e.shiftKey) return;
+                      e.preventDefault();
+                      handleReply();
+                    }}
+                    placeholder="Reply as a person…"
+                    aria-label="Reply as a person"
+                  />
+                  <button
+                    type="button"
+                    className="mcm-cpg-send"
+                    onClick={handleReply}
+                    disabled={isReplying || !replyText.trim()}
+                  >
+                    <Send size={15} strokeWidth={2} aria-hidden="true" />
+                    <span>Send</span>
+                  </button>
+                </div>
+                {/* Replying is what takes the conversation off the assistant,
+                    which the old composer did without saying so. */}
+                <p className="mcm-inb-note">
+                  {activeConversation?.owner === 'human'
+                    ? 'You have taken this over. The assistant will not reply until you hand it back.'
+                    : 'Sending takes this conversation off the assistant.'}
+                </p>
               </div>
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 };
 

@@ -73,14 +73,19 @@ export const TabRail = ({ items, ariaLabel }: TabRailProps) => {
        Subtracting the row's own left edge and adding back how far it is
        scrolled turns viewport coordinates into content coordinates, which is
        what the marker is positioned in. The row has no border or padding, so
-       its border box and the marker's containing block are the same box. */
+       its border box and the marker's containing block are the same box.
+
+       Cut to the tab, not to the label: the marker is the pill the open tab
+       sits in, so it has to cover the tab's whole box including its padding.
+       The label is still required above — a tab with no label is a tab
+       mid-redirect, and there is nothing to mark. */
     const rowBox = rail.getBoundingClientRect();
-    const labelBox = label.getBoundingClientRect();
-    const left = labelBox.left - rowBox.left + rail.scrollLeft;
+    const tabBox = tab.getBoundingClientRect();
+    const left = tabBox.left - rowBox.left + rail.scrollLeft;
     marker.style.transform = `translateX(${left}px)`;
     /* A real width, not a scaled-up seed — see .tabnav-marker for what scaling
        one pixel by sixty does to the marker as soon as the page is zoomed. */
-    marker.style.width = `${labelBox.width}px`;
+    marker.style.width = `${tabBox.width}px`;
   }, []);
 
   useLayoutEffect(() => {
@@ -172,9 +177,10 @@ export const TabRail = ({ items, ariaLabel }: TabRailProps) => {
           </NavLink>
         ))}
 
-        {/* One marker for the row, so switching section slides it across
-            rather than blinking it out here and in there. Inside the
-            scroller so it keeps its place when the row is scrolled. */}
+        {/* One marker for the row, so the fill slides from the old section to
+            the new one rather than blinking out here and in there. Inside the
+            scroller so it keeps its place when the row is scrolled, and first
+            in paint order so it sits behind the labels. */}
         <span className="tabnav-marker" ref={markerRef} aria-hidden="true" />
       </nav>
 

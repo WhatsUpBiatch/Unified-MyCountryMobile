@@ -342,7 +342,11 @@ const Header = () => {
   return (
     <>
       <div className="fixed left-0 top-0 z-30 h-16 w-full">
-        <header className="bg-white min-h-16 text-gray-900/80 border-b border-gray-200 px-3 py-3 ">
+        {/* mcm-topbar carries the design tokens into this bar. It sits outside
+            .mcm-page, so --accent and the rest were undefined here and the
+            active area button was picking up Tailwind's own --accent, which is
+            near-white - hence a near-black tab instead of the console blue. */}
+        <header className="mcm-topbar bg-white min-h-16 text-gray-900/80 border-b border-gray-200 px-3 py-3 ">
           <nav
             className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-3"
             aria-label="Global"
@@ -444,16 +448,25 @@ const Header = () => {
                     display: inline-flex; align-items: center;
                     position: relative; width: 36px; height: 36px; flex: none;
                   }
+                  /* Tokens, not hex. These three lines were the last hard-coded
+                     colours in the bar - #f3f4f6, #e0e7ff, #2563eb - so this
+                     control alone could not follow a theme, and it sat as a
+                     filled grey chip among ghost buttons. Ghost by default now,
+                     filling only on hover, and solid accent while its menu is
+                     open, which is the one state that earns a fill. */
                   .hdr-quick-toggle {
                     display: inline-flex; align-items: center; justify-content: center;
                     width: 36px; height: 36px; border-radius: 10px;
-                    background: #f3f4f6; color: #374151; cursor: pointer;
+                    background: transparent; color: var(--ink-3); cursor: pointer;
                     transition: transform .3s cubic-bezier(.34,1.56,.64,1),
                                 background .15s ease, color .15s ease;
                   }
-                  .hdr-quick-toggle:hover { background: #e0e7ff; color: #2563eb; }
+                  .hdr-quick-toggle:hover {
+                    background: color-mix(in srgb, var(--accent) 9%, transparent);
+                    color: var(--accent-ink);
+                  }
                   .hdr-quick-toggle.on {
-                    transform: rotate(135deg); background: #2563eb; color: #fff;
+                    transform: rotate(135deg); background: var(--accent); color: #fff;
                   }
 
                   .hdr-quick {

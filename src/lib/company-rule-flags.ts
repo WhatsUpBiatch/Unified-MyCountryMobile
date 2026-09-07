@@ -58,7 +58,10 @@
  * stored is a lock.
  */
 
-import { POLICY_FIELDS, type PolicyField } from '@/lib/company-policy';
+/* From the leaf module rather than from company-policy: that file imports
+   `readRuleFlags` from this one, and importing it back made a cycle that broke
+   whichever screen happened to enter the pair from this side. */
+import { POLICY_FIELDS, type PolicyField } from '@/lib/company-policy-fields';
 
 /* Re-exported rather than restated: the paths live in POLICY_FIELDS and having them
    written down twice is how the two copies quietly drift apart. */

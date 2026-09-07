@@ -7,6 +7,7 @@ import {
   greetingsInitialState,
 } from '@/pages/admin-settings/constants';
 import PersonalGreetings from './personal-greetings';
+import '@/components/mcm/mcm-page.css';
 import { upsertUserSettingsSchema } from '@/pages/admin-settings/people/update-forwarding/schema';
 import { getUserDetails, updateUserSettings } from '@/services/api';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -141,38 +142,33 @@ const Greetings = () => {
 
   return (
     <>
-      <section className="w-full bg-gray-200/15 flex flex-col overflow-x-auto overflow-y-hidden">
-        {/* <Breadcrumb breadcrumbs={breadcrumbData} /> */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-          <div>
-            <p className="text-gray-900 font-semibold text-lg">Greetings</p>
+      <section className="mcm-adminpage mcm-greet">
+        <div className="mcm-adminpage-head">
+          <div className="mcm-adminpage-title">
+            <div className="mcm-adminpage-eyebrow">My account</div>
+            <h1>Greetings</h1>
             {/* The switch plays the person's voicemail greeting on a direct
                 call (patch of 3 Sep 2026); the other three slots are still
                 saved and not read, so the subtitle keeps the two apart. */}
-            <p className="text-gray-500 text-xs">
+            <p>
               Your welcome message, hold music, voicemail greeting and ring tone. Callers hear your
               voicemail greeting today. The other three are saved for when the switch plays them.{' '}
-              <Link to="/admin-settings/phone/media?mine=1" className="text-primary underline-offset-4 hover:underline">
-                Your recordings in the media library
-              </Link>
+              <Link to="/admin-settings/phone/media?mine=1">Your recordings in the media library</Link>
             </p>
           </div>
         </div>
-        <div className=" p-4 gap-4 flex flex-col h-full">
-          <FormProvider {...methods}>
-            <form
-              onSubmit={handleSubmit(onSubmit)}
-              className="w-full h-full flex flex-col gap-3 justify-between"
-            >
-              <PersonalGreetings customClass="h-[calc(100vh_-_13rem)]" />
-              <div className="mcm-stickyfoot">
-                <Button variant={'primary'} type="submit" disabled={PendingGreetingSetting}>
-                  {PendingGreetingSetting ? 'Please wait...' : 'Save greetings'}
-                </Button>
-              </div>
-            </form>
-          </FormProvider>
-        </div>
+        <FormProvider {...methods}>
+          <form onSubmit={handleSubmit(onSubmit)} className="mcm-greet-form">
+            <div className="mcm-greet-scroll">
+              <PersonalGreetings customClass="" />
+            </div>
+            <div className="mcm-greet-foot">
+              <Button variant={'primary'} type="submit" disabled={PendingGreetingSetting}>
+                {PendingGreetingSetting ? 'Please wait...' : 'Save greetings'}
+              </Button>
+            </div>
+          </form>
+        </FormProvider>
       </section>
     </>
   );

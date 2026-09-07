@@ -247,39 +247,30 @@ export const General: FC<GeneralProps> = ({ heading = 'Preferences' }) => {
 
   return (
     <>
-      <section className="w-full h-full min-h-0 flex flex-col overflow-hidden bg-gray-200/15">
-        {/* <Breadcrumb breadcrumbs={breadcrumbData} /> */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-          <div>
-            <p className="text-gray-900 font-semibold text-lg">{heading}</p>
-            <p className="text-gray-500 text-xs">
-              Your own regional settings, business hours and call handling. Company-wide rules live
-              under{' '}
-              <Link to={COMPANY_RULES_PATH} className="font-medium text-primary hover:underline">
-                Company → Company Rules
-              </Link>
-              .
+      <section className="mcm-adminpage mcm-pref">
+        {/* The same head as every other Admin screen. This one was hand-rolled
+            and carried no eyebrow. */}
+        <div className="mcm-adminpage-head">
+          <div className="mcm-adminpage-title">
+            <div className="mcm-adminpage-eyebrow">My account</div>
+            <h1>{heading}</h1>
+            <p>
+              Your own regional settings, business hours and call handling. Company-wide rules
+              live under{' '}
+              <Link to={COMPANY_RULES_PATH}>Company → Company Rules</Link>.
             </p>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col p-3">
+        <div className="mcm-pref-body">
           <FormProvider {...methods}>
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="flex h-full min-h-0 w-full flex-col gap-3"
             >
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                {/* The cards below are a shared editor with no badge of its own
-                    on a personal page, so the honest notes sit above them.
-                    Since the switch patch of 3 Sep 2026 the person's own
-                    Business Hours (with the closed-hours destination, else
-                    voicemail) ARE read for a call dialled straight to their
-                    extension - proven by offline tests and by reading the
-                    running switch, not yet by a real call. Recording,
-                    transcription, AI monitoring and display number are still
-                    the company's rule; the personal copies saved here are
-                    not read. */}
-                <div className="mb-3 flex flex-col gap-2">
+              <div className="mcm-pref-scroll">
+                {/* The notes sit above the editor they are about, in one
+                    column, like every other settings screen. */}
+                <div className="mcm-pref-notes">
                   <LiveNote title="Business Hours: Active">
                     Your own hours are followed. Outside them, a caller goes where your closed-hours
                     setting says, or to your voicemail if you have not chosen anything.{' '}
@@ -289,12 +280,11 @@ export const General: FC<GeneralProps> = ({ heading = 'Preferences' }) => {
                     This covers Call Recording, Automatic Transcription, AI Call Monitoring and
                     Display Number on this page. Recording in particular is decided by your
                     company&rsquo;s rule under{' '}
-                    <Link to={COMPANY_RULES_PATH} className="font-semibold underline">
-                      Company → Company Rules
-                    </Link>
-                    , not by the switch here.
+                    <Link to={COMPANY_RULES_PATH}>Company → Company Rules</Link>, not by the switch
+                    here.
                   </NotAppliedNote>
                 </div>
+
                 <CommonSettingPermission
                   type={'GENERAL_SETTING'}
                   data={{ user_info: userInfoData?.user_info, settings: userInfoData?.settings }}
@@ -311,11 +301,11 @@ export const General: FC<GeneralProps> = ({ heading = 'Preferences' }) => {
                      and it does it per setting rather than per job title. */
                   isEditable={true}
                   // isShowVoicemail={true}
-                  customClass="md:min-h-[calc(100vh_-_13rem)]"
+                  customClass=""
                   selectedUserExt={userInfoData?.user_info?.extension}
                 />
               </div>
-              <div className="flex justify-end mcm-stickyfoot">
+              <div className="mcm-pref-foot">
                 {/* Saving before the company rule has arrived could write a value the
                     company does not allow, so the button waits for it. The query has
                     no retry, so this is one request long either way. */}

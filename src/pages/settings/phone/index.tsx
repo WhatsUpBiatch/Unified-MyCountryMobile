@@ -4,6 +4,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
+import '@/components/mcm/mcm-page.css';
 import { phoneSettingsSchema } from './schema';
 import { handleAlert } from '@/lib/utils';
 import { RING_TYPE_LABELS, RINGING_OPTIONS } from '@/constants/forwarding-consts';
@@ -378,17 +379,14 @@ const IncomingCalls = () => {
   }, [watch]);
 
   return (
-    <section
-      /* The page scrolls here. It used to be `overflow-y-hidden`, which clipped
-        everything below the fold with no way to reach it. The sticky footer is
-        `position: sticky; bottom: 0`, so it pins to this container rather than
-        scrolling away with the content. */
-      className="flex h-full min-h-0 w-full flex-col overflow-x-auto overflow-y-auto bg-gray-200/15"
-    >
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-        <div>
-          <p className="text-gray-900 font-semibold text-lg">My Phone</p>
-          <p className="text-gray-500 text-xs">
+    <section className="mcm-adminpage mcm-phone">
+      {/* The same head as every other Admin screen; this one was hand-rolled
+          and carried no eyebrow. */}
+      <div className="mcm-adminpage-head">
+        <div className="mcm-adminpage-title">
+          <div className="mcm-adminpage-eyebrow">My account</div>
+          <h1>My Phone</h1>
+          <p>
             How calls reach you: your devices, forwarding rules and what happens when you do not
             answer.
           </p>
@@ -397,7 +395,7 @@ const IncomingCalls = () => {
       <FormProvider {...methods}>
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="gap-3 flex flex-col justify-between min-h-full p-3"
+          className="mcm-phone-form"
         >
           {/* What the switch reads from this page, as of the patch of 3 Sep
               2026 (proven by offline tests and by reading the running switch,
@@ -406,36 +404,31 @@ const IncomingCalls = () => {
                 - Forward All Calls (`call_forwarding.forward_calls`).
                 - Do not disturb (`call_forwarding.dnd`). This page has no
                   switch for it - an admin sets it in the person's call rules
-                  under People, and the summary below reports it. The presence
-                  "DND" in the avatar menu writes `status`, not `dnd`, and the
-                  switch does not read it.
+                  under People, and the summary below reports it.
                 - Ring time: the person's own device timeout, and the shorter
                   of theirs and the company's wins.
                 - What happens after ringing (`incoming_calls.failure_action`),
                   but only for a voicemail, extension or hang-up destination.
-                  An outside number, a queue or a menu is saved and not
-                  followed after the ring - though the same destination does
-                  work for forward-all, DND and closed hours.
-                - Default Caller ID, under Outgoing Calls: it becomes
-                  `users.caller_id`, which the dialplan puts on every outbound
-                  call.
+                - Default Caller ID, under Outgoing Calls.
               Still stored and not read: which devices are on and their ring
               order. The shared editor below carries no badge of its own, so
               the split is stated here, first. */}
-          <div className="mcm-callsummary" role="status">
-            <span className="mcm-callsummary-l">What works today</span>
-            <p>
-              Forward All Calls, Do Not Disturb, your ring time and Default Caller ID are live for
-              calls straight to you. What happens after ringing is live when it sends callers to
-              voicemail, to an extension or hangs up; an outside number, a queue or a menu is saved
-              but not followed after the ring. Which devices ring, and in what order, is saved, not
-              applied yet. Do Not Disturb here means the one in your call rules: the DND status in
-              your avatar menu does not stop calls. Calls through a queue or a menu follow that
-              queue&rsquo;s or menu&rsquo;s own rules.
-            </p>
+          <div className="mcm-phone-scroll">
+            <div className="mcm-callsummary" role="status">
+              <span className="mcm-callsummary-l">What works today</span>
+              <p>
+                Forward All Calls, Do Not Disturb, your ring time and Default Caller ID are live for
+                calls straight to you. What happens after ringing is live when it sends callers to
+                voicemail, to an extension or hangs up; an outside number, a queue or a menu is
+                saved but not followed after the ring. Which devices ring, and in what order, is
+                saved, not applied yet. Do Not Disturb here means the one in your call rules: the
+                DND status in your avatar menu does not stop calls. Calls through a queue or a menu
+                follow that queue&rsquo;s or menu&rsquo;s own rules.
+              </p>
+            </div>
+            <CallRules customClass="" />
           </div>
-          <CallRules customClass="md:min-h-[calc(100vh_-_13rem)]" />
-          <div className="mcm-stickyfoot">
+          <div className="mcm-phone-foot">
             <Button variant={'primary'} type="submit" disabled={isPendingUpdateMember}>
               {isPendingUpdateMember ? 'Please wait...' : 'Save call handling'}
             </Button>

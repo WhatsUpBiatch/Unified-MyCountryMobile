@@ -1,4 +1,5 @@
 import { Icon } from '@/assets/icons/icon';
+import { NavIcon } from './nav-icon';
 import type { IconType } from '@/assets/icons/type';
 import {
   Accordion,
@@ -12,7 +13,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { getRoutePrefetchHandlers } from '@/router/route-prefetch';
-import { COMPANY_RULES_PATH } from '@/pages/admin-settings/company/company-sections';
+import {
+  COMPANY_RULES_PATH,
+  COMPANY_ROOT,
+  COMPANY_SECTIONS,
+} from '@/pages/admin-settings/company/company-sections';
 import { ABSOLUTE, BILLING_SECTIONS } from '@/pages/admin-settings/billing/billing-sections';
 
 export const canShowItem = (item: any, isAdmin: boolean) => {
@@ -67,6 +72,12 @@ export const adminSettingArr = (features: any, IS_ADMIN: boolean, IS_ACCOUNT_ADM
         {
           title: 'Company Rules',
           path: COMPANY_RULES_PATH,
+          /* Company Rules is eight tabs behind one entry, and `isActive` is an
+             exact path match - so opening Greetings or Security put the sidebar
+             back to nothing selected while the user was plainly still inside
+             this section. Taken from COMPANY_SECTIONS rather than listed here,
+             so a tab added or removed there cannot leave this behind. */
+          extraActiveTab: COMPANY_SECTIONS.map((section) => `${COMPANY_ROOT}/${section.path}`),
           icon: 'SettingsIcon',
           enabled: true,
           visible: Boolean(features?.plan_features?.account_setting?.access?.SITE?.action?.view),
@@ -571,7 +582,7 @@ const Sidebar = () => {
                   } ${item?.enabled === false ? 'cursor-not-allowed opacity-60' : ''}`}
                   disabled={item?.enabled === false}
                 >
-                  <Icon name={item?.icon as IconType} className="h-4.5 w-4.5 p-0.5" />
+                  <NavIcon name={item?.icon} className="h-4.5 w-4.5 p-0.5" />
                   <span>{item?.title}</span>
                   {item?.type === 'accordion' && (
                     <ChevronDown
@@ -613,7 +624,7 @@ const Sidebar = () => {
                           : 'bg-white text-gray-700'
                       } ${enabled === false ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
-                      <Icon name={icon as IconType} className="h-4.5 w-4.5 shrink-0 p-0.5" />
+                      <NavIcon name={icon} className="h-4.5 w-4.5 shrink-0 p-0.5" />
                       <span className="truncate">{title}</span>
                     </button>
                   );
@@ -641,7 +652,7 @@ const Sidebar = () => {
           end
           className={({ isActive }) => `mcm-adminnav-all ${isActive ? 'on' : ''}`}
         >
-          <Icon name={'Grid' as IconType} className="h-4 w-4" />
+          <NavIcon name={'Grid'} className="h-4 w-4" />
           All admin screens
         </NavLink>
         <div className="mcm-adminnav h-full min-h-0 divide-y divide-gray-200">
@@ -668,21 +679,35 @@ const Sidebar = () => {
                     <AccordionItem value={value} className="">
                       <AccordionTrigger className="p-0 items-center" isActive={isActive}>
                         <div className="flex items-center w-full px-3 h-14 gap-2 cursor-pointer font-medium whitespace-nowrap">
-                          <Icon name={icon as IconType} className="w-6 h-6 p-0.5" />
+                          <NavIcon name={icon} className="w-6 h-6 p-0.5" />
                           {title}
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="border md:border-0  md:bg-ucass-primary-200/20 bg-white z-10 relative">
-                        {visibleChildren?.map(
-                          ({ title, path, icon, extraActiveTab, enabled }: any, index: number) => {
-                            return (
-                              <Tile
-                                key={index}
-                                {...{ title, path, icon, extraActiveTab, children, enabled }}
-                              />
-                            );
-                          },
-                        )}
+                        {visibleChildren?.map((child: any, index: number) => {
+                          /* `children` used to be spread in here from the
+                             enclosing section, not from the child - so every
+                             item inside a section was told it had children of
+                             its own. Tile reads that to decide whether it is a
+                             parent row, and a parent row never draws the filled
+                             pill, so the current page could be lit inside a
+                             section but never marked as the page you are on.
+                             A leaf has no children; it now says so. */
+                          const { title, path, icon, extraActiveTab, enabled } = child;
+                          return (
+                            <Tile
+                              key={index}
+                              {...{
+                                title,
+                                path,
+                                icon,
+                                extraActiveTab,
+                                children: child.children,
+                                enabled,
+                              }}
+                            />
+                          );
+                        })}
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
@@ -717,7 +742,7 @@ const Tile = ({ title, path, icon, extraActiveTab, children, enabled }: any) => 
         navigate(path);
       }}
     >
-      <Icon name={icon as IconType} className="w-5 h-5 p-0.5" />
+      <NavIcon name={icon} className="w-5 h-5 p-0.5" />
       <p title={title} className="font-medium truncate text-sm">
         {title}
       </p>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Pencil, Plus, Bot, Check } from 'lucide-react';
+import { Check, ChevronDown, Pencil } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from '@/components/ui/dropdown-menu';
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
@@ -8,11 +8,16 @@ export const SELECTED_ASSISTANT_KEY = 'captain_selected_assistant_id';
 
 export type Assistant = { id: string; name: string };
 
-const COLORS = ['bg-orange-400', 'bg-emerald-400', 'bg-sky-400', 'bg-violet-400', 'bg-rose-400', 'bg-amber-500'];
-function colorFor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return COLORS[hash % COLORS.length];
+/* The row mark. Was a bot glyph on a colour hashed from the assistant's id —
+   which meant the colour was stable but arbitrary, and the glyph identical on
+   every row, so neither told you which assistant you were about to pick.
+   Initials do, and they are the same ones the Assistants screen puts on each
+   card. Two letters off the first word: the second word is "assistant" on
+   almost all of these, so one letter per word collides exactly where it
+   matters. */
+function initials(name: string) {
+  const first = name.trim().split(/\s+/)[0] || '';
+  return (first.slice(0, 2) || '?').toUpperCase();
 }
 
 // Shared "which assistant am I looking at" state for Captain's per-assistant
@@ -62,48 +67,46 @@ export function AssistantSwitcher({
   return (
     <div className="flex items-center gap-3">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-base font-semibold text-gray-950 outline-none hover:bg-gray-100">
-          {selected?.name || 'Select assistant'}
-          <ChevronDown className="size-4 text-gray-400" />
+        {/* Same control as the Playground's picker, and for the same reason:
+            which assistant you are looking at is the fact every one of these
+            screens turns on, so it is stated rather than implied by a name in
+            the corner. */}
+        <DropdownMenuTrigger className="mcm-cpg-pick">
+          <span className="mcm-cpg-pick-l">Assistant</span>
+          <span className="mcm-cpg-pick-v">
+            <span className="mcm-cpg-pick-dot" aria-hidden="true" />
+            {selected?.name || 'Select assistant'}
+          </span>
+          <ChevronDown size={14} strokeWidth={2.25} aria-hidden="true" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72 border-gray-200 p-0">
-          <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2.5">
+        <DropdownMenuContent align="end" className="mcm-swi-menu">
+          <div className="mcm-swi-h">
             <div>
-              <div className="text-sm font-semibold text-gray-950">Assistants</div>
-              <div className="text-xs text-gray-500">Switch between assistants</div>
+              <b>Assistants</b>
+              <span>What this screen is showing</span>
             </div>
-            <div className="flex gap-1.5">
-              <Link
-                to="/admin-settings/captain/assistants"
-                className="flex size-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-                title="Manage assistants"
-              >
-                <Pencil className="size-3.5" />
-              </Link>
-              <Link
-                to="/admin-settings/captain/assistants"
-                className="flex size-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-                title="Add assistant"
-              >
-                <Plus className="size-3.5" />
-              </Link>
-            </div>
+            {/* Both buttons went to the same address and only their tooltips
+                differed, so the pair offered one destination twice. */}
+            <Link to="/admin-settings/captain/assistants" title="Manage assistants">
+              <Pencil className="size-3.5" />
+            </Link>
           </div>
-          <div className="max-h-64 overflow-y-auto p-1">
+          <div className="mcm-swi-list">
             {assistants.map((a) => (
               <button
                 key={a.id}
                 type="button"
                 onClick={() => onSelect(a.id)}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-gray-50"
+                className={a.id === selectedId ? 'is-on' : undefined}
               >
-                <span
-                  className={`flex size-6 shrink-0 items-center justify-center rounded-full text-white ${colorFor(a.id)}`}
-                >
-                  <Bot className="size-3.5" />
+                {/* Initials, matching the cards on the Assistants screen — the
+                    same bot glyph on every row said only that these were
+                    assistants, which the heading above already said. */}
+                <span className="mcm-swi-mark" aria-hidden="true">
+                  {initials(a.name)}
                 </span>
-                <span className="flex-1 truncate text-gray-800">{a.name}</span>
-                {a.id === selectedId && <Check className="size-4 text-primary" />}
+                <span className="mcm-swi-name">{a.name}</span>
+                {a.id === selectedId ? <Check className="size-4" /> : null}
               </button>
             ))}
           </div>

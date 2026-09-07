@@ -1,18 +1,83 @@
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
-import { handleAlert, capitalizeFirstLetter } from '@/lib/utils';
+import { handleAlert } from '@/lib/utils';
 import { deviceSecurityList, logout } from '@/services/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { LucideMonitor, LucideShieldCheck, LucideTablet, LogOut } from 'lucide-react';
-import CustomAvatar from '@/components/custom/custom-avatar';
 import Loader from '@/components/custom/loader';
-import { Input } from '@/components/ui/input';
 import { SearchLine } from '@/assets/icons';
 import { useState, useMemo } from 'react';
+import '@/components/mcm/mcm-page.css';
 import useDebounce from '@/hooks/use-debounce';
 import ChangePassword from '@/pages/change-password';
 import { KeyRound } from 'lucide-react';
 import TrustedDevices from './trusted-devices';
+
+
+/* A user-agent string, said the way a person would say it.
+
+   These rows exist so somebody can recognise a session or fail to. A 130-
+   character UA string is not something anybody recognises, so the browser and
+   the machine are pulled to the front and the raw string kept underneath for
+   when the summary is not enough.
+
+   Deliberately simple: substring tests in the order that resolves the
+   ambiguities (Edge and Opera both say "Chrome"; Chrome says "Safari"), and no
+   library for four lines of matching. Anything it cannot place keeps the raw
+   string, which is the honest fallback — a wrong guess about which device is
+   yours is worse on this page than no guess. */
+const describeClient = (ua?: string): { label: string } => {
+  const value = String(ua || '');
+  if (!value) return { label: 'Unknown device' };
+
+  /* The phone app names itself, so it never has to be inferred. */
+  if (/MyCountryMobile/i.test(value)) {
+    const os = /iPhone|iOS/i.test(value) ? 'iPhone' : /Android/i.test(value) ? 'Android' : 'mobile';
+    return { label: `Phone app on ${os}` };
+  }
+
+  const browser = /Edg\//i.test(value)
+    ? 'Edge'
+    : /OPR\//i.test(value)
+      ? 'Opera'
+      : /Chrome\//i.test(value)
+        ? 'Chrome'
+        : /Firefox\//i.test(value)
+          ? 'Firefox'
+          : /Safari\//i.test(value)
+            ? 'Safari'
+            : '';
+
+  const os = /Windows/i.test(value)
+    ? 'Windows'
+    : /Mac OS X|Macintosh/i.test(value)
+      ? 'macOS'
+      : /Android/i.test(value)
+        ? 'Android'
+        : /iPhone|iPad|iOS/i.test(value)
+          ? 'iOS'
+          : /Linux/i.test(value)
+            ? 'Linux'
+            : '';
+
+  if (browser && os) return { label: `${browser} on ${os}` };
+  if (browser) return { label: browser };
+  if (os) return { label: os };
+  return { label: value };
+};
+
+/* How long ago, in words. */
+const timeAgo = (iso: string): string => {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months === 1 ? '' : 's'} ago`;
+};
 
 const Security = () => {
   const { user } = useUser();
@@ -100,169 +165,181 @@ const Security = () => {
   };
 
   return (
-    <section
-      /* The page scrolls here. It used to be `overflow-y-hidden`, which clipped
-        everything below the fold with no way to reach it. The sticky footer is
-        `position: sticky; bottom: 0`, so it pins to this container rather than
-        scrolling away with the content. */
-      className="flex h-full min-h-0 w-full flex-col overflow-x-auto overflow-y-auto bg-gray-200/15"
-    >
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-        <div>
-          <p className="text-gray-900 font-semibold text-lg">Security & Privacy</p>
-          <p className="text-gray-500 text-xs">
-            Your password, and every device currently signed in as you.
-          </p>
+    <section className="mcm-adminpage mcm-sec">
+      <div className="mcm-adminpage-head">
+        <div className="mcm-adminpage-title">
+          <div className="mcm-adminpage-eyebrow">My account</div>
+          <h1>Security &amp; Privacy</h1>
+          <p>Your password, and every device currently signed in as you.</p>
         </div>
       </div>
-      <div className="gap-3 flex flex-col w-full min-h-full p-3">
-        <div className="flex sm:flex-row flex-col sm:items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex flex-col gap-1 sm:w-1/2 w-full">
-            <p className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-              <KeyRound className="h-4 w-4 text-primary" />
-              Password
-            </p>
-            {/* The server signs out every session, this one included, the moment
-                the password changes (changePassword calls logOutUser with
-                type "all"), and the same password is what the phone app
-                registers with. Both are said here so nobody is surprised by a
-                sign-in screen or a phone that stops ringing. */}
-            <p className="text-gray-500 text-xs">
-              Change the password you sign in with. You will need your current one. Saving a new
-              password signs you out everywhere, including this device, and your phone app will need
-              the new password too.
-            </p>
+
+      <div className="mcm-sec-body">
+        <div className="mcm-setrow">
+          <div className="mcm-setrow-t">
+            <span className="mcm-setrow-mark" aria-hidden="true">
+              <KeyRound size={15} strokeWidth={2} />
+            </span>
+            <div>
+              <b>Password</b>
+              {/* The server signs out every session, this one included, the moment
+                  the password changes (changePassword calls logOutUser with
+                  type "all"), and the same password is what the phone app
+                  registers with. Both are said here so nobody is surprised by a
+                  sign-in screen or a phone that stops ringing. */}
+              <p>
+                Change the password you sign in with. You will need your current one. Saving a new
+                password signs you out everywhere, including this device, and your phone app will
+                need the new password too.
+              </p>
+            </div>
           </div>
           <Button variant="outline" onClick={() => setIsChangePasswordOpen(true)}>
             Change password
           </Button>
         </div>
+
         {/* Two-step sign-in status and the devices allowed to skip the code.
             Own account only; reads and revokes through /api/security/devices. */}
         <TrustedDevices />
-        <div className="flex sm:flex-row flex-col items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex flex-col gap-1 sm:w-1/2 w-full">
-            <p className="text-gray-900 font-semibold text-sm">Sign out everywhere</p>
-            <p className="text-gray-500 text-xs">
-              Ends every session signed in as you &mdash; useful if you have lost a phone or used a
-              shared computer.
-            </p>
+
+        <div className="mcm-setrow is-risky">
+          <div className="mcm-setrow-t">
+            <span className="mcm-setrow-mark is-risky" aria-hidden="true">
+              <LogOut size={15} strokeWidth={2} />
+            </span>
+            <div>
+              <b>Sign out everywhere</b>
+              <p>
+                Ends every session signed in as you &mdash; useful if you have lost a phone or used
+                a shared computer.
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3 sm:flex-row flex-col sm:w-auto w-full">
+          <div className="mcm-sec-acts">
             <Button
               variant="destructiveOutline"
               onClick={handleLogoutExcept}
               disabled={!currentUserUuid}
-              className="whitespace-nowrap transition-all duration-200"
             >
               <LogOut className="w-4 h-4" />
-              Sign out my other devices
+              Other devices only
             </Button>
             <Button
               variant="destructiveOutline"
               onClick={handleLogoutAll}
               disabled={!currentUserUuid}
-              className="whitespace-nowrap transition-all duration-200"
             >
               <LogOut className="w-4 h-4" />
-              Sign out everywhere
+              Everywhere
             </Button>
           </div>
         </div>
-        <div className="w-full flex sm:flex-row flex-col items-center justify-between gap-5">
-          <p className="text-gray-800 text-sm">
-            These are sessions from devices and browsers that are successfully signed into your
-            account. You can sign out of any session you don't recognize or that's from a public
-            computer.
-          </p>
-          <div className="flex items-end sm:w-auto w-full">
-            <Input
-              placeholder="Search"
-              className="max-w-64  pl-10"
-              IconPosition="left-0 pl-2 inset-y-0"
-              value={search}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value.startsWith(' ')) return;
-                setSearch(e.target.value);
-              }}
-              Icon={<SearchLine className="text-gray-700" />}
-            />
+
+        <section className="mcm-sec-sessions">
+          <div className="mcm-sec-sessh">
+            <div>
+              <h2>
+                Signed in
+                <span>{ownDevices?.length || 0}</span>
+              </h2>
+              <p>
+                Every device and browser signed into your account. Sign out of anything you do not
+                recognise, or anything on a shared computer.
+              </p>
+            </div>
+            <div className="mcm-faq-search">
+              <SearchLine className="size-4" />
+              <input
+                type="text"
+                placeholder="Search sessions"
+                aria-label="Search sessions"
+                value={search}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.startsWith(' ')) return;
+                  setSearch(e.target.value);
+                }}
+              />
+            </div>
           </div>
-        </div>
-        <div className="gap-3 flex flex-col w-full pr-1">
+
           {isLoading ? (
-            <div className="flex justify-center h-full items-center">
+            <div className="mcm-sec-blank">
               <Loader variant="blue" />
             </div>
+          ) : !ownDevices?.length ? (
+            <div className="mcm-sec-blank">
+              {search ? `No session matches “${search}”.` : 'No other sessions are signed in.'}
+            </div>
           ) : (
-            ownDevices &&
-            ownDevices?.map((item: any) => {
-              return (
-                <div
-                  className="border cursor-pointer p-3 flex sm:flex-row flex-col  gap-2 rounded-lg sm:justify-between bg-white  
-                  "
-                >
-                  <div className="flex sm:items-center xs:justify-start xs:items-start gap-3 w-full">
-                    <div className="flex flex-col items-center  gap-2">
-                      <CustomAvatar
-                        name={
-                          `${item?.user_detail?.first_name || ''} ${item?.user_detail?.last_name || ''}`.trim() ||
-                          'Unknown User'
-                        }
-                        showPresence={true}
-                        size="40"
-                        image={item?.user_detail?.profile}
-                        extension={item?.user_detail?.extension}
-                      />
-                      <span className="w-8 min-w-8 h-8 rounded-sm bg-ucass-primary-200 text-primary p-1.5 flex items-center justify-center">
-                        {item?.device_type === 'W' ? (
-                          <LucideMonitor className="w-4 h-4" />
-                        ) : (
-                          <LucideTablet className="w-4 h-4" />
-                        )}
-                      </span>
+            <ul className="mcm-sec-list">
+              {ownDevices.map((item: any) => {
+                const isCurrent = user?.device_token === item?.uuid;
+                const client = describeClient(item?.user_agent);
+                return (
+                  <li className={`mcm-sec-row ${isCurrent ? 'is-current' : ''}`} key={item?.uuid}>
+                    <span className="mcm-sec-mark" aria-hidden="true">
+                      {item?.device_type === 'W' ? (
+                        <LucideMonitor className="w-4 h-4" />
+                      ) : (
+                        <LucideTablet className="w-4 h-4" />
+                      )}
+                    </span>
+
+                    <div className="mcm-sec-main">
+                      <div className="mcm-sec-t">
+                        {/* The name and browser, not the raw user-agent. Every
+                            row on this page belongs to the same person, so the
+                            avatar, name and email that used to lead each one
+                            were identical four times over and pushed the only
+                            things that differ — which machine, which browser,
+                            which address — into small grey text. */}
+                        <b>{client.label}</b>
+                        {isCurrent ? (
+                          <span className="mcm-sec-now">
+                            <LucideShieldCheck className="w-3 h-3" />
+                            This device
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mcm-sec-meta">
+                        <span>{item?.ip_address || 'Address unknown'}</span>
+                        {item?.last_active_at ? (
+                          <>
+                            <i aria-hidden="true" />
+                            <span>Last used {timeAgo(item.last_active_at)}</span>
+                          </>
+                        ) : null}
+                      </div>
+                      {/* Kept, because an unrecognised session is judged on the
+                          detail — but as the small print it is, not the
+                          headline it was. */}
+                      <p className="mcm-sec-ua" title={item?.user_agent}>
+                        {item?.user_agent}
+                      </p>
                     </div>
-                    <div className="flex flex-col w-full gap-1">
-                      <div className="flex flex-col items-start">
-                        <p className="text-gray-900 font-medium text-sm">
-                          {capitalizeFirstLetter(
-                            `${item?.user_detail?.first_name || ''} ${item?.user_detail?.last_name || ''}`.trim(),
-                          ) || 'Unknown User'}
-                        </p>
-                        <p className="text-gray-500 text-xs">{item?.user_detail?.email || ''}</p>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-gray-600 text-xs">User Agent: {item?.user_agent}</p>
-                        <p className="text-gray-600 text-xs">IP Address: {item?.ip_address}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    {user?.device_token === item?.uuid ? (
-                      <div className="inline-flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg whitespace-nowrap">
-                        <LucideShieldCheck className="text-green-600 w-4 h-4" />
-                        <span className="text-green-700 text-sm font-medium">Current Device</span>
-                      </div>
-                    ) : (
+
+                    {isCurrent ? null : (
                       <Button
                         variant={'outline'}
+                        size="sm"
                         onClick={() => logoutDevice('single', item)}
-                        className="flex items-center justify-center"
                       >
-                        Logout
+                        Sign out
                       </Button>
                     )}
-                  </div>
-                </div>
-              );
-            })
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
+        </section>
       </div>
+
       <ChangePassword modalState={isChangePasswordOpen} setModalState={setIsChangePasswordOpen} />
     </section>
-  );
+    );
 };
 
 export default Security;

@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Link2, FileText, MoreVertical, BookOpenText, Sparkles, Trash2, Pencil, Loader2 } from 'lucide-react';
+import {
+  BookOpenText,
+  CircleCheck,
+  FileText,
+  Link2,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,10 +19,19 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { AssistantSwitcher, useSelectedAssistant } from './assistant-switcher';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * Captain — Documents.
+ *
+ * The sources an assistant answers from. The list showed a name, a status pill
+ * and an address; `content_length` was fetched on every row and shown on none
+ * of them, which left the one question a knowledge source raises — is there
+ * actually anything in it — unanswerable from this screen. A crawl that
+ * succeeds and returns an empty page reads here exactly like one that worked.
+ */
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
-const textAreaClass =
-  'w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition-all placeholder:text-gray-400 hover:border-primary focus:border-primary focus:ring-4 focus:ring-primary/10';
 
 type Document = {
   id: string;
@@ -25,6 +46,27 @@ type Document = {
 };
 
 type GeneratedFaq = { question: string; answer: string; selected: boolean };
+
+/* The three states a document can be in. Held as data rather than as a chain of
+   ternaries in the markup, which is what made the old pill's colours and its
+   words drift into separate expressions. */
+const STATUS = {
+  ready: { label: 'Ready', tone: 'is-ready', Icon: CircleCheck },
+  processing: { label: 'Processing', tone: 'is-work', Icon: Loader2 },
+  failed: { label: 'Failed', tone: 'is-bad', Icon: TriangleAlert },
+} as const;
+
+/* How much text was actually extracted. The API has always sent it. A document
+   that crawled "successfully" and came back with 40 characters is the failure
+   this screen could not previously show — it looked identical to a good one. */
+const extractSize = (chars: number) => {
+  if (!chars) return null;
+  if (chars < 1000) return `${chars} characters`;
+  return `${(chars / 1000).toFixed(chars < 10000 ? 1 : 0)}k characters`;
+};
+/* Under a paragraph or so of text is almost never a real page — usually a
+   cookie wall, a login screen, or a redirect that returned 200. */
+const THIN_EXTRACT = 400;
 
 function timeAgo(dateStr: string) {
   const diffMs = Date.now() - new Date(`${dateStr}Z`).getTime();
@@ -64,6 +106,9 @@ const CaptainDocuments = () => {
   const [generatedFaqs, setGeneratedFaqs] = useState<GeneratedFaq[] | null>(null);
   const [isSavingFaqs, setIsSavingFaqs] = useState(false);
   const [modalError, setModalError] = useState('');
+  /* Which row is asking "are you sure". One at a time, so opening a second
+     confirmation closes the first. */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const fetchDocuments = async (assistantId: string) => {
     if (!assistantId) return;
@@ -140,8 +185,7 @@ const CaptainDocuments = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this document? This cannot be undone.')) return;
+  const deleteDocument = async (id: string) => {
     try {
       const res = await fetch(`${CAPTAIN_API_BASE}/documents/${id}`, { method: 'DELETE' });
       if (!res.ok && res.status !== 204) throw new Error('Failed to delete document');
@@ -232,113 +276,180 @@ const CaptainDocuments = () => {
     }
   };
 
+  const handleDelete = (id: string) => {
+    setConfirmingId(null);
+    void deleteDocument(id);
+  };
+
   return (
-    <div className="flex h-full w-full flex-col gap-5 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <AssistantSwitcher assistants={assistants} selectedId={selectedId} onSelect={selectAssistant} pageTitle="Documents" />
-        <Button type="button" variant="primary" onClick={() => setIsCreateOpen(true)} disabled={!selectedId}>
-          <Plus className="size-4" />
-          Create a new document
-        </Button>
-      </div>
-
-      {createdCount !== null && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-700">
-          {createdCount === 1 ? 'The document has been successfully created.' : `${createdCount} documents were successfully created.`}
+    <section className="mcm-adminpage mcm-doc">
+      <div className="mcm-adminpage-head">
+        <div className="mcm-adminpage-title">
+          <div className="mcm-adminpage-eyebrow">Captain</div>
+          <h1>Documents</h1>
+          {/* The standing explainer that used to sit in a dashed box above the
+              list said this, and said it on every visit forever. It belongs in
+              the one line every other Admin screen puts under its title. */}
+          <p>
+            What the assistant is allowed to answer from. Point it at a help centre or upload a
+            PDF, and Captain reads it for FAQs.
+          </p>
         </div>
-      )}
-
-      <div className="flex items-center gap-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50/60 p-5">
-        <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-          <BookOpenText className="size-7 text-primary" />
-        </div>
-        <p className="text-sm text-gray-600">
-          A document in Captain serves as a knowledge resource for the assistant. By connecting your help center
-          pages or guides, Captain can analyze the content and generate accurate FAQs for customer inquiries.
-        </p>
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>
-      )}
-
-      {isLoading ? (
-        <div className="flex h-40 items-center justify-center text-sm text-gray-500">Loading...</div>
-      ) : documents.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-white py-16 text-center">
-          <FileText className="size-8 text-gray-300" />
-          <div className="text-lg font-semibold text-gray-900">No documents available</div>
-          <div className="max-w-sm text-sm text-gray-500">
-            Documents are used by your assistant to generate FAQs. Import a document to provide context for your
-            assistant.
-          </div>
-          <Button type="button" variant="primary" onClick={() => setIsCreateOpen(true)}>
+        <div className="mcm-adminpage-actions">
+          <AssistantSwitcher
+            assistants={assistants}
+            selectedId={selectedId}
+            onSelect={selectAssistant}
+          />
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => setIsCreateOpen(true)}
+            disabled={!selectedId}
+          >
             <Plus className="size-4" />
-            Create a new document
+            Add document
           </Button>
         </div>
-      ) : (
-        <div className="flex flex-col gap-3 overflow-auto">
-          {documents.map((doc) => (
-            <div key={doc.id} className="flex items-start justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="truncate text-sm font-semibold text-gray-950">{doc.name}</div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      doc.status === 'ready'
-                        ? 'bg-green-100 text-green-700'
-                        : doc.status === 'failed'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {doc.status === 'processing' ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Loader2 className="size-3 animate-spin" />
-                        processing
-                      </span>
+      </div>
+
+      {createdCount !== null ? (
+        <div className="mcm-doc-note" role="status">
+          <CircleCheck size={15} strokeWidth={2} aria-hidden="true" />
+          {createdCount === 1
+            ? 'Document added. It will show as Ready once Captain has read it.'
+            : createdCount + ' documents added. They will show as Ready once Captain has read them.'}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mcm-cpg-error" role="alert">
+          <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mcm-doc-body">
+        {isLoading ? (
+          <div className="mcm-doc-blank">Loading documents…</div>
+        ) : documents.length === 0 ? (
+          <div className="mcm-doc-blank">
+            <span className="mcm-doc-blank-mark">
+              <BookOpenText size={22} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <h2>Nothing to answer from yet</h2>
+            <p>
+              Without a document the assistant has only its instructions to go on. Add a help
+              centre page or a PDF and it will read it for FAQs.
+            </p>
+            <Button type="button" variant="primary" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="size-4" />
+              Add document
+            </Button>
+          </div>
+        ) : (
+          <ul className="mcm-doc-list">
+            {documents.map((doc) => {
+              const state = STATUS[doc.status] || STATUS.processing;
+              const size = extractSize(doc.content_length);
+              const isThin =
+                doc.status === 'ready' &&
+                doc.content_length > 0 &&
+                doc.content_length < THIN_EXTRACT;
+
+              return (
+                <li className={'mcm-doc-row ' + state.tone} key={doc.id}>
+                  <span className="mcm-doc-kind" aria-hidden="true">
+                    {doc.type === 'url' ? (
+                      <Link2 size={15} strokeWidth={2} />
                     ) : (
-                      doc.status
+                      <FileText size={15} strokeWidth={2} />
                     )}
                   </span>
-                </div>
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500">
-                  {doc.type === 'url' ? <Link2 className="size-3.5 shrink-0" /> : <FileText className="size-3.5 shrink-0" />}
-                  {doc.source_url ? (
-                    <a href={doc.source_url} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">
-                      {doc.source_url}
-                    </a>
+
+                  <div className="mcm-doc-main">
+                    <div className="mcm-doc-t">
+                      <span className="mcm-doc-name">{doc.name}</span>
+                      <span className={'mcm-doc-status ' + state.tone}>
+                        <state.Icon
+                          size={12}
+                          strokeWidth={2.25}
+                          className={doc.status === 'processing' ? 'animate-spin' : undefined}
+                          aria-hidden="true"
+                        />
+                        {state.label}
+                      </span>
+                    </div>
+
+                    <div className="mcm-doc-meta">
+                      {doc.source_url ? (
+                        <a href={doc.source_url} target="_blank" rel="noreferrer">
+                          {doc.source_url}
+                        </a>
+                      ) : (
+                        <span>Uploaded PDF</span>
+                      )}
+                      {size ? (
+                        <>
+                          <i aria-hidden="true" />
+                          {/* Flagged, not hidden: a page that returned almost no
+                              text is the quiet failure this list exists to
+                              surface. */}
+                          <span className={isThin ? 'is-thin' : undefined}>
+                            {isThin ? size + ' — barely any text' : size}
+                          </span>
+                        </>
+                      ) : null}
+                      <i aria-hidden="true" />
+                      <span>{timeAgo(doc.created_at)}</span>
+                    </div>
+
+                    {doc.status === 'failed' && doc.error_message ? (
+                      <p className="mcm-doc-why">{doc.error_message}</p>
+                    ) : null}
+                  </div>
+
+                  {confirmingId === doc.id ? (
+                    /* Asked on the row, not in an OS dialog — window.confirm
+                       cannot name which document it means. */
+                    <div className="mcm-doc-confirm">
+                      <span>Delete?</span>
+                      <button type="button" onClick={() => setConfirmingId(null)}>
+                        Keep
+                      </button>
+                      <button type="button" className="is-go" onClick={() => handleDelete(doc.id)}>
+                        Delete
+                      </button>
+                    </div>
                   ) : (
-                    <span>PDF upload</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        className="mcm-doc-more"
+                        aria-label={'Actions for ' + doc.name}
+                      >
+                        <MoreVertical className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(doc)}>
+                          <Pencil className="size-3.5" />
+                          Edit content
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setConfirmingId(doc.id)}
+                        >
+                          <Trash2 className="size-3.5" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
-                </div>
-                {doc.status === 'failed' && doc.error_message && (
-                  <div className="mt-1 text-xs text-red-600">{doc.error_message}</div>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="text-xs text-gray-400">{timeAgo(doc.created_at)}</span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="flex size-7 items-center justify-center rounded-md text-gray-400 outline-none hover:bg-gray-100 hover:text-gray-600">
-                    <MoreVertical className="size-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => openEdit(doc)}>
-                      <Pencil className="size-3.5" />
-                      Edit content
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onClick={() => handleDelete(doc.id)}>
-                      <Trash2 className="size-3.5" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       {/* Create document modal */}
       <Dialog
@@ -348,83 +459,120 @@ const CaptainDocuments = () => {
           if (!open) resetCreateForm();
         }}
       >
-        <DialogContent className="w-full max-w-md rounded-2xl p-6">
-          <DialogTitle className="text-base font-bold text-gray-950">Add a document</DialogTitle>
-          <p className="-mt-2 text-sm text-gray-500">
-            Enter the URL of the document to add it as a knowledge source, or upload a PDF.
-          </p>
+        <DialogContent className="mcm-asst-dlg w-full max-w-md p-0">
+          <div className="mcm-asst-dlg-h">
+            <DialogTitle>Add a document</DialogTitle>
+            <p>Point Captain at a page it may answer from, or upload a PDF.</p>
+          </div>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Document Type</Label>
-              <select
-                value={createType}
-                onChange={(e) => setCreateType(e.target.value as 'url' | 'pdf')}
-                className="min-h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none transition-all hover:border-primary focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="url">URL</option>
-                <option value="pdf">PDF File</option>
-              </select>
+          <div className="mcm-asst-dlg-b mcm-doc-dlg-b">
+            <div className="mcm-asst-f">
+              <Label>Source</Label>
+              {/* Two options, so they are shown as two. A dropdown asks for a
+                  click to reveal a choice that fits on the line. */}
+              <div className="mcm-doc-kindpick">
+                <button
+                  type="button"
+                  className={createType === 'url' ? 'is-on' : undefined}
+                  onClick={() => setCreateType('url')}
+                >
+                  <Link2 size={14} strokeWidth={2} aria-hidden="true" />
+                  A web page
+                </button>
+                <button
+                  type="button"
+                  className={createType === 'pdf' ? 'is-on' : undefined}
+                  onClick={() => setCreateType('pdf')}
+                >
+                  <FileText size={14} strokeWidth={2} aria-hidden="true" />
+                  A PDF
+                </button>
+              </div>
             </div>
 
             {createType === 'url' ? (
               <>
-                <div className="flex flex-col gap-1.5">
-                  <Label>URL</Label>
-                  <Input type="text" value={createUrl} onChange={(e) => setCreateUrl(e.target.value)} placeholder="https://example.com/help-article" />
+                <div className="mcm-asst-f">
+                  <Label htmlFor="doc-url">Address</Label>
+                  <Input
+                    id="doc-url"
+                    type="text"
+                    value={createUrl}
+                    onChange={(e) => setCreateUrl(e.target.value)}
+                    placeholder="https://example.com/help-article"
+                  />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label>Pages to crawl</Label>
-                  <select
-                    value={createMaxPages}
-                    onChange={(e) => setCreateMaxPages(Number(e.target.value))}
-                    className="min-h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none transition-all hover:border-primary focus:border-primary focus:ring-4 focus:ring-primary/10"
-                  >
-                    <option value={1}>Just this page</option>
-                    <option value={5}>Up to 5 pages</option>
-                    <option value={10}>Up to 10 pages</option>
-                    <option value={20}>Up to 20 pages</option>
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    Discovers linked pages on the same site (one level deep) and adds each as its own document —
-                    bigger sites need more pages, so pick a size that covers what you need.
+                <div className="mcm-asst-f">
+                  <Label>How far to follow links</Label>
+                  <p className="mcm-asst-f-p">
+                    Linked pages on the same site, one level deep. Each becomes its own document.
                   </p>
+                  {/* Four fixed values, so they are four choices rather than a
+                      dropdown hiding three of them. */}
+                  <div className="mcm-doc-depth">
+                    {[
+                      { value: 1, label: 'This page' },
+                      { value: 5, label: '5 pages' },
+                      { value: 10, label: '10 pages' },
+                      { value: 20, label: '20 pages' },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={createMaxPages === option.value ? 'is-on' : undefined}
+                        onClick={() => setCreateMaxPages(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                <Label>PDF File</Label>
+              <div className="mcm-asst-f">
+                <Label htmlFor="doc-file">PDF</Label>
                 <input
+                  id="doc-file"
                   ref={fileInputRef}
                   type="file"
                   accept="application/pdf"
+                  className="mcm-doc-file"
                   onChange={(e) => setCreateFile(e.target.files?.[0] || null)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary"
                 />
               </div>
             )}
 
-            <div className="flex flex-col gap-1.5">
-              <Label>{createType === 'url' ? 'Document Name (Optional)' : 'Name'}</Label>
+            <div className="mcm-asst-f">
+              <Label htmlFor="doc-name">
+                Name{' '}
+                {createType === 'url' ? <span className="mcm-doc-optional">optional</span> : null}
+              </Label>
               <Input
+                id="doc-name"
                 type="text"
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                placeholder={createType === 'url' ? 'Defaults to the page URL' : 'Enter a name for the document'}
+                placeholder={
+                  createType === 'url' ? 'Defaults to the page title' : 'What this document is'
+                }
               />
             </div>
 
-            {modalError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{modalError}</div>
-            )}
-            {isCreating && createMaxPages > 1 && (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm text-primary">
-                Crawling up to {createMaxPages} pages — this can take a minute...
+            {modalError ? (
+              <div className="mcm-cpg-error" role="alert">
+                <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+                {modalError}
               </div>
-            )}
+            ) : null}
+            {isCreating && createMaxPages > 1 ? (
+              <div className="mcm-doc-wait" role="status">
+                <Loader2 size={15} strokeWidth={2} className="animate-spin" aria-hidden="true" />
+                Reading up to {createMaxPages} pages — this can take a minute.
+              </div>
+            ) : null}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="mcm-asst-dlg-f">
             <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
               Cancel
             </Button>
@@ -434,7 +582,7 @@ const CaptainDocuments = () => {
               disabled={isCreating || (createType === 'url' ? !createUrl.trim() : !createFile || !createName.trim())}
               onClick={handleCreate}
             >
-              {isCreating ? 'Creating...' : 'Create'}
+              {isCreating ? 'Adding…' : 'Add document'}
             </Button>
           </div>
         </DialogContent>
@@ -442,38 +590,54 @@ const CaptainDocuments = () => {
 
       {/* Edit / generate FAQs modal */}
       <Dialog open={!!editingDoc} onOpenChange={(open) => !open && setEditingDoc(null)}>
-        <DialogContent className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-6">
-          <DialogTitle className="text-base font-bold text-gray-950">Edit document</DialogTitle>
+        <DialogContent className="mcm-asst-dlg w-full max-w-2xl p-0">
+          <div className="mcm-asst-dlg-h">
+            <DialogTitle>Edit document</DialogTitle>
+            <p>
+              This text is what the assistant reads. Trimming what does not belong here is the
+              fastest way to improve its answers.
+            </p>
+          </div>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Name</Label>
-              <Input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label>Content</Label>
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={10}
-                className={textAreaClass}
-                placeholder="Extracted content will appear here — edit it to correct or trim what the assistant sees."
+          <div className="mcm-asst-dlg-b mcm-doc-dlg-b">
+            <div className="mcm-asst-f">
+              <Label htmlFor="doc-edit-name">Name</Label>
+              <Input
+                id="doc-edit-name"
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
               />
             </div>
 
-            {modalError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{modalError}</div>
-            )}
+            <div className="mcm-asst-f">
+              <Label htmlFor="doc-edit-content">Extracted text</Label>
+              <textarea
+                id="doc-edit-content"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={10}
+                className="mcm-asst-ta"
+                placeholder="Extracted text will appear here — correct or trim what the assistant sees."
+              />
+            </div>
+
+            {modalError ? (
+              <div className="mcm-cpg-error" role="alert">
+                <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+                {modalError}
+              </div>
+            ) : null}
 
             {generatedFaqs && (
-              <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-                <div className="text-sm font-semibold text-gray-800">
-                  Suggested FAQs ({generatedFaqs.filter((f) => f.selected).length} selected)
+              <div className="mcm-doc-faqs">
+                <div className="mcm-doc-faqs-h">
+                  Suggested FAQs
+                  <span>{generatedFaqs.filter((f) => f.selected).length} of {generatedFaqs.length} selected</span>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="mcm-doc-faqs-l">
                   {generatedFaqs.map((f, i) => (
-                    <div key={i} className="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-white p-3">
+                    <label key={i} className={f.selected ? 'is-on' : undefined}>
                       <Checkbox
                         checked={f.selected}
                         onCheckedChange={(checked) =>
@@ -481,13 +645,12 @@ const CaptainDocuments = () => {
                             prev ? prev.map((item, idx) => (idx === i ? { ...item, selected: checked === true } : item)) : prev,
                           )
                         }
-                        className="mt-0.5"
                       />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-900">{f.question}</div>
-                        <div className="mt-0.5 text-xs text-gray-500">{f.answer}</div>
-                      </div>
-                    </div>
+                      <span className="mcm-doc-faq-t">
+                        <b>{f.question}</b>
+                        {f.answer}
+                      </span>
+                    </label>
                   ))}
                 </div>
                 <Button
@@ -498,29 +661,38 @@ const CaptainDocuments = () => {
                   disabled={isSavingFaqs || !generatedFaqs.some((f) => f.selected)}
                   onClick={handleSaveGeneratedFaqs}
                 >
-                  {isSavingFaqs ? 'Saving...' : `Save ${generatedFaqs.filter((f) => f.selected).length} as FAQs (draft)`}
+                  {isSavingFaqs
+                    ? 'Saving…'
+                    : 'Save ' +
+                      generatedFaqs.filter((f) => f.selected).length +
+                      ' as drafts'}
                 </Button>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={handleGenerateFaqs} disabled={isGenerating || !editContent}>
+          <div className="mcm-asst-dlg-f is-split">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGenerateFaqs}
+              disabled={isGenerating || !editContent}
+            >
               <Sparkles className="size-4" />
-              {isGenerating ? 'Generating...' : 'Generate FAQs from this document'}
+              {isGenerating ? 'Reading…' : 'Suggest FAQs from this'}
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setEditingDoc(null)}>
                 Close
               </Button>
               <Button type="button" variant="primary" disabled={isSavingEdit} onClick={handleSaveEdit}>
-                {isSavingEdit ? 'Saving...' : 'Save'}
+                {isSavingEdit ? 'Saving…' : 'Save'}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 };
 

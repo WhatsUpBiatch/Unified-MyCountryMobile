@@ -1,12 +1,48 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Play, Wrench, Search, Plug, RefreshCw, Zap, MessageSquare, Lock, LockOpen, Check } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Lock,
+  LockOpen,
+  Pencil,
+  Play,
+  Plug,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  Wrench,
+  X,
+  Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { AssistantSwitcher, useSelectedAssistant } from './assistant-switcher';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * Captain — Actions.
+ *
+ * What the assistant may do beyond answering: connected third-party apps, the
+ * individual actions inside them, and hand-built HTTP tools.
+ *
+ * The security tier control was written out twice — once for a connected app's
+ * actions and once for custom tools — as ~45 lines each of hand-rolled popover
+ * with a `fixed inset-0` div for a backdrop, reachable only by mouse. It is one
+ * component now, on the menu primitive this file already had.
+ */
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
 
@@ -47,10 +83,95 @@ type ComposioAction = {
 };
 
 type SecurityTier = 'open' | 'standard' | 'secure';
-const TIER_META: Record<SecurityTier, { label: string; desc: string; icon: any; color: string }> = {
-  open: { label: 'Open', desc: 'No verification — bot calls directly', icon: LockOpen, color: 'text-gray-500' },
-  standard: { label: 'Standard', desc: 'Requires visitor email on file first', icon: Lock, color: 'text-blue-600' },
-  secure: { label: 'Secure', desc: 'Requires OTP via SMS (not wired up yet — needs an SMS provider)', icon: Lock, color: 'text-red-600' },
+
+/* How sure Captain has to be who it is talking to before it will run a read.
+   The wording says what the visitor must do, not what the tier is called —
+   "Standard" on its own tells nobody anything. */
+const TIER_META: Record<SecurityTier, { label: string; desc: string; icon: any; tone: string }> = {
+  open: {
+    label: 'Anyone',
+    desc: 'No check. The assistant answers whoever is asking.',
+    icon: LockOpen,
+    tone: 'is-open',
+  },
+  standard: {
+    label: 'Known email',
+    desc: 'Only once the visitor has given an email address.',
+    icon: Lock,
+    tone: 'is-standard',
+  },
+  secure: {
+    label: 'Verified by SMS',
+    desc: 'Needs a one-time code. No SMS provider is wired up yet.',
+    icon: ShieldCheck,
+    tone: 'is-secure',
+  },
+};
+
+const STAFF_ONLY_NOTE =
+  'This action changes data, so it is never offered to customers — staff only.';
+
+/* A connection is one of three things, and the old pill said so in the API's
+   own words: ACTIVE, INITIALIZING, FAILED. */
+const CONN_STATE: Record<string, { label: string; tone: string }> = {
+  ACTIVE: { label: 'Connected', tone: 'is-live' },
+  INITIALIZING: { label: 'Finishing up', tone: 'is-work' },
+  FAILED: { label: 'Not connected', tone: 'is-bad' },
+};
+
+/* Two letters off the app's name, matching the assistant marks elsewhere in
+   Captain — a catalogue whose logos have not loaded should not be a column of
+   identical plug icons. */
+const initials = (name: string) => (name.trim().slice(0, 2) || '?').toUpperCase();
+
+/* The security tier control, once. Built on the menu primitive rather than a
+   hand-rolled popover with a full-screen backdrop div: that version could only
+   be opened with a mouse, trapped no focus, and closed by clicking an
+   invisible element covering the page. */
+const TierPicker = ({
+  value,
+  onChange,
+}: {
+  value: SecurityTier | null;
+  onChange: (level: SecurityTier) => void;
+}) => {
+  const meta = value ? TIER_META[value] : null;
+  const Icon = meta?.icon || LockOpen;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`mcm-act-tier ${meta?.tone || 'is-none'}`}
+        aria-label="Who may trigger this action"
+      >
+        <Icon size={12} strokeWidth={2.25} aria-hidden="true" />
+        {meta?.label || 'Not set'}
+        <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="mcm-act-tiermenu">
+        <div className="mcm-act-tiermenu-h">Who may trigger this</div>
+        {(['open', 'standard', 'secure'] as const).map((level) => {
+          const item = TIER_META[level];
+          const ItemIcon = item.icon;
+          return (
+            <DropdownMenuItem
+              key={level}
+              onClick={() => onChange(level)}
+              className={value === level ? 'is-on' : undefined}
+            >
+              <ItemIcon size={15} strokeWidth={2} aria-hidden="true" />
+              <span>
+                <b>{item.label}</b>
+                {item.desc}
+              </span>
+              {value === level ? (
+                <Check size={14} strokeWidth={2.5} aria-hidden="true" />
+              ) : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 };
 
 const emptyForm = {
@@ -107,6 +228,10 @@ const CaptainActions = () => {
   const [browseActions, setBrowseActions] = useState<ComposioAction[]>([]);
   const [isLoadingActions, setIsLoadingActions] = useState(false);
   const [browseSearch, setBrowseSearch] = useState('');
+  /* Which row is asking "are you sure", one per list. Held here rather than in
+     the rows so opening a second confirmation closes the first. */
+  const [confirmToolId, setConfirmToolId] = useState<string | null>(null);
+  const [confirmConnId, setConfirmConnId] = useState<string | null>(null);
 
   const fetchConnections = async (assistantId: string) => {
     try {
@@ -190,7 +315,7 @@ const CaptainActions = () => {
   };
 
   const disconnectApp = async (conn: Connection) => {
-    if (!window.confirm(`Disconnect ${conn.toolkit_name}? Any of its enabled actions will stop working.`)) return;
+    setConfirmConnId(null);
     try {
       await fetch(`${CAPTAIN_API_BASE}/composio/connections/${conn.id}`, { method: 'DELETE' });
       setConnections((prev) => prev.filter((c) => c.id !== conn.id));
@@ -448,7 +573,7 @@ const CaptainActions = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this action? The assistant will no longer be able to call it.')) return;
+    setConfirmToolId(null);
     try {
       await fetch(`${CAPTAIN_API_BASE}/custom-tools/${id}`, { method: 'DELETE' });
       setTools((prev) => prev.filter((t) => t.id !== id));
@@ -470,11 +595,13 @@ const CaptainActions = () => {
     }
   };
 
-  const [tierPopoverId, setTierPopoverId] = useState<string | null>(null);
-  const [browseTierPopoverSlug, setBrowseTierPopoverSlug] = useState<string | null>(null);
+  /* The two "which popover is open" flags that used to live here are gone:
+     TierPicker keeps its own open state, so the page no longer tracks the
+     internals of a control it only needs a value from. */
 
   const setSecurityTier = async (t: Tool, tier: SecurityTier | null) => {
-    setTierPopoverId(null);
+    /* Closing the popover by hand went with it — Radix dismisses the menu when
+       an item is chosen. */
     setTools((prev) => prev.map((x) => (x.id === t.id ? { ...x, security_tier: tier } : x)));
     try {
       await fetch(`${CAPTAIN_API_BASE}/custom-tools/${t.id}`, {
@@ -506,376 +633,467 @@ const CaptainActions = () => {
   };
 
   return (
-    <div className="flex h-full w-full flex-col gap-5 p-6">
-      <div className="flex items-start gap-3 border-b border-gray-100 pb-5">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white">
-          <MessageSquare className="size-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-bold text-gray-950">Actions</h2>
-          <p className="text-sm text-gray-500">
-            Integrate Actions to give Captain AI access to your business data across CRM, Finance &amp; Accounting,
-            HR &amp; Recruiting, Sales, E-commerce, File Storage, Issue Tracking, and more. Captain can look up
-            contacts, invoices, employees, orders, and more directly from your connected apps.
+    <section className="mcm-adminpage mcm-act">
+      <div className="mcm-adminpage-head">
+        <div className="mcm-adminpage-title">
+          <div className="mcm-adminpage-eyebrow">Captain</div>
+          <h1>Actions</h1>
+          {/* The old header ran to four lines listing every category Composio
+              supports. The catalogue below already lists them, and it is
+              searchable. */}
+          <p>
+            What the assistant is allowed to do, beyond answering. Connect an app or point it at
+            your own API.
           </p>
         </div>
+        <div className="mcm-adminpage-actions">
+          <AssistantSwitcher
+            assistants={assistants}
+            selectedId={selectedId}
+            onSelect={selectAssistant}
+          />
+        </div>
       </div>
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>}
+      <div className="mcm-act-bar">
+        <div className="mcm-faq-filters">
+          <button
+            type="button"
+            className={mainTab === 'my-actions' ? 'is-on' : undefined}
+            onClick={() => setMainTab('my-actions')}
+          >
+            <Zap size={13} strokeWidth={2.25} aria-hidden="true" />
+            In use
+            <span>{connections.length + filteredTools.length}</span>
+          </button>
+          <button
+            type="button"
+            className={mainTab === 'create-action' ? 'is-on' : undefined}
+            onClick={() => setMainTab('create-action')}
+          >
+            <Plus size={13} strokeWidth={2.25} aria-hidden="true" />
+            Add an action
+          </button>
+        </div>
 
-      <div className="flex items-center gap-5 border-b border-gray-200">
-        <button
-          type="button"
-          onClick={() => setMainTab('my-actions')}
-          className={`flex items-center gap-1.5 border-b-2 pb-2.5 text-sm font-medium ${mainTab === 'my-actions' ? 'border-primary text-gray-900' : 'border-transparent text-gray-500'}`}
-        >
-          <Zap className="size-3.5" />
-          My actions
-        </button>
-        <button
-          type="button"
-          onClick={() => setMainTab('create-action')}
-          className={`flex items-center gap-1.5 border-b-2 pb-2.5 text-sm font-medium ${mainTab === 'create-action' ? 'border-primary text-gray-900' : 'border-transparent text-gray-500'}`}
-        >
-          <Plus className="size-3.5" />
-          Create action
-        </button>
+        {/* One search box in one place, searching whichever list is on screen —
+            the two tabs each had their own, in the same spot, doing different
+            things. */}
+        <div className="mcm-faq-search">
+          <Search size={15} strokeWidth={2} aria-hidden="true" />
+          {mainTab === 'my-actions' ? (
+            <input
+              type="text"
+              value={actionsSearch}
+              onChange={(e) => setActionsSearch(e.target.value)}
+              placeholder="Search your actions"
+              aria-label="Search your actions"
+            />
+          ) : (
+            <input
+              type="text"
+              value={toolkitSearch}
+              onChange={(e) => {
+                setToolkitSearch(e.target.value);
+                searchToolkits(e.target.value);
+              }}
+              placeholder="Search apps — Gmail, Slack, GitHub…"
+              aria-label="Search apps to connect"
+            />
+          )}
+        </div>
       </div>
 
-      {mainTab === 'my-actions' && (
-        <>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-              <Input type="text" value={actionsSearch} onChange={(e) => setActionsSearch(e.target.value)} placeholder="Search your actions..." className="pl-9" />
-            </div>
-            <AssistantSwitcher assistants={assistants} selectedId={selectedId} onSelect={selectAssistant} />
-          </div>
+      {error ? (
+        <div className="mcm-cpg-error" role="alert">
+          <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+          {error}
+        </div>
+      ) : null}
 
-          {connections.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-bold text-gray-950">Connected Apps</h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {connections.map((conn) => {
-                const tk = toolkits.find((t) => t.slug === conn.toolkit_slug);
-                return (
-                  <div key={conn.id} className="flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white p-4">
-                    <div className="flex items-center gap-2">
-                      {tk?.logo ? <img src={tk.logo} alt="" className="size-6 rounded" /> : <Plug className="size-5 text-gray-400" />}
-                      <div className="truncate text-sm font-semibold text-gray-900">{conn.toolkit_name}</div>
-                    </div>
-                    <p className="line-clamp-2 text-xs text-gray-400">{tk?.description || 'Connected app'}</p>
-                    <div className="mt-auto flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${conn.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : conn.status === 'INITIALIZING' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                        {conn.status}
-                      </span>
-                      {conn.status === 'ACTIVE' ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => openBrowseActions(conn)}>
-                          {browseConnection?.id === conn.id ? 'Close' : 'Manage'}
-                        </Button>
-                      ) : conn.status === 'INITIALIZING' ? (
-                        <Button type="button" variant="outline" size="sm" onClick={() => refreshConnection(conn)} disabled={isRefreshing === conn.id}>
-                          <RefreshCw className="size-3.5" />
-                          {isRefreshing === conn.id ? 'Checking...' : 'Check status'}
-                        </Button>
-                      ) : (
-                        <Button type="button" variant="outline" size="sm" onClick={() => reconnectApp(conn)} disabled={isConnecting === conn.toolkit_slug}>
-                          {isConnecting === conn.toolkit_slug ? 'Opening...' : 'Reconnect'}
-                        </Button>
-                      )}
-                      <span onClick={() => disconnectApp(conn)} className="cursor-pointer rounded-lg p-2 text-gray-300 hover:bg-red-50 hover:text-red-500">
-                        <Trash2 className="size-4" />
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-              {browseConnection && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-gray-950">{browseConnection.toolkit_name} actions</div>
-                      <p className="text-xs text-gray-500">Turn on the specific actions this assistant is allowed to call.</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Enable all</span>
-                      <Switch checked={allBrowseActionsEnabled} onCheckedChange={(c) => setAllComposioActions(c === true)} />
-                      <button type="button" onClick={() => setBrowseConnection(null)} className="ml-1 rounded-lg p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-600">
-                        ✕
+      <div className="mcm-act-body">
+        {mainTab === 'my-actions' ? (
+          <>
+            {connections.length > 0 ? (
+              <section className="mcm-act-sec">
+                <h2 className="mcm-act-h">
+                  Connected apps
+                  <span>{connections.length}</span>
+                </h2>
+                <div className="mcm-act-apps">
+                  {connections.map((conn) => {
+                    const tk = toolkits.find((t) => t.slug === conn.toolkit_slug);
+                    const state = CONN_STATE[conn.status] || CONN_STATE.FAILED;
+                    const isOpen = browseConnection?.id === conn.id;
+                    return (
+                      <article
+                        className={`mcm-act-app ${state.tone} ${isOpen ? 'is-open' : ''}`}
+                        key={conn.id}
+                      >
+                        <header>
+                          <span className="mcm-act-logo" aria-hidden="true">
+                            {tk?.logo ? (
+                              <img src={tk.logo} alt="" />
+                            ) : (
+                              /* The app's initials, so three unconfigured
+                                 logos are not three identical plugs. */
+                              initials(conn.toolkit_name)
+                            )}
+                          </span>
+                          <div>
+                            <h3>{conn.toolkit_name}</h3>
+                            <span className={`mcm-act-connstate ${state.tone}`}>{state.label}</span>
+                          </div>
+                        </header>
+                        <p>{tk?.description || 'Connected app'}</p>
+                        <footer>
+                          {conn.status === 'ACTIVE' ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openBrowseActions(conn)}
+                            >
+                              {isOpen ? 'Close' : 'Choose actions'}
+                            </Button>
+                          ) : conn.status === 'INITIALIZING' ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => refreshConnection(conn)}
+                              disabled={isRefreshing === conn.id}
+                            >
+                              <RefreshCw className="size-3.5" />
+                              {isRefreshing === conn.id ? 'Checking…' : 'Check again'}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => reconnectApp(conn)}
+                              disabled={isConnecting === conn.toolkit_slug}
+                            >
+                              {isConnecting === conn.toolkit_slug ? 'Opening…' : 'Reconnect'}
+                            </Button>
+                          )}
+
+                          {confirmConnId === conn.id ? (
+                            <div className="mcm-act-confirm">
+                              <span>Disconnect?</span>
+                              <button type="button" onClick={() => setConfirmConnId(null)}>
+                                Keep
+                              </button>
+                              <button
+                                type="button"
+                                className="is-go"
+                                onClick={() => disconnectApp(conn)}
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          ) : (
+                            /* A real button. This was a <span onClick>, which
+                               no keyboard could reach and no screen reader
+                               announced — on the control that severs an
+                               integration. */
+                            <button
+                              type="button"
+                              className="mcm-act-kill"
+                              onClick={() => setConfirmConnId(conn.id)}
+                              aria-label={`Disconnect ${conn.toolkit_name}`}
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                          )}
+                        </footer>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {browseConnection ? (
+                  <div className="mcm-act-browse">
+                    <div className="mcm-act-browse-h">
+                      <div>
+                        <h3>What {browseConnection.toolkit_name} may do</h3>
+                        <p>Only what is switched on here can be called by this assistant.</p>
+                      </div>
+                      <label className="mcm-act-all">
+                        <span>Everything</span>
+                        <Switch
+                          checked={allBrowseActionsEnabled}
+                          onCheckedChange={(c) => setAllComposioActions(c === true)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="mcm-act-kill"
+                        onClick={() => setBrowseConnection(null)}
+                        aria-label="Close"
+                      >
+                        <X className="size-4" />
                       </button>
                     </div>
-                  </div>
 
-                  {isLoadingActions ? (
-                    <div className="flex h-24 items-center justify-center text-sm text-gray-500">Loading actions...</div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-                          <Input type="text" value={browseSearch} onChange={(e) => setBrowseSearch(e.target.value)} placeholder="Search this app's actions..." className="pl-9" />
+                    {isLoadingActions ? (
+                      <div className="mcm-act-mini-blank">Loading actions…</div>
+                    ) : (
+                      <>
+                        <div className="mcm-faq-search mcm-act-browse-search">
+                          <Search size={15} strokeWidth={2} aria-hidden="true" />
+                          <input
+                            type="text"
+                            value={browseSearch}
+                            onChange={(e) => setBrowseSearch(e.target.value)}
+                            placeholder={`Search ${browseConnection.toolkit_name} actions`}
+                            aria-label="Search this app's actions"
+                          />
                         </div>
-                        <label className="flex shrink-0 items-center gap-1.5 text-xs text-gray-500">
-                          <Checkbox checked={allBrowseActionsEnabled} onCheckedChange={(c) => setAllComposioActions(c === true)} />
-                          Select all
-                        </label>
-                      </div>
-                      <div className="flex max-h-96 flex-col divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200">
-                        {visibleBrowseActions.length === 0 ? (
-                          <div className="px-4 py-6 text-center text-xs text-gray-400">No actions match your search.</div>
-                        ) : (
-                          visibleBrowseActions.map((a) => (
-                            <div key={a.slug} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50">
-                              <div className="flex min-w-0 flex-1 items-center gap-3">
-                                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                  <Plug className="size-4" />
+                        <ul className="mcm-act-mini">
+                          {visibleBrowseActions.length === 0 ? (
+                            <li className="mcm-act-mini-blank">No actions match that.</li>
+                          ) : (
+                            visibleBrowseActions.map((a) => (
+                              <li key={a.slug} className={a.enabled ? 'is-on' : undefined}>
+                                <div className="mcm-act-mini-t">
+                                  <b>{a.name}</b>
+                                  <code>{a.slug}</code>
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="truncate text-sm font-semibold text-gray-950">{a.name}</span>
-                                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Composio</span>
-                                  </div>
-                                  <div className="truncate text-xs text-gray-400">{a.slug}</div>
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
                                 {a.operation_type === 'read' ? (
-                                  <div className="relative">
-                                    <button
-                                      type="button"
-                                      onClick={() => setBrowseTierPopoverSlug(browseTierPopoverSlug === a.slug ? null : a.slug)}
-                                      className={`flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-medium hover:bg-gray-100 ${a.security_tier ? TIER_META[a.security_tier].color : 'text-gray-400'}`}
-                                    >
-                                      {a.security_tier ? (
-                                        <>
-                                          {(() => { const Icon = TIER_META[a.security_tier].icon; return <Icon className="size-3" />; })()}
-                                          {TIER_META[a.security_tier].label}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <LockOpen className="size-3" />
-                                          Off
-                                        </>
-                                      )}
-                                    </button>
-                                    {browseTierPopoverSlug === a.slug && (
-                                      <>
-                                        <div className="fixed inset-0 z-40" onClick={() => setBrowseTierPopoverSlug(null)} />
-                                        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-xl border border-gray-200 bg-white shadow-xl">
-                                          <div className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-800">Security level</div>
-                                          <div className="py-1">
-                                            {(['open', 'standard', 'secure'] as const).map((level) => {
-                                              const meta = TIER_META[level];
-                                              const Icon = meta.icon;
-                                              const active = a.security_tier === level;
-                                              return (
-                                                <button
-                                                  key={level}
-                                                  type="button"
-                                                  onClick={() => { setBrowseActionTier(a, level); setBrowseTierPopoverSlug(null); }}
-                                                  className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 ${active ? 'bg-gray-50' : ''}`}
-                                                >
-                                                  <Icon className={`mt-0.5 size-4 shrink-0 ${active ? meta.color : 'text-gray-400'}`} />
-                                                  <span className="min-w-0 flex-1">
-                                                    <span className={`block text-xs font-medium ${active ? meta.color : 'text-gray-800'}`}>{meta.label}</span>
-                                                    <span className="block text-xs text-gray-400">{meta.desc}</span>
-                                                  </span>
-                                                  {active && <Check className={`mt-0.5 size-3.5 shrink-0 ${meta.color}`} />}
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
+                                  <TierPicker
+                                    value={a.security_tier}
+                                    onChange={(level) => setBrowseActionTier(a, level)}
+                                  />
                                 ) : (
-                                  <span className="rounded-lg bg-gray-50 px-2 py-1.5 text-xs text-gray-400" title="Write actions are staff-only — never exposed to customers">
+                                  <span className="mcm-act-staff" title={STAFF_ONLY_NOTE}>
+                                    <Lock size={11} strokeWidth={2.25} aria-hidden="true" />
                                     Staff only
                                   </span>
                                 )}
-                                <Switch checked={a.enabled} onCheckedChange={() => toggleComposioAction(a)} />
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isLoading ? null : connections.length === 0 && filteredTools.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 px-5 py-16 text-center">
-              <Zap className="size-8 text-gray-300" />
-              <div className="text-sm font-semibold text-gray-800">No connected actions yet</div>
-              <p className="max-w-xs text-xs text-gray-400">Connect an app or add a custom tool from the Create action tab.</p>
-              <Button type="button" variant="primary" onClick={() => setMainTab('create-action')} disabled={!selectedId}>
-                Create action
-              </Button>
-            </div>
-          ) : filteredTools.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-bold text-gray-950">Custom Actions</h3>
-              {filteredTools.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-5 py-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      {t.kind === 'composio' ? <Plug className="size-4" /> : <Wrench className="size-4" />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <div className="truncate text-sm font-semibold text-gray-950">{t.title}</div>
-                        {t.kind === 'composio' && (
-                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Composio</span>
-                        )}
-                      </div>
-                      <div className="truncate text-xs text-gray-400">
-                        {t.kind === 'composio' ? t.composio_tool_slug : `${t.http_method} · ${t.endpoint_url} · ${t.auth_type !== 'none' ? `Auth: ${t.auth_type}` : 'No auth'}`}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {t.operation_type === 'read' ? (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setTierPopoverId(tierPopoverId === t.id ? null : t.id)}
-                          className={`flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs font-medium hover:bg-gray-100 ${t.security_tier ? TIER_META[t.security_tier].color : 'text-gray-400'}`}
-                        >
-                          {t.security_tier ? (
-                            <>
-                              {(() => { const Icon = TIER_META[t.security_tier].icon; return <Icon className="size-3" />; })()}
-                              {TIER_META[t.security_tier].label}
-                            </>
-                          ) : (
-                            <>
-                              <LockOpen className="size-3" />
-                              Off
-                            </>
+                                <Switch
+                                  checked={a.enabled}
+                                  onCheckedChange={() => toggleComposioAction(a)}
+                                />
+                              </li>
+                            ))
                           )}
-                        </button>
-                        {tierPopoverId === t.id && (
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
+            {isLoading ? null : connections.length === 0 && filteredTools.length === 0 ? (
+              <div className="mcm-act-blank">
+                <span className="mcm-act-blank-mark">
+                  <Zap size={22} strokeWidth={1.75} aria-hidden="true" />
+                </span>
+                <h2>The assistant can only talk</h2>
+                <p>
+                  Connect an app, or point it at your own API, and it can look things up and act
+                  on them instead of just answering.
+                </p>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => setMainTab('create-action')}
+                  disabled={!selectedId}
+                >
+                  <Plus className="size-4" />
+                  Add an action
+                </Button>
+              </div>
+            ) : filteredTools.length > 0 ? (
+              <section className="mcm-act-sec">
+                <h2 className="mcm-act-h">
+                  Your own APIs
+                  <span>{filteredTools.length}</span>
+                </h2>
+                <ul className="mcm-act-list">
+                  {filteredTools.map((t) => (
+                    <li className={`mcm-act-row ${t.enabled ? '' : 'is-off'}`} key={t.id}>
+                      <span className="mcm-act-kind" aria-hidden="true">
+                        {t.kind === 'composio' ? (
+                          <Plug size={15} strokeWidth={2} />
+                        ) : (
+                          <Wrench size={15} strokeWidth={2} />
+                        )}
+                      </span>
+
+                      <div className="mcm-act-main">
+                        <div className="mcm-act-t">
+                          <h3>{t.title}</h3>
+                          {/* A write action changes something at the other
+                              end, which is the one property of an action
+                              worth knowing before reading anything else. */}
+                          {t.operation_type === 'write' ? (
+                            <span className="mcm-act-write">Writes</span>
+                          ) : null}
+                        </div>
+                        {t.description ? <p className="mcm-act-desc">{t.description}</p> : null}
+                        <div className="mcm-act-meta">
+                          <code>{t.http_method}</code>
+                          <span className="mcm-act-url">{t.endpoint_url}</span>
+                          <i aria-hidden="true" />
+                          <span>{t.auth_type === 'none' ? 'No auth' : `Auth: ${t.auth_type}`}</span>
+                        </div>
+                      </div>
+
+                      <div className="mcm-act-acts">
+                        {confirmToolId === t.id ? (
+                          <div className="mcm-act-confirm">
+                            <span>Delete?</span>
+                            <button type="button" onClick={() => setConfirmToolId(null)}>
+                              Keep
+                            </button>
+                            <button
+                              type="button"
+                              className="is-go"
+                              onClick={() => handleDelete(t.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : (
                           <>
-                            <div className="fixed inset-0 z-40" onClick={() => setTierPopoverId(null)} />
-                            <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-xl border border-gray-200 bg-white shadow-xl">
-                              <div className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-800">Security level</div>
-                              <div className="py-1">
-                                {(['open', 'standard', 'secure'] as const).map((level) => {
-                                  const meta = TIER_META[level];
-                                  const Icon = meta.icon;
-                                  const active = t.security_tier === level;
-                                  return (
-                                    <button
-                                      key={level}
-                                      type="button"
-                                      onClick={() => setSecurityTier(t, level)}
-                                      className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 ${active ? 'bg-gray-50' : ''}`}
-                                    >
-                                      <Icon className={`mt-0.5 size-4 shrink-0 ${active ? meta.color : 'text-gray-400'}`} />
-                                      <span className="min-w-0 flex-1">
-                                        <span className={`block text-xs font-medium ${active ? meta.color : 'text-gray-800'}`}>{meta.label}</span>
-                                        <span className="block text-xs text-gray-400">{meta.desc}</span>
-                                      </span>
-                                      {active && <Check className={`mt-0.5 size-3.5 shrink-0 ${meta.color}`} />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
+                            {t.operation_type === 'read' ? (
+                              <TierPicker
+                                value={t.security_tier}
+                                onChange={(level) => setSecurityTier(t, level)}
+                              />
+                            ) : (
+                              <span className="mcm-act-staff" title={STAFF_ONLY_NOTE}>
+                                <Lock size={11} strokeWidth={2.25} aria-hidden="true" />
+                                Staff only
+                              </span>
+                            )}
+                            {t.kind !== 'composio' ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEdit(t)}
+                                aria-label={`Edit ${t.title}`}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="mcm-act-kill"
+                              onClick={() => setConfirmToolId(t.id)}
+                              aria-label={`Delete ${t.title}`}
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
+                            <Switch
+                              checked={t.enabled}
+                              onCheckedChange={(c) => handleToggleEnabled(t, c === true)}
+                              aria-label={`${t.enabled ? 'Disable' : 'Enable'} ${t.title}`}
+                            />
                           </>
                         )}
                       </div>
-                    ) : (
-                      <span className="rounded-lg bg-gray-50 px-2 py-1.5 text-xs text-gray-400" title="Write actions are staff-only — never exposed to customers">
-                        Staff only
-                      </span>
-                    )}
-                    {t.kind !== 'composio' && (
-                      <Button type="button" variant="outline" size="sm" onClick={() => openEdit(t)}>
-                        <Pencil className="size-3.5" />
-                      </Button>
-                    )}
-                    <span onClick={() => handleDelete(t.id)} className="cursor-pointer rounded-lg p-2 text-gray-300 hover:bg-red-50 hover:text-red-500">
-                      <Trash2 className="size-4" />
-                    </span>
-                    <Switch checked={t.enabled} onCheckedChange={(c) => handleToggleEnabled(t, c === true)} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </>
-      )}
-
-      {mainTab === 'create-action' && (
-        <>
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                type="text"
-                value={toolkitSearch}
-                onChange={(e) => {
-                  setToolkitSearch(e.target.value);
-                  searchToolkits(e.target.value);
-                }}
-                placeholder="Search apps — Gmail, Slack, GitHub, Notion..."
-                className="pl-9"
-              />
-            </div>
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className={`${fieldClass} w-48`}>
-              <option value="all">All categories</option>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="mcm-act-cats">
+              <button
+                type="button"
+                className={categoryFilter === 'all' ? 'is-on' : undefined}
+                onClick={() => setCategoryFilter('all')}
+              >
+                All
+              </button>
+              {/* Categories come from whatever the catalogue returns, so this
+                  is a scrolling row rather than a fixed set. */}
               {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <button
+                  key={c}
+                  type="button"
+                  className={categoryFilter === c ? 'is-on' : undefined}
+                  onClick={() => setCategoryFilter(c)}
+                >
+                  {c}
+                </button>
               ))}
-            </select>
-          </div>
+            </div>
 
-          <h3 className="text-sm font-bold text-gray-950">Browse apps to connect</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <button type="button" onClick={openCreate} disabled={!selectedId} className="flex flex-col items-start gap-2 rounded-2xl border border-dashed border-gray-300 bg-gray-50/60 p-4 text-left hover:border-primary hover:bg-primary/[0.02] disabled:opacity-50">
-              <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Wrench className="size-4" />
-              </div>
-              <div className="text-sm font-semibold text-gray-900">Custom action</div>
-              <p className="text-xs text-gray-400">Call any API, with your own auth and request/response templates.</p>
-            </button>
-
-            {isLoadingToolkits ? (
-              <div className="col-span-full flex h-16 items-center justify-center text-sm text-gray-500">Loading apps...</div>
-            ) : (
-              visibleToolkits.filter((tk) => !connectionFor(tk.slug)).map((tk) => (
-                <div key={tk.slug} className="flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-center gap-2">
-                    {tk.logo ? <img src={tk.logo} alt="" className="size-6 rounded" /> : <Plug className="size-5 text-gray-400" />}
-                    <div className="truncate text-sm font-semibold text-gray-900">{tk.name}</div>
+            <div className="mcm-act-apps">
+              <button
+                type="button"
+                onClick={openCreate}
+                disabled={!selectedId}
+                className="mcm-act-app is-custom"
+              >
+                <header>
+                  <span className="mcm-act-logo" aria-hidden="true">
+                    <Wrench size={15} strokeWidth={2} />
+                  </span>
+                  <div>
+                    <h3>Your own API</h3>
                   </div>
-                  <p className="line-clamp-2 text-xs text-gray-400">{tk.description}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-auto w-fit"
-                    disabled={!selectedId || isConnecting === tk.slug}
-                    onClick={() => connectToolkit(tk)}
-                  >
-                    {isConnecting === tk.slug ? 'Opening...' : 'Connect'}
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )}
+                </header>
+                <p>Any HTTP endpoint, with your auth and your own request and response shapes.</p>
+              </button>
+
+              {isLoadingToolkits ? (
+                <div className="mcm-act-mini-blank">Loading apps…</div>
+              ) : (
+                visibleToolkits
+                  .filter((tk) => !connectionFor(tk.slug))
+                  .map((tk) => (
+                    <article className="mcm-act-app" key={tk.slug}>
+                      <header>
+                        <span className="mcm-act-logo" aria-hidden="true">
+                          {tk.logo ? <img src={tk.logo} alt="" /> : initials(tk.name)}
+                        </span>
+                        <div>
+                          <h3>{tk.name}</h3>
+                          {tk.tools_count ? (
+                            <span className="mcm-act-count">{tk.tools_count} actions</span>
+                          ) : null}
+                        </div>
+                      </header>
+                      <p>{tk.description}</p>
+                      <footer>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!selectedId || isConnecting === tk.slug}
+                          onClick={() => connectToolkit(tk)}
+                        >
+                          {isConnecting === tk.slug ? 'Opening…' : 'Connect'}
+                        </Button>
+                      </footer>
+                    </article>
+                  ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl p-6">
-          <DialogTitle className="mb-4 text-base font-bold text-gray-950">{editingId ? 'Edit Action' : 'Add Action'}</DialogTitle>
-          <div className="flex flex-col gap-4">
+        <DialogContent className="mcm-asst-dlg w-full max-w-2xl p-0">
+          <div className="mcm-asst-dlg-h">
+            <DialogTitle>{editingId ? 'Edit action' : 'New action'}</DialogTitle>
+            <p>
+              Describe the call and what it is for. The description is what the assistant reads to
+              decide whether to use it.
+            </p>
+          </div>
+          <div className="mcm-asst-dlg-b mcm-doc-dlg-b">
             <div className="flex flex-col gap-1.5">
               <Label>Title</Label>
               <Input type="text" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Get Order Status" />
@@ -1049,8 +1267,7 @@ const CaptainActions = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-    </div>
+    </section>
   );
 };
 

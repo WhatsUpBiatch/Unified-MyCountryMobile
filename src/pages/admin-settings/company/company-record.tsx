@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import CustomSelect from '@/components/custom/custom-select';
 import countryList from '@/lib/countries.json';
+import { CountryFlag } from '@/components/flag';
 import { upsertCompany } from '@/services/api';
 import {
   COMPANY_DEFAULTS_QUERY_KEY,
@@ -62,6 +63,25 @@ const COUNTRY_OPTIONS: Option[] = (countryList || []).map((country: any) => ({
   label: country?.name || '',
   value: country?.isoCode || '',
 }));
+
+/* The flag beside each country, drawn rather than stored.
+
+   Elsewhere in Company the flag is attached to the option as an `icon` field.
+   That works where the option is rebuilt on every render, but this form keeps
+   the chosen option in react-hook-form state and rebuilds it again in `reset`,
+   so the icon would have to be remembered in two places and would sit as a
+   React element inside form state. `FormatOptionLabel` is react-select's own
+   hook for this: the options and the value stay plain `{label, value}` data,
+   and the flag is drawn for the menu row and the selected row alike.
+
+   `option.value` is already the ISO code this form saves, so there is nothing
+   to look up. */
+const CountryOptionLabel = ({ option }: { option: Option }) => (
+  <span className="flex items-center gap-2">
+    <CountryFlag code={option?.value} />
+    <span>{option?.label}</span>
+  </span>
+);
 
 interface CompanyRecordProps {
   companyInfo?: any;
@@ -426,6 +446,7 @@ const CompanyRecord = ({ companyInfo, defaultSite }: CompanyRecordProps) => {
               label="Country"
               placeholder="Select country"
               options={COUNTRY_OPTIONS}
+              FormatOptionLabel={CountryOptionLabel}
               value={country}
               handleChange={(option: any) => {
                 setValue('country', option || null, { shouldDirty: true });

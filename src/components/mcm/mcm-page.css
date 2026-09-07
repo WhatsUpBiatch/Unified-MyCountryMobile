@@ -24,7 +24,16 @@
      - @keyframes are prefixed `mcmp-`.
    ============================================================ */
 
-.mcm-page {
+/* .mcm-topbar shares the token block and nothing else.
+   The top bar sits outside .mcm-page, so none of these reached it: --ink-3 and
+   --accent-wash were simply undefined there, and --accent resolved to
+   Tailwind's own near-white, which is why the active area button rendered
+   near-black instead of the console blue. Listed here rather than copied so
+   there is still one definition of what the colours are. The layout half of
+   .mcm-page - the flex column, the base font - is a separate rule below and is
+   deliberately NOT shared: putting it on a horizontal bar would stack it. */
+.mcm-page,
+.mcm-topbar {
   --ground: #eef1f8;
   --surface: #ffffff;
   --surface-2: #f6f8fc;
@@ -84,7 +93,8 @@
     'Inter', 'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', sans-serif;
 }
-.dark .mcm-page {
+.dark .mcm-page,
+.dark .mcm-topbar {
   --ground: #0a0f1a;
   --surface: #111827;
   --surface-2: #161f31;
@@ -1286,6 +1296,12 @@
   align-items: stretch;
   margin-inline: calc(-1 * var(--cs-inset, 0px));
   padding-inline: var(--cs-inset, 0px);
+  /* The pills are a floating segmented control now, not tabs welded to the
+     line — so the line needs clearance beneath them rather than serving as
+     the row's own bottom edge. It stays: `.cs-section > .tabnav + *` drops
+     the divider the panel below would otherwise draw, on the understanding
+     that the rail draws it once for both. */
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1295,7 +1311,9 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  /* 3px, same as the area rail in the top bar: pills that near-touch read as
+     one segmented control, where 6px starts reading as separate buttons. */
+  gap: 3px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -1323,12 +1341,16 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  /* The whole 56px is the target, not just the text. */
-  height: 56px;
-  padding: 0 12px;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 500;
+  /* The whole pill is the target, not just the text. 38px keeps a comfortable
+     press area while letting the row read as a control rather than as the
+     56px band of chrome it used to be. */
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--ink-3);
   text-decoration: none;
   white-space: nowrap;
@@ -1337,16 +1359,13 @@
     background-color 0.12s ease;
 }
 /* The painted surface for hover and focus, held apart from the hit area.
-   The tab stays a full 48px target, but the shape that lights up is inset from
-   it — 7px clear at the top and 9px at the bottom, so the fill reads as a
-   contained rest for the label rather than a filled column, and never reaches
-   down to the divider or crowds the active marker. Hover and focus share this
-   one box so the two states are the same shape. */
+   It is the pill itself now — same box, same radius as the marker that fills
+   the open tab, so hovering a tab previews exactly the shape it will take. */
 .mcm-page .tabnav-tab::after {
   content: '';
   position: absolute;
-  inset: 7px 0 9px;
-  border-radius: 6px;
+  inset: 0;
+  border-radius: 999px;
   transition: background-color 0.12s ease;
 }
 /* Only where a pointer can actually hover. On a touch screen :hover latches on
@@ -1357,7 +1376,12 @@
     color: var(--ink);
   }
   .mcm-page .tabnav-tab:hover::after {
-    background: var(--surface-2);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  /* The open tab is already filled by the marker. A hover tint on top of it
+     only muddies the one thing in the row that is meant to be unambiguous. */
+  .mcm-page .tabnav-tab[aria-current='page']:hover::after {
+    background: transparent;
   }
 }
 .mcm-page .tabnav-tab:focus-visible {
@@ -1367,21 +1391,24 @@
   outline: none;
 }
 .mcm-page .tabnav-tab:focus-visible::after {
-  /* An outline rather than a border, so focus costs no layout. */
+  /* Drawn inside its own edge, not outside: the row clips vertically so it can
+     scroll sideways, and a ring offset outward on a 38px pill in a 38px row is
+     clipped top and bottom. An outline rather than a border, so focus still
+     costs no layout. */
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* The open section. NavLink stamps aria-current="page", so the style and the
    thing a screen reader announces cannot drift apart. */
 .mcm-page .tabnav-tab[aria-current='page'] {
-  color: var(--ink);
-  font-weight: 600;
+  color: var(--accent-ink);
+  font-weight: 700;
 }
-/* One marker for the whole row rather than a mark on each tab, so it can travel
+/* One marker for the whole row rather than a fill on each tab, so it can travel
    from the old section to the new one instead of blinking out here and in
-   there. It is sized to the label, not the hit area — the word is what gets
-   read, so the word is what gets underlined — and its ends stay square.
+   there. It is cut to the tab, not to the label: it is the surface the open tab
+   sits on, so it has to cover the tab's padding as well as its word.
 
    Given a real width, and NOT a 1px seed stretched by scaleX. That trick keeps
    the animation off the layout path, but it multiplies its own rounding error:
@@ -1394,13 +1421,20 @@
 .mcm-page .tabnav-marker {
   position: absolute;
   left: 0;
-  /* One pixel below the row's content box is exactly where the border sits, so
-     the marker's own bottom edge lands on the border's bottom edge and covers
-     it. Same box, same snapping — no gap to open up at any scale. */
-  bottom: -1px;
+  /* Stretched to the row rather than given a height, so it stays exactly as
+     tall as the tabs whatever they are sized to — including when a narrow
+     screen shortens them. */
+  top: 0;
+  bottom: 0;
   width: 0;
-  height: 3px;
-  background: var(--accent);
+  border-radius: 999px;
+  background: var(--accent-wash);
+  /* Inset, so the edge costs no layout and cannot round to a different pixel
+     than the fill it outlines. On the wash alone the open tab reads as a
+     smudge at small sizes; the edge is what makes it a pressed segment. */
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+  /* Behind the labels, which carry z-index 1. */
+  z-index: 0;
   transform: translateX(0);
   pointer-events: none;
 }
@@ -1448,9 +1482,10 @@
 .mcm-page .tabnav-more {
   position: absolute;
   top: 0;
-  /* The row's border sits outside this box, so the divider stays unbroken
-     across the full width without the chevron having to dodge it. */
-  bottom: 0;
+  /* Stops where the pills stop. Running it down through the row's bottom
+     padding would centre the chevron 6px below the tabs it belongs to, and
+     drag the fade across the divider. */
+  bottom: 12px;
   width: 72px;
   display: flex;
   align-items: center;
@@ -3318,6 +3353,43 @@
   color: var(--ink-3);
 }
 
+/* The two numbers, weighted so they can be taken in without reading the line.
+   Separated by a dot rather than boxed: chips here would be a third pill
+   treatment in the same 80px of screen, competing with the view tabs directly
+   below them for something that is a fact, not a control. */
+.mcm-adminhome-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.mcm-adminhome-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.mcm-adminhome-stat b {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-adminhome-stat + .mcm-adminhome-stat::before {
+  content: '';
+  align-self: center;
+  width: 3px;
+  height: 3px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.mcm-adminhome-note {
+  color: var(--ink-4);
+}
+
 .mcm-adminhome-search {
   display: flex;
   align-items: center;
@@ -3328,6 +3400,30 @@
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-3);
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+/* Focus belongs to the pill, not to the input inside it.
+   The input sets `outline: 0`, but the console's global `.mcm-page
+   :focus-visible` rule is more specific and puts the ring back - and because
+   the input sits inside the pill, that ring drew a second rounded box within
+   the first. Two borders, one control. The pill now takes the focus itself and
+   the input is told to stay quiet with enough weight to mean it. */
+.mcm-page .mcm-adminhome-search:focus-within,
+.mcm-adminhome-search:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mcm-page .mcm-adminhome-search input:focus,
+.mcm-page .mcm-adminhome-search input:focus-visible,
+.mcm-adminhome-search input:focus,
+.mcm-adminhome-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .mcm-adminhome-search input {
   flex: 1;
@@ -3342,6 +3438,44 @@
 .mcm-adminhome-search input::placeholder {
   color: var(--ink-4);
   font-weight: 500;
+}
+
+/* The key that opens this field. Drawn as the key itself rather than described
+   in words, so it costs the width of one character. */
+.mcm-adminhome-kbd {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-4);
+  transition: opacity 0.14s ease;
+}
+/* Gone once the field is in use. A hint that stays up while you type is
+   telling you how to do the thing you are already doing. */
+.mcm-adminhome-search:focus-within .mcm-adminhome-kbd {
+  opacity: 0;
+}
+
+/* The matched run inside a screen name. <mark>'s browser default is a yellow
+   block with black text, which on this page reads as a warning; it takes the
+   card's own tone instead, so the hit is marked in the colour of the section it
+   was found in. */
+.mcm-admincard-hit {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tone) 22%, transparent);
+  color: inherit;
+  font-weight: 800;
 }
 
 .mcm-adminhome-tabs {
@@ -3370,6 +3504,13 @@
   break-inside: avoid;
   margin-bottom: 16px;
 }
+/* One card has no columns to balance. Capped rather than full-bleed: a single
+   list of eight short names stretched across a wide screen puts the name and
+   its section at opposite ends of the row. */
+.mcm-admingrid.is-single {
+  column-count: 1;
+  max-width: 440px;
+}
 @media (min-width: 700px) {
   .mcm-admingrid {
     column-count: 2;
@@ -3386,20 +3527,127 @@
   }
 }
 
+/* Section tones.
+   One hue per card, picked from its name in `toneOf`. Everything the tone
+   drives - tile fill, glyph, hover border, the rule above the card - is derived
+   from this single custom property with color-mix, so a hue is defined once and
+   the theme it lands in decides how much of it shows. That is also why the dark
+   block below only restates eight colours and nothing else.
+
+   Chosen as a set, not sampled round a colour wheel: eight hues that hold at
+   28px, stay clearly apart from each other, and none of which is close enough
+   to the accent blue to be mistaken for "selected" - the one meaning colour
+   already carries on this page. Nothing is fully saturated; these are marks on
+   a working screen, not tags. */
+.mcm-admincard.tone-1 { --tone: #4f46e5; } /* indigo */
+.mcm-admincard.tone-2 { --tone: #0891b2; } /* cyan   */
+.mcm-admincard.tone-3 { --tone: #d97706; } /* amber  */
+.mcm-admincard.tone-4 { --tone: #db2777; } /* pink   */
+.mcm-admincard.tone-5 { --tone: #7c3aed; } /* violet */
+.mcm-admincard.tone-6 { --tone: #059669; } /* green  */
+.mcm-admincard.tone-7 { --tone: #ea580c; } /* orange */
+.mcm-admincard.tone-8 { --tone: #0284c7; } /* sky    */
+
+/* Lifted for dark, where the light hues go muddy against a near-black surface.
+   Same eight in the same order, so a section does not change identity with the
+   theme. */
+.dark .mcm-admincard.tone-1 { --tone: #8b87ff; }
+.dark .mcm-admincard.tone-2 { --tone: #38bdf8; }
+.dark .mcm-admincard.tone-3 { --tone: #fbbf24; }
+.dark .mcm-admincard.tone-4 { --tone: #f472b6; }
+.dark .mcm-admincard.tone-5 { --tone: #a97fff; }
+.dark .mcm-admincard.tone-6 { --tone: #34d399; }
+.dark .mcm-admincard.tone-7 { --tone: #fb923c; }
+.dark .mcm-admincard.tone-8 { --tone: #38bdf8; }
+
+/* A section card. It had a body but no head: a 10.5px uppercase grey label
+   over a flat list of links, repeated eleven times, which is a directory dump —
+   every section weighted identically to every other and nothing to catch the
+   eye on the way down. It now has an anatomy — mark, name, count, rows — so a
+   section can be recognised rather than read. */
+/* Falls back to the accent, so a card that somehow arrives without a tone class
+   is quiet and correct rather than colourless and broken. */
 .mcm-admincard {
+  --tone: var(--accent);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  padding: 16px 6px 10px;
+  padding: 12px 6px 8px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 .mcm-admincard-h {
-  padding: 0 12px 10px;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 8px 10px;
 }
+/* The mark. A tile rather than a bare glyph, so an icon set that mixes weights
+   still reads as one row of marks down the page — the tile is the constant
+   shape, the glyph inside it only has to be legible. */
+.mcm-admincard-tile {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  /* Tinted from rest, not only on hover: the colour is here to make the page
+     scannable while nothing is being pointed at. Mixed against the card's own
+     surface so one hue serves both themes. */
+  background: color-mix(in srgb, var(--tone) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--surface));
+  color: var(--tone);
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+.mcm-admincard-tile svg {
+  width: 15px;
+  height: 15px;
+  /* The nav icons arrive in several viewBoxes; scaling them to 15px would
+     otherwise thin or thicken the stroke differently for each one. */
+  vector-effect: non-scaling-stroke;
+}
+@media (hover: hover) {
+  .mcm-admincard:hover .mcm-admincard-tile {
+    background: color-mix(in srgb, var(--tone) 20%, var(--surface));
+    border-color: color-mix(in srgb, var(--tone) 42%, var(--surface));
+  }
+}
+
+/* The section name, in sentence case at reading size. The old uppercase
+   micro-label was set to be ignored; this is the one word on the card that
+   tells you whether to stop here. */
+.mcm-admincard-t {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+/* How many screens are inside. Answers "is this the big section or the
+   one-screen one" before any of them is read. */
+.mcm-admincard-n {
+  flex: none;
+  min-width: 20px;
+  padding: 0 6px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 10%, var(--surface-2));
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--tone) 72%, var(--ink-3));
+}
+
 .mcm-admincard ul {
   margin: 0;
   padding: 0;
@@ -3408,29 +3656,72 @@
   flex-direction: column;
 }
 .mcm-admincard li {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   border-radius: var(--r-sm);
 }
-.mcm-admincard li:hover {
-  background: var(--surface-2);
-}
 .mcm-admincard li a {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  flex-direction: column;
-  padding: 7px 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 12px;
+  border-radius: var(--r-sm);
   color: var(--ink-2);
   font-size: 13.5px;
   font-weight: 600;
   text-decoration: none;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
-.mcm-admincard li:hover a {
+/* Not a flex column, which is what it was when its only job was to stack a name
+   over its section name. A highlighted match splits the name into three nodes -
+   text, <mark>, text - and as flex items those stacked into three lines
+   ("All / num / bers"). Ordinary flow keeps the name one line and lets the
+   marked run sit inside it; the section name below is a block instead. */
+.mcm-admincard-txt {
+  flex: 1;
+  min-width: 0;
+}
+/* Same wash as the open tab and the open nav item, one step lighter — this is
+   the row you are about to open, not the one you are in. */
+@media (hover: hover) {
+  .mcm-admincard li a:hover {
+    background: color-mix(in srgb, var(--tone) 9%, transparent);
+    color: color-mix(in srgb, var(--tone) 80%, var(--ink));
+  }
+}
+.mcm-admincard li a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
   color: var(--accent-ink);
 }
+
+/* Drawn for every row but held back until the row is live, so the list stays a
+   list of names rather than a column of arrows — and the row's width never
+   changes when it appears, because the space was always reserved. */
+.mcm-admincard-go {
+  flex: none;
+  color: var(--tone);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+.mcm-admincard li a:hover .mcm-admincard-go,
+.mcm-admincard li a:focus-visible .mcm-admincard-go {
+  opacity: 1;
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcm-admincard-go {
+    transition: opacity 0.14s ease;
+    transform: none;
+  }
+}
+
+/* Which section a recently-used screen came from. */
 .mcm-admincard-group {
+  display: block;
   font-size: 11px;
   font-weight: 500;
   color: var(--ink-4);
@@ -4259,19 +4550,111 @@
   display: flex;
   align-items: center;
 }
+/* Sits in the tab strip but is not a tab.
+   The tabs are the full height of the strip and carry the 2px underline that
+   marks the open one; this is 26px and was centred in the strip, which put it
+   floating against the strip's bottom rule rather than on the tabs' own
+   baseline - so it read as an element that had come loose. Lifting it by the
+   underline's height lines it up with the tab labels instead of with the box.
+
+   The hover was a flat grey fill, which is what a disabled control looks like,
+   on a button whose whole job is to throw something away. It takes the critical
+   wash instead: the meaning and the colour now agree. */
+.mcm-page .ptabstrip button.mcm-adminhome-clear,
 .mcm-adminhome-clear {
   margin-left: auto;
-  padding: 0 10px;
-  height: 26px;
-  border-radius: var(--r-sm);
+  margin-bottom: 2px;
+  align-self: center;
+  /* inline-flex, and the padding restated. As a block with a fixed 28px height
+     it inherited 10px of vertical padding from the button reset, so 10 + a
+     19.5px line + 10 came to 39.5px of content in a 28px box and the label sat
+     low in its own pill. Centring it needs the box to be a flex container, not
+     just `text-align: center`, which only ever handled the horizontal half. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  line-height: 1;
+  height: 28px;
+  border-radius: 999px;
   color: var(--ink-3);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
+.mcm-page .ptabstrip button.mcm-adminhome-clear:hover,
 .mcm-adminhome-clear:hover {
   color: var(--crit);
-  background: var(--surface-3);
+  background: var(--crit-wash);
 }
+.mcm-page .ptabstrip button.mcm-adminhome-clear:focus-visible,
+.mcm-adminhome-clear:focus-visible {
+  outline: 2px solid var(--crit);
+  outline-offset: 1px;
+}
+
+/* All / Recently used, as pills.
+
+   `.ptabstrip` is shared by eight other screens, so this is written against
+   `.mcm-adminhome-tabs` and reaches nothing else. Underlined tabs directly
+   under a top bar of pills, above a page of pill rows, were the last control
+   here still speaking the old dialect — and this strip switches a view rather
+   than navigating, which is what a segmented control is for.
+
+   Three classes, matching the Clear button above: `.ptabstrip`'s own rules are
+   two classes and land later in this file, so anything written at two would
+   lose the tie silently. */
+.mcm-page .mcm-adminhome-tabs.mcm-adminhome-tabs {
+  gap: 3px;
+  padding-top: 2px;
+  padding-bottom: 12px;
+  margin-bottom: 0;
+}
+.mcm-page .ptabstrip.mcm-adminhome-tabs button:not(.mcm-adminhome-clear) {
+  height: 32px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border-bottom: 0;
+  margin-bottom: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-3);
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-page .ptabstrip.mcm-adminhome-tabs button:not(.mcm-adminhome-clear):hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--ink);
+  }
+}
+/* The open view. Same fill, edge and weight as the open tab in `.tabnav` and
+   the open area in the top bar — one active-pill treatment across all three. */
+.mcm-page .ptabstrip.mcm-adminhome-tabs button.on,
+.mcm-page .ptabstrip.mcm-adminhome-tabs button.on:hover {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+  border-bottom-color: transparent;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.mcm-page .ptabstrip.mcm-adminhome-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* No padding override here. An earlier attempt set `padding-right: 4px` to keep
+   the button off the panel edge - but the strip already carried the page's own
+   22px inset, the one the title and the cards line up on, and 4px replaced it.
+   The button jumped from sitting on that margin to hanging 4px off the edge,
+   which is what made it look detached. The strip's own padding is correct;
+   nothing needs to override it. */
 
 /* ── Directory favourites ─────────────────────────────────────────────────
    The star in a table row. `.mini` gives it the shape of the other row
@@ -4665,8 +5048,23 @@
 /* A plain text box or dropdown inside a settings row.
    Most settings screens carry shadcn controls, which bring their own styling;
    the console pages do not, and an unstyled native field beside a styled card
-   reads as broken. Opt-in by class so nothing that already looks right changes. */
-.mcm-field {
+   reads as broken. Opt-in by class so nothing that already looks right changes.
+
+   Written against the elements themselves, not the bare class.
+
+   `.mcm-field` is also the wrapper that stacks a label, a control and its note
+   — `.mcm-page .mcm-field` a few thousand lines up sets that. Nothing in the
+   app ever put this class on an input, so the only thing these rules reached
+   was that wrapper: every field group in Admin and People was drawing a box of
+   its own around the control's box, and turning the outer one accent-blue on
+   hover. Two nested rounded rectangles, and the pointer lighting up the one
+   that is not the field.
+
+   Restricted to real controls, this styles what it was written for and can no
+   longer paint a layout wrapper. */
+input.mcm-field,
+select.mcm-field,
+textarea.mcm-field {
   width: 100%;
   min-height: 34px;
   padding: 6px 10px;
@@ -4675,13 +5073,23 @@
   background: var(--surface);
   color: inherit;
   font-size: 13px;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
-.mcm-field:hover {
+@media (hover: hover) {
+  input.mcm-field:hover,
+  select.mcm-field:hover,
+  textarea.mcm-field:hover {
+    border-color: var(--ink-4);
+  }
+}
+input.mcm-field:focus-visible,
+select.mcm-field:focus-visible,
+textarea.mcm-field:focus-visible {
+  outline: none;
   border-color: var(--accent);
-}
-.mcm-field:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 /* A note attached to the row above - why a setting cannot be changed, or what is
@@ -5381,4 +5789,5425 @@
   font-size: 11.5px;
   font-weight: 650;
   color: var(--crit);
+}
+
+/* ---- admin sidebar, rebuilt --------------------------------------------
+
+   Three things the nav did that the design does not.
+
+   The open section painted itself a solid blue slab with square corners and a
+   2px border down its RIGHT edge - both come from components/ui/accordion.tsx,
+   which is shared with every other accordion in the app, so they are undone
+   here rather than there. A right-hand rail on a left-hand nav reads as a
+   scrollbar; the accent belongs on the leading edge, against the item it marks.
+
+   The open section is a place you are, not a thing you have selected. It gets
+   accent ink and nothing else - the filled pill is reserved for the one item
+   that is actually the current page, or the two read as equals.
+   --------------------------------------------------------------------------- */
+
+/* The open section. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] {
+  background: transparent;
+  border-right: 0;
+  color: var(--accent-ink);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] svg {
+  color: var(--accent);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] .font-medium,
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] > div {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* The current page. The rail is drawn as an inset shadow rather than a border
+   so it cannot add width and shunt the label sideways on selection.
+
+   Matched by class, never by substring. `[class*='border-r-2']` looks like it
+   would find the active row and finds eleven: accordion.tsx puts the arbitrary
+   variant `[&>button[data-state=open]]:border-r-2` on EVERY section wrapper, and
+   a substring match reads that as a hit - so every section in the nav wore the
+   active wash and rail at once. A class selector matches whole tokens and picks
+   out the one row Tile actually marked. */
+.mcm-admin .mcm-adminnav .border-r-primary {
+  border-right: 0 !important;
+  background: var(--accent-wash);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--accent-ink);
+}
+.mcm-admin .mcm-adminnav .border-r-primary svg {
+  color: var(--accent);
+}
+
+/* Softer than the 8px the rest of the console uses: these are the only pills
+   stacked in a tall column, and at 8px a run of them reads as a table. */
+.mcm-admin .mcm-adminnav .h-14,
+.mcm-admin .mcm-adminnav .min-h-14 {
+  border-radius: 10px;
+  height: 40px;
+  min-height: 40px;
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] {
+  border-radius: 10px;
+}
+.mcm-admin .mcm-adminnav svg {
+  width: 18px;
+  height: 18px;
+}
+.mcm-admin .mcm-adminnav .w-6,
+.mcm-admin .mcm-adminnav .w-5 {
+  width: 18px;
+}
+.mcm-admin .mcm-adminnav .h-6,
+.mcm-admin .mcm-adminnav .h-5 {
+  height: 18px;
+}
+
+/* Children indent from their section rather than from the panel edge, and the
+   accordion body no longer tints itself - the tint was doubling with the
+   active pill inside it. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-content'] {
+  background: transparent;
+}
+
+/* ---- admin sidebar: the finish ------------------------------------------
+
+   Two structural changes on top of the colour work above.
+
+   The rules between sections are gone. `components/ui/accordion.tsx` gives every
+   item a `border-b`, which is right for an accordion on a page and wrong for a
+   navigation: a hairline under every section turned the nav into a table of
+   rows, and the eye counted lines instead of reading names. Space and weight do
+   the grouping now, which is what the rest of this console does.
+
+   Children hang off a connector instead of a bare indent. An indent alone says
+   "further right"; the line says "these belong to the section above", which is
+   the actual relationship - and it gives the active pill something to sit
+   against, so a selected child reads as part of its group rather than as a
+   loose tile that happens to be lower down.
+   --------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-adminnav [data-slot='accordion-item'] {
+  border-bottom: 0;
+  /* The breathing room the hairline used to occupy, minus the hairline. */
+  margin-bottom: 2px;
+}
+
+.mcm-admin .mcm-adminnav [data-slot='accordion-content'] {
+  position: relative;
+  padding-bottom: 4px;
+}
+/* Aligned to the centre of the section icon above it, so the line falls out of
+   the icon rather than landing between things. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-content']::before {
+  content: '';
+  position: absolute;
+  inset-block: 1px 7px;
+  inset-inline-start: 19px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--line);
+}
+/* While you are inside the section, the connector carries the accent too - it
+   is the same "you are here" the section title is already showing. */
+.mcm-admin .mcm-adminnav [data-state='open'] ~ [data-slot='accordion-content']::before,
+.mcm-admin .mcm-adminnav [data-slot='accordion-content'][data-state='open']::before {
+  background: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+/* Children clear the connector. */
+.mcm-admin .mcm-adminnav .pl-10 {
+  padding-left: 32px;
+}
+
+/* Hover: a wash, not a slab. The rows are close together, so a heavy hover
+   reads as a selection and competes with the real one. */
+.mcm-admin .mcm-adminnav .h-14:hover,
+.mcm-admin .mcm-adminnav .min-h-14:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--ink);
+}
+/* The current page does not change under the pointer - it is already chosen. */
+.mcm-admin .mcm-adminnav .border-r-primary:hover {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+/* The chevron is a hint, not a control: quiet, and only lit while its section
+   is open. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] > svg:last-child {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-4);
+  opacity: 0.9;
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] > svg:last-child {
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* The active pill lifts very slightly off the column. */
+.mcm-admin .mcm-adminnav .border-r-primary {
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    0 1px 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* ---- admin sidebar, rebuilt properly -----------------------------------
+
+   The earlier pass tidied the nav; it did not change what it is. This does.
+
+   Sections stop being rows. A row with an icon, a label and a chevron looks
+   like something you click to go somewhere, and ten of them stacked read as ten
+   destinations - when actually they are headings, and the destinations are the
+   items underneath. They are now set as the console's own eyebrow: mono, small,
+   uppercase, wide-tracked. The same treatment page headers already use for the
+   area name, so the sidebar and the page agree about what a section is.
+
+   The current page stops whispering. A pale wash and a hairline rail is what a
+   hover looks like; the page you are actually on is filled, in the accent, with
+   white type - the one unambiguous mark in the column.
+
+   Dividers are gone for good. They arrive from a layer this file cannot see, so
+   they are cut at the nav's own children rather than chased upstream. */
+
+.mcm-admin .mcm-adminnav > * {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+}
+
+/* Sections as headings. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] > div {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] svg {
+  color: var(--ink-4);
+  width: 15px;
+  height: 15px;
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger']:hover > div {
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] > div {
+  color: var(--accent-ink);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] svg {
+  color: var(--accent);
+}
+/* A heading is not a button, so it does not light up under the pointer. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger']:hover,
+.mcm-admin .mcm-adminnav .h-14:hover {
+  background: transparent;
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] > div,
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] {
+  height: 34px;
+  min-height: 34px;
+}
+
+/* Destinations. Full sentence case, ordinary weight - they are the things you
+   read, so they get the plain type and the headings get the treatment. */
+.mcm-admin .mcm-adminnav .min-h-14 {
+  height: 36px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  border-radius: 9px;
+}
+.mcm-admin .mcm-adminnav .min-h-14:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--ink);
+}
+.mcm-admin .mcm-adminnav .min-h-14 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-4);
+}
+
+/* The current page: filled, not washed. */
+.mcm-admin .mcm-adminnav .border-r-primary,
+.mcm-admin .mcm-adminnav .border-r-primary:hover {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.mcm-admin .mcm-adminnav .border-r-primary svg,
+.mcm-admin .mcm-adminnav .border-r-primary p {
+  color: #fff;
+}
+.mcm-admin .mcm-adminnav .border-r-primary p {
+  font-weight: 700;
+}
+
+/* The connector reaches the items, not the panel edge. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-content']::before {
+  inset-inline-start: 15px;
+  width: 1px;
+  background: var(--line);
+}
+.mcm-admin .mcm-adminnav .pl-10 {
+  padding-left: 28px;
+}
+
+/* Sections breathe instead of being ruled off from each other. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-item'] {
+  margin-bottom: 6px;
+}
+
+/* "All admin screens" was a bordered box competing with the nav below it. */
+.mcm-admin .mcm-adminnav-all {
+  border: 0;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  border-radius: 9px;
+}
+.mcm-admin .mcm-adminnav-all.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---- admin sidebar: type back, icons evened up -------------------------
+
+   The section headings return to the console's own sans at sentence case. The
+   mono eyebrow separated headings from destinations, but at ten of them down a
+   column it read as shouting, and the nav is not the place to introduce a
+   second typeface. Weight and colour do the same job quietly.
+
+   The icons are left as they are drawn - same set, same style - but made to sit
+   together. They arrive from six different viewBoxes (18x17 up to 26x26) and in
+   two systems: some stroked at width 2, some filled with no stroke at all. A
+   stroke width is expressed in the icon's OWN coordinate space, so the same "2"
+   scaled from a 26-unit box to 16 pixels draws thinner than one scaled from an
+   18-unit box. That is why a row of them looked uneven no matter what size they
+   were given. `non-scaling-stroke` takes the stroke out of that scaling, so a
+   line is the same thickness on screen whichever box it came from. */
+
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] > div {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] > div {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* One stroke weight on screen, whatever the icon was drawn in. */
+.mcm-admin .mcm-adminnav svg,
+.mcm-admin .mcm-adminnav svg * {
+  vector-effect: non-scaling-stroke;
+}
+.mcm-admin .mcm-adminnav svg[stroke='currentColor'],
+.mcm-admin .mcm-adminnav svg[stroke='currentColor'] * {
+  stroke-width: 1.6;
+}
+/* Filled icons take their colour from `fill`, stroked ones from `stroke`; both
+   follow `color` so one rule sets the lot. */
+.mcm-admin .mcm-adminnav svg [fill]:not([fill='none']) {
+  fill: currentColor;
+}
+/* Optically level: the glyphs sit in boxes of different heights, so they are
+   centred in a fixed box rather than baseline-aligned to the text. */
+.mcm-admin .mcm-adminnav svg {
+  flex: 0 0 auto;
+  align-self: center;
+  overflow: visible;
+}
+
+/* ---- admin sidebar: connector geometry ---------------------------------
+
+   The children stopped being indented when Tile stopped being told it had
+   children of its own - `pl-10` was only ever applied to rows that thought they
+   were parents. So the indent is set here, on children of an open section,
+   which is where it actually belongs.
+
+   Numbers, so this cannot drift again: the content box starts 8px in. The
+   connector sits 18px inside that, so it lands at 26px - the centre line of the
+   section icon above it. Child rows are padded 28px, putting their icons at
+   36px, a clear 10px to the right of the line. Before this the line ran at 23px
+   straight through icons that started at 18px. */
+
+.mcm-admin .mcm-adminnav [data-slot='accordion-content']::before {
+  inset-inline-start: 18px;
+}
+.mcm-admin .mcm-adminnav [data-slot='accordion-content'] .min-h-14 {
+  padding-left: 28px;
+}
+
+/* The connector line is gone, at request. The indent alone carries the nesting,
+   which is what the nav did before and what it goes back to - a line down the
+   column was one more thing to align and earned less than it cost. The rule is
+   overridden rather than deleted so the earlier block above still reads as the
+   history of what was tried. */
+.mcm-admin .mcm-adminnav [data-slot='accordion-content']::before {
+  content: none;
+}
+
+/* ---- top bar: the area rail --------------------------------------------
+
+   It was built as browser tabs: a 3px underline, a tinted block, and corners
+   rounded only at the top so each area looked like a folder tab clipped to the
+   bar. That reads as "documents you have open" - but these are five areas of
+   one product, and only ever one is open. It also hard-coded #64748b, #0f172a
+   and #f8fafc, so it could not follow a theme.
+
+   A segmented rail instead: one row of pills, the current area filled, the rest
+   quiet. The same grammar as the sidebar directly below it, one level up - the
+   sidebar fills the page you are on, this fills the area that page is in, so
+   the two read as a pair rather than as two unrelated navigations.
+   --------------------------------------------------------------------------- */
+
+.mcm-topbar .mcm-areanav {
+  gap: 3px;
+}
+
+.mcm-topbar .mcm-areanav-btn {
+  padding: 7px 15px;
+  border-bottom: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-3);
+  background: transparent;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
+}
+.mcm-topbar .mcm-areanav-btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-4);
+  vector-effect: non-scaling-stroke;
+}
+
+.mcm-topbar .mcm-areanav-btn:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--ink);
+}
+.mcm-topbar .mcm-areanav-btn:hover svg {
+  color: var(--ink-2);
+}
+
+/* The area you are in. Filled, and the only filled thing in the bar. */
+.mcm-topbar .mcm-areanav-btn.is-active,
+.mcm-topbar .mcm-areanav-btn.is-active:hover {
+  background: var(--accent-wash);
+  border-radius: 999px;
+  border-bottom-color: transparent;
+  color: var(--accent-ink);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+}
+.mcm-topbar .mcm-areanav-btn.is-active svg {
+  color: var(--accent);
+}
+
+/* The rule between brand and areas was a hard #e2e8f0. */
+.mcm-topbar .mcm-brandbar {
+  border-right-color: var(--line);
+}
+
+/* ---- top bar: the right-hand cluster -----------------------------------
+
+   Six controls that had never been designed as a set. Measured, they used two
+   different greys for the same kind of chip (#f3f4f6 on one icon button,
+   shadcn's muted oklch on the next), three radii - 10px, 12px, 14px - and a
+   status dot in a lime that appears nowhere else in the palette.
+
+   They are one row of peers, so they get one treatment: ghost by default,
+   filling only under the pointer. A bar full of filled grey chips competes
+   with the one thing in it that should be filled - the area you are in.
+   --------------------------------------------------------------------------- */
+
+/* Search. The widest thing in the bar, so it stays quiet until used. */
+.mcm-topbar .global-search-input-wrapper {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+.mcm-topbar .global-search-input-wrapper:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+.mcm-topbar .global-search-input-wrapper:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mcm-topbar .global-search-input {
+  color: var(--ink);
+  font-size: 13px;
+}
+.mcm-topbar .global-search-input::placeholder {
+  color: var(--ink-4);
+}
+
+/* Icon buttons: ghost, not chips. */
+.mcm-topbar .hdr-quick-toggle,
+.mcm-topbar button.h-9.w-9 {
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink-3);
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.mcm-topbar .hdr-quick-toggle:hover,
+.mcm-topbar button.h-9.w-9:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent-ink);
+}
+.mcm-topbar .hdr-quick-toggle svg,
+.mcm-topbar button.h-9.w-9 svg {
+  width: 17px;
+  height: 17px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The balance chip. Targeted by its own `bg-gray-100`, which is the only class
+   on it that is not layout - there is no semantic hook to use, and inventing
+   one would mean editing the header for a colour change. */
+.mcm-topbar .bg-gray-100 {
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+}
+.mcm-topbar .bg-gray-100:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: var(--accent-edge);
+}
+/* The amount was `text-primary`, which in this scope is shadcn's near-black
+   rather than the console accent - so the one number in the bar was the same
+   weight as body copy. */
+.mcm-topbar .bg-gray-100 .text-primary {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* The account button, matched to the icon buttons beside it. */
+.mcm-topbar button.rounded-xl:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: transparent;
+}
+
+/* Presence. `bg-gray-500` for "offline" and a lime ring for "online" were the
+   only two colours in the bar with no relation to the palette; the console
+   already has a token for live. */
+.mcm-topbar .bg-gray-500 {
+  background: var(--ink-4);
+}
+.mcm-topbar [class*='rounded-full'][style*='69ef11'],
+.mcm-topbar .bg-green-500 {
+  background: var(--live);
+}
+
+/* The rules that split the bar on narrow screens were gray-200. */
+.mcm-topbar .border-gray-200,
+.mcm-topbar .border-t {
+  border-color: var(--line);
+}
+
+/* The two controls above whose colours did not take.
+   `border-radius` from the same rule applied, so the rule matches - the
+   backgrounds were being overridden individually by something later. Which rule
+   could not be established: this dev server serves CSS in a form the stylesheet
+   API will not enumerate, so the usual "which rule wins" query returns nothing.
+   Rather than guess, the class is repeated to raise specificity to (0,3,0),
+   which beats anything written with one or two classes. Not !important: that
+   would also beat a future rule someone writes deliberately. */
+.mcm-topbar .global-search-input-wrapper.global-search-input-wrapper {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+.mcm-topbar .global-search-input-wrapper.global-search-input-wrapper:focus-within {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+.mcm-topbar .hdr-quick-toggle.hdr-quick-toggle {
+  background: transparent;
+  color: var(--ink-3);
+}
+.mcm-topbar .hdr-quick-toggle.hdr-quick-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent-ink);
+}
+
+/* ── Captain · Playground ─────────────────────────────────────────────────
+   A test harness dressed as a chat window. It was built in raw Tailwind greys —
+   `bg-gray-50/60`, `text-gray-950`, an amber badge — so it followed no theme
+   and shared no vocabulary with the rest of Admin.
+
+   The assistant speaks in violet, not in the accent blue. That is not a
+   decoration: the token block at the top of this file gives `--ai` its own hue
+   with the note that machine output must never be mistaken for system truth,
+   and the whole purpose of this screen is to judge machine output. Painting the
+   assistant in the same blue the console uses for its own controls would put
+   the one thing here that needs doubting in the colour reserved for the things
+   that do not.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-cpg {
+  background: var(--ground);
+}
+
+/* The assistant picker.
+
+   Which assistant is answering is the single most important fact on this
+   screen, so the control says it rather than leaving it to an unlabelled
+   dropdown in a corner: the word "assistant", the name, and a live dot that
+   marks it as the one currently wired to the transcript below. */
+.mcm-admin .mcm-cpg-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 11px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    background 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-cpg-pick:not(:disabled):hover {
+    border-color: var(--accent-edge);
+    background: var(--accent-wash);
+  }
+}
+/* Radix marks the trigger while its menu is open, so the control stays lit for
+   as long as the list it opened is on screen. */
+.mcm-admin .mcm-cpg-pick[data-state='open'] {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mcm-admin .mcm-cpg-pick:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mcm-admin .mcm-cpg-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mcm-admin .mcm-cpg-pick-l {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  /* The rule between the label and the name, drawn as a border so it snaps with
+     the rest of the control at any display scale. */
+  padding-right: 9px;
+  border-right: 1px solid var(--line);
+}
+.mcm-admin .mcm-cpg-pick-v {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+/* Live, in the same teal the console uses everywhere else for "this is the one
+   that is running". */
+.mcm-admin .mcm-cpg-pick-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent);
+}
+.mcm-admin .mcm-cpg-pick > svg {
+  color: var(--ink-4);
+  transition: transform 0.16s ease;
+}
+.mcm-admin .mcm-cpg-pick[data-state='open'] > svg {
+  transform: rotate(180deg);
+}
+
+/* The list. Radix renders it in a portal at the end of <body>, outside
+   `.mcm-admin` — so these are written on the menu's own class with no ancestor
+   to lean on, and the tokens are pulled from :root rather than inherited. */
+.mcm-cpg-menu {
+  min-width: 210px;
+  padding: 5px;
+  border-radius: 14px;
+}
+.mcm-cpg-menu [data-slot='dropdown-menu-radio-item'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* The shadcn item reserves 2rem on the left for an indicator dot it draws
+     itself. The tick on the right says the same thing where the eye already is
+     - at the end of the name it just read - so that gutter is given back. */
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mcm-cpg-menu [data-slot='dropdown-menu-radio-item'] > span:first-child {
+  display: none;
+}
+.mcm-cpg-menu [data-slot='dropdown-menu-radio-item'][data-state='checked'] {
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+  font-weight: 700;
+}
+.mcm-cpg-menu [data-slot='dropdown-menu-radio-item'] svg {
+  flex: none;
+  color: var(--accent, #2563eb);
+}
+.mcm-cpg-menu-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcm-admin .mcm-cpg-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-cpg-reset:not(:disabled):hover {
+    border-color: color-mix(in srgb, var(--crit) 40%, var(--line));
+    background: var(--crit-wash);
+    color: var(--crit);
+  }
+}
+/* Nothing to reset is the normal state of this screen, so the button spends
+   most of its life disabled and must not read as broken. */
+.mcm-admin .mcm-cpg-reset:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mcm-admin .mcm-cpg-error {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 22px 0;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--crit) 34%, var(--surface));
+  border-radius: var(--r-sm);
+  background: var(--crit-wash);
+  color: var(--crit);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mcm-admin .mcm-cpg-error svg {
+  flex: none;
+}
+
+/* The transcript. Scrolls on its own so the composer stays put — a send button
+   that walks down the page as the conversation grows is the thing that makes a
+   chat feel unfinished. */
+.mcm-admin .mcm-cpg-stage {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 22px;
+}
+/* Capped and centred. Full-bleed on a wide screen a reply runs to 180
+   characters a line, and the eye loses its place returning to the left edge. */
+.mcm-admin .mcm-cpg-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+
+/* Nothing sent yet. Named for the assistant that is loaded, so the screen
+   confirms which one is about to answer before anything is typed. */
+.mcm-admin .mcm-cpg-blank {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+}
+.mcm-admin .mcm-cpg-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--ai-wash);
+  border: 1px solid var(--ai-edge);
+  color: var(--ai);
+}
+.mcm-admin .mcm-cpg-blank h2 {
+  margin: 14px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-admin .mcm-cpg-blank p {
+  margin: 6px 0 0;
+  max-width: 46ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+/* One turn: avatar, then everything that turn produced. */
+.mcm-admin .mcm-cpg-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 84%;
+}
+.mcm-admin .mcm-cpg-turn.is-you {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.mcm-admin .mcm-cpg-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  /* Level with the bubble, not with the "ASSISTANT" line above it. */
+  margin-top: 18px;
+  border-radius: 9px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-cpg-turn.is-you .mcm-cpg-avatar {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-cpg-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.mcm-admin .mcm-cpg-turn.is-you .mcm-cpg-side {
+  align-items: flex-end;
+}
+
+/* Who is speaking, said in words. The avatars and the colours carry it for most
+   people; this carries it for the rest, and costs one line. */
+.mcm-admin .mcm-cpg-who {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-cpg-bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 20px;
+  /* Replies arrive with their own line breaks and they mean something — a list
+     of options collapsed into a paragraph is a different answer. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* The assistant: violet-washed, cornered into the side it speaks from. */
+.mcm-admin .mcm-cpg-turn.is-bot .mcm-cpg-bubble {
+  border: 1px solid var(--ai-edge);
+  border-top-left-radius: 4px;
+  background: color-mix(in srgb, var(--ai-wash) 62%, var(--surface));
+  color: var(--ink);
+}
+/* You: filled, because what you typed is not in question. */
+.mcm-admin .mcm-cpg-turn.is-you .mcm-cpg-bubble {
+  border: 1px solid transparent;
+  border-top-right-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Three dots rather than the word "Typing…", which had to be read to be
+   understood and then sat there unchanging. */
+.mcm-admin .mcm-cpg-bubble.is-typing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px;
+}
+.mcm-admin .mcm-cpg-bubble.is-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ai);
+  opacity: 0.4;
+  animation: mcm-cpg-blink 1.1s infinite ease-in-out;
+}
+.mcm-admin .mcm-cpg-bubble.is-typing i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.mcm-admin .mcm-cpg-bubble.is-typing i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes mcm-cpg-blink {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+/* A waiting indicator that cannot move still has to say it is waiting, so it
+   holds at full strength rather than stopping mid-fade. */
+@media (prefers-reduced-motion: reduce) {
+  .mcm-admin .mcm-cpg-bubble.is-typing i {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+/* The reply gave up and fetched a person. Warn, not critical: it is the
+   assistant working as designed, and it is the line this screen exists to
+   find. */
+.mcm-admin .mcm-cpg-handoff {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, var(--surface));
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* What the answer was built from. */
+.mcm-admin .mcm-cpg-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.mcm-admin .mcm-cpg-sources-h {
+  width: 100%;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-cpg-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 4px 5px 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.mcm-admin .mcm-cpg-source svg {
+  flex: none;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-cpg-source-q {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* How strongly the entry matched. Bar and number together: the bar is read at a
+   glance, the number is the one you would quote in a bug report. */
+.mcm-admin .mcm-cpg-score {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.mcm-admin .mcm-cpg-score-bar {
+  display: block;
+  width: 26px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.mcm-admin .mcm-cpg-score-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--live);
+}
+/* A weak match is the interesting one — it is where an answer came from
+   something that did not really cover the question. Marked by the number's own
+   colour as well as the bar's, so it does not rest on colour alone. */
+.mcm-admin .mcm-cpg-score.is-weak {
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+.mcm-admin .mcm-cpg-score.is-weak .mcm-cpg-score-bar i {
+  background: var(--warn);
+}
+
+/* The composer. Sits on the surface with a rule above it so it reads as part of
+   the page's furniture rather than as the last message in the thread. */
+.mcm-admin .mcm-cpg-composer {
+  flex: none;
+  padding: 12px 22px 14px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+/* One pill holding the field and its button, so the two are visibly one
+   control. Aligned to the thread above it rather than to the page. */
+.mcm-admin .mcm-cpg-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-2);
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.mcm-admin .mcm-cpg-field:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* The focus ring belongs to the pill, not to the textarea inside it — the
+   console's global `:focus-visible` rule would otherwise draw a second rounded
+   box within the first. Enough weight to actually win that. */
+.mcm-admin .mcm-cpg-field textarea,
+.mcm-admin .mcm-cpg-field textarea:focus,
+.mcm-admin .mcm-cpg-field textarea:focus-visible {
+  flex: 1;
+  min-width: 0;
+  /* Grown by script up to a cap; `resize` off because the drag handle would
+     fight that and leave the box at a size the next keystroke overrides. */
+  height: 34px;
+  max-height: 132px;
+  padding: 7px 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 20px;
+}
+.mcm-admin .mcm-cpg-field textarea::placeholder {
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-cpg-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    opacity 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-cpg-send:not(:disabled):hover {
+    background: var(--accent-ink);
+  }
+}
+.mcm-admin .mcm-cpg-send:disabled {
+  background: var(--surface-3);
+  color: var(--ink-4);
+  cursor: default;
+}
+
+.mcm-admin .mcm-cpg-hint {
+  max-width: 860px;
+  margin: 7px auto 0;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-cpg-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+/* Narrow. The turn's 84% cap does nothing on a phone, where the avatar and the
+   gap are already most of the width the bubble needs. */
+@media (max-width: 640px) {
+  .mcm-admin .mcm-cpg-turn {
+    max-width: 100%;
+  }
+  .mcm-admin .mcm-cpg-stage {
+    padding: 14px;
+  }
+  .mcm-admin .mcm-cpg-composer {
+    padding: 10px 14px 12px;
+  }
+  /* The word is the first thing that can go; the icon says it on its own. */
+  .mcm-admin .mcm-cpg-send span {
+    display: none;
+  }
+  .mcm-admin .mcm-cpg-send {
+    padding: 0 12px;
+  }
+}
+
+/* ── Captain · Assistants ─────────────────────────────────────────────────
+   Cards, because the question this screen answers is "what is the difference
+   between these" and a divided list of names cannot answer it. Each card shows
+   the things that actually differ: the instructions, how freely it answers, how
+   many rules it is under, and which optional features it runs.
+
+   Violet throughout, for the same reason the Playground uses it — these are
+   configured machine answerers, and `--ai` is the hue this design system
+   reserves for saying so.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-asst-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 22px 28px;
+}
+
+.mcm-admin .mcm-asst-grid {
+  display: grid;
+  gap: 16px;
+  /* auto-fill, not auto-fit: with two assistants and a wide window, auto-fit
+     collapses the empty tracks and stretches those two to half the screen
+     each — a card the width of a table. auto-fill keeps the track size, so
+     cards stay card-shaped and the row simply has room to its right. */
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  align-items: start;
+}
+
+.mcm-admin .mcm-asst-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-asst-card:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.mcm-admin .mcm-asst-card-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+/* The assistant's initials, not an icon. See `initials` in the page for why the
+   letters come off the first word only. */
+.mcm-admin .mcm-asst-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  /* Two capitals in a 32px tile sit visually far apart at normal tracking, and
+     read as two marks rather than one. */
+  letter-spacing: 0.02em;
+  /* The tile is the fixed shape a row of these is judged on, so the letters are
+     centred on the box rather than on their own baseline. */
+  line-height: 1;
+}
+.mcm-admin .mcm-asst-id {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-asst-id h2 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-admin .mcm-asst-id p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-3);
+}
+/* An unfilled field says so in the field's own place, rather than leaving a gap
+   that reads as a rendering fault. */
+.mcm-admin .mcm-asst-id p.is-empty,
+.mcm-admin .mcm-asst-facts .is-empty,
+.mcm-admin .mcm-asst-feat.is-empty {
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.mcm-admin .mcm-asst-default {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* The instructions. Quoted, in the assistant's own words, because it is the one
+   thing on the card that is not a label the console wrote. Clamped to three
+   lines — enough to tell two assistants apart, not enough for one long brief to
+   push every other card down the grid. */
+.mcm-admin .mcm-asst-brief {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--ai-edge);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: color-mix(in srgb, var(--ai-wash) 45%, var(--surface));
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mcm-admin .mcm-asst-brief.is-empty {
+  border-left-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.mcm-admin .mcm-asst-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+.mcm-admin .mcm-asst-facts dt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-asst-facts dd {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* Temperature, said in words. The number is kept beside it for whoever is
+   tuning rather than reading — and it is the number a support ticket would
+   quote. */
+.mcm-admin .mcm-asst-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcm-admin .mcm-asst-band span {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-asst-band.is-tight {
+  color: var(--live);
+}
+.mcm-admin .mcm-asst-band.is-mid {
+  color: var(--ink-2);
+}
+/* Not a fault — some assistants are meant to improvise — but it is the setting
+   that produces surprising answers, so it is the one worth spotting. */
+.mcm-admin .mcm-asst-band.is-loose {
+  color: var(--warn);
+}
+
+.mcm-admin .mcm-asst-feats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: auto;
+}
+.mcm-admin .mcm-asst-feat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai-ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+.mcm-admin .mcm-asst-feat svg {
+  flex: none;
+}
+.mcm-admin .mcm-asst-feat.is-empty {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-asst-card-f {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+.mcm-admin .mcm-asst-locked {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+/* Delete, asked on the card rather than in an OS dialog — window.confirm cannot
+   name which assistant it means, and this can, because it is standing on it. */
+.mcm-admin .mcm-asst-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-asst-confirm > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcm-admin .mcm-asst-confirm button {
+  flex: none;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+/* The destructive one is the filled one. Keeping both quiet would leave the
+   irreversible choice and the safe choice looking identical. */
+.mcm-admin .mcm-asst-confirm button.is-go {
+  border-color: transparent;
+  background: var(--crit);
+  color: #fff;
+}
+
+/* Nothing to show. Carries the same button as the header, so the first
+   assistant can be made from where the reader is already looking. */
+.mcm-admin .mcm-asst-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 64px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-asst-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-asst-blank h2 {
+  margin: 12px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-asst-blank p {
+  margin: 0 0 14px;
+  max-width: 40ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+/* ---- the dialog ----------------------------------------------------------
+   Twelve fields in one unbroken column, every label the same size, so finding
+   the one you came to change meant reading all of them. Grouped into named
+   sections instead, and the dialog portals outside `.mcm-admin` — so these are
+   written on the dialog's own class, with token fallbacks.
+   ------------------------------------------------------------------------- */
+
+.mcm-asst-dlg {
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 18px;
+}
+.mcm-asst-dlg-h {
+  flex: none;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line, #dfe5f0);
+}
+.mcm-asst-dlg-h h2,
+.mcm-asst-dlg-h [data-slot='dialog-title'] {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink, #0d1526);
+}
+.mcm-asst-dlg-h p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3, #6b7891);
+}
+
+.mcm-asst-dlg-b {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 22px 18px;
+}
+
+/* A section, marked by a rule that carries its name — cheaper to scan than a
+   heading floating above a group, and it makes the grouping visible rather
+   than implied by spacing alone. */
+.mcm-asst-sec {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-2, #eaeef6);
+}
+.mcm-asst-sec:last-of-type {
+  border-bottom: 0;
+}
+.mcm-asst-sec > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-asst-sec-p {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  color: var(--ink-3, #6b7891);
+}
+
+.mcm-asst-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 620px) {
+  .mcm-asst-row {
+    grid-template-columns: 1fr;
+  }
+}
+.mcm-asst-f {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcm-asst-f + .mcm-asst-f,
+.mcm-asst-row + .mcm-asst-f {
+  margin-top: 12px;
+}
+.mcm-asst-f-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mcm-asst-f-p {
+  margin: -2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-asst-count {
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-asst-count.is-near {
+  color: var(--warn, #b45309);
+}
+
+.mcm-asst-ta {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--ink, #0d1526);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.mcm-asst-ta::placeholder {
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-asst-ta:focus {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
+}
+
+/* Features, as rows you can click anywhere on. Each carries the short name the
+   card shows alongside the long one, so the chip on a card and the switch in
+   here are recognisably the same thing. */
+.mcm-asst-featlist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mcm-asst-featrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-asst-featrow:hover {
+    background: var(--surface-2, #f6f8fc);
+  }
+}
+.mcm-asst-featmark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: -3px;
+  border-radius: 8px;
+  border: 1px solid var(--ai-edge, #ddccff);
+  background: var(--ai-wash, #f2ecff);
+  color: var(--ai, #7c3aed);
+}
+.mcm-asst-fettxt {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-3, #6b7891);
+}
+.mcm-asst-fettxt b {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink, #0d1526);
+}
+
+.mcm-asst-hint {
+  padding: 12px 14px;
+  border: 1px dashed var(--line, #dfe5f0);
+  border-radius: 10px;
+  background: var(--surface-2, #f6f8fc);
+  font-size: 12.5px;
+  color: var(--ink-3, #6b7891);
+}
+.mcm-asst-hint a {
+  font-weight: 650;
+  color: var(--accent-ink, #1d4ed8);
+  text-decoration: none;
+}
+.mcm-asst-hint a:hover {
+  text-decoration: underline;
+}
+
+.mcm-asst-tools {
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mcm-asst-tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2, #3d4a63);
+}
+.mcm-asst-tool + .mcm-asst-tool {
+  border-top: 1px solid var(--line-2, #eaeef6);
+}
+
+/* The advanced pair. Shut by default, and it looks shut — the old <summary> was
+   a line of text with no affordance, so it read as a heading nobody could tell
+   was clickable. */
+.mcm-asst-more {
+  margin-top: 16px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.mcm-asst-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  list-style: none;
+  cursor: pointer;
+  background: var(--surface-2, #f6f8fc);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2, #3d4a63);
+  user-select: none;
+}
+.mcm-asst-more > summary::-webkit-details-marker {
+  display: none;
+}
+/* A chevron drawn in CSS rather than an icon component: a <summary> cannot hold
+   a React element that reacts to its own open state without lifting that state
+   into the component, which is a lot of machinery for a triangle. */
+.mcm-asst-more > summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--ink-4, #93a0b8);
+  border-bottom: 2px solid var(--ink-4, #93a0b8);
+  transform: rotate(-45deg);
+  transition: transform 0.16s ease;
+}
+.mcm-asst-more[open] > summary::before {
+  transform: rotate(45deg);
+}
+.mcm-asst-more-b {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-top: 1px solid var(--line, #dfe5f0);
+}
+
+.mcm-asst-dlg-f {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line, #dfe5f0);
+  background: var(--surface, #fff);
+}
+
+@media (max-width: 640px) {
+  .mcm-admin .mcm-asst-body {
+    padding: 14px;
+  }
+  .mcm-admin .mcm-asst-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Captain · Documents ──────────────────────────────────────────────────
+   The sources an assistant answers from. Three things were wrong with the old
+   list and only one of them was styling:
+
+   - a dashed explainer box sat above it on every visit, permanently, saying
+     what the page description says once;
+   - `content_length` was fetched for every row and shown on none, so a crawl
+     that returned an empty page looked exactly like one that worked;
+   - the status pill's colour and its wording were separate ternaries in the
+     markup, free to disagree.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-doc-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 22px 28px;
+}
+
+.mcm-admin .mcm-doc-note {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 22px 0;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--live) 30%, var(--surface));
+  border-radius: var(--r-sm);
+  background: var(--live-wash);
+  color: var(--live);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mcm-admin .mcm-doc-note svg {
+  flex: none;
+}
+
+.mcm-admin .mcm-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mcm-admin .mcm-doc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-doc-row:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* A failed row is the one thing on this page somebody has to act on, so it
+   carries the state on its own edge rather than only in a pill halfway across
+   the row. */
+.mcm-admin .mcm-doc-row.is-bad {
+  border-color: color-mix(in srgb, var(--crit) 32%, var(--line));
+  background: color-mix(in srgb, var(--crit-wash) 40%, var(--surface));
+}
+
+/* URL or PDF. The only place the two kinds differ once they are ingested, and
+   it decides whether the address beside it is a link worth clicking. */
+.mcm-admin .mcm-doc-kind {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-doc-row.is-bad .mcm-doc-kind {
+  border-color: color-mix(in srgb, var(--crit) 26%, var(--surface));
+  background: var(--crit-wash);
+  color: var(--crit);
+}
+
+.mcm-admin .mcm-doc-main {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-doc-t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcm-admin .mcm-doc-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Status. Word and colour come from one table in the page now, so they cannot
+   drift; this only paints the three tones. */
+.mcm-admin .mcm-doc-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.mcm-admin .mcm-doc-status.is-ready {
+  border-color: color-mix(in srgb, var(--live) 28%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+}
+.mcm-admin .mcm-doc-status.is-work {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-doc-status.is-bad {
+  border-color: color-mix(in srgb, var(--crit) 30%, var(--surface));
+  background: var(--crit-wash);
+  color: var(--crit);
+}
+
+/* Address, size and age on one line, separated by dots drawn as elements — a
+   "·" between two spans is a text node that wraps to a line of its own when
+   the row narrows, and leaves a dot sitting alone under the address. */
+.mcm-admin .mcm-doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 7px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-doc-meta > i {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  opacity: 0.6;
+}
+.mcm-admin .mcm-doc-meta a {
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.mcm-admin .mcm-doc-meta a:hover {
+  text-decoration: underline;
+}
+/* A page that crawled clean and produced four sentences is almost always a
+   cookie wall or a login screen that answered 200. Amber, not red: the
+   document exists, it is just not worth much. */
+.mcm-admin .mcm-doc-meta .is-thin {
+  color: var(--warn);
+  font-weight: 650;
+}
+
+.mcm-admin .mcm-doc-why {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--crit);
+}
+
+.mcm-admin .mcm-doc-more {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-4);
+  outline: none;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-doc-more:hover {
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+}
+.mcm-admin .mcm-doc-more[data-state='open'] {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-doc-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mcm-admin .mcm-doc-confirm {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-doc-confirm button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mcm-admin .mcm-doc-confirm button.is-go {
+  border-color: transparent;
+  background: var(--crit);
+  color: #fff;
+}
+
+.mcm-admin .mcm-doc-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 60px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-doc-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-doc-blank h2 {
+  margin: 12px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-doc-blank p {
+  margin: 0 0 14px;
+  max-width: 44ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+/* ---- the assistant switcher's menu --------------------------------------
+   Shared by Documents, FAQs and Actions, so this lands on all three. Portalled
+   outside `.mcm-admin`, hence the token fallbacks.
+   ------------------------------------------------------------------------- */
+
+.mcm-swi-menu {
+  width: 264px;
+  padding: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.mcm-swi-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-2, #eaeef6);
+  background: var(--surface-2, #f6f8fc);
+}
+.mcm-swi-h b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--ink, #0d1526);
+}
+.mcm-swi-h span {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-swi-h a {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--ink-3, #6b7891);
+}
+.mcm-swi-h a:hover {
+  border-color: var(--accent-edge, #c3d6ff);
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+}
+
+.mcm-swi-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 5px;
+}
+.mcm-swi-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2, #3d4a63);
+  cursor: pointer;
+}
+.mcm-swi-list button:hover {
+  background: var(--surface-2, #f6f8fc);
+}
+.mcm-swi-list button.is-on {
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+  font-weight: 700;
+}
+.mcm-swi-list button svg {
+  flex: none;
+  color: var(--accent, #2563eb);
+}
+/* The assistant's initials, matching its card on the Assistants screen. */
+.mcm-swi-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--ai-edge, #ddccff);
+  background: var(--ai-wash, #f2ecff);
+  color: var(--ai-ink, #6428d4);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+.mcm-swi-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .mcm-admin .mcm-doc-body {
+    padding: 12px 14px 24px;
+  }
+  .mcm-admin .mcm-doc-meta a {
+    max-width: 24ch;
+  }
+}
+
+/* ---- Captain · Documents: the two dialogs -------------------------------
+   Both reuse the Assistants dialog's shell. What is added here is the handful
+   of controls this screen has and that one does not.
+   ------------------------------------------------------------------------- */
+
+.mcm-doc-dlg-b {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 16px;
+}
+
+/* Source, and how deep to follow links. Both were <select>s over two and four
+   fixed options — a control that hides every choice but one behind a click,
+   for a set that fits on the line. Shown as segmented buttons, which also puts
+   the whole choice in the accessibility tree at once. */
+.mcm-doc-kindpick,
+.mcm-doc-depth {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.mcm-doc-kindpick button,
+.mcm-doc-depth button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-3, #6b7891);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+.mcm-doc-kindpick button:hover,
+.mcm-doc-depth button:hover {
+  border-color: var(--accent-edge, #c3d6ff);
+  color: var(--ink, #0d1526);
+}
+/* The same active pill as the section tabs and the top bar's area rail. */
+.mcm-doc-kindpick button.is-on,
+.mcm-doc-depth button.is-on {
+  border-color: var(--accent-edge, #c3d6ff);
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+  font-weight: 700;
+}
+.mcm-doc-kindpick button:focus-visible,
+.mcm-doc-depth button:focus-visible {
+  outline: 2px solid var(--accent, #2563eb);
+  outline-offset: 1px;
+}
+
+/* "optional" beside a label, so the required fields are the unmarked ones.
+
+   Its own class, not `label > span`: the suggested-FAQ rows are labels with a
+   span for their text, so a descendant selector that broad set every generated
+   question in uppercase. */
+.mcm-doc-optional {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2, #f6f8fc);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4, #93a0b8);
+}
+
+.mcm-doc-file {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed var(--line, #dfe5f0);
+  border-radius: 10px;
+  background: var(--surface-2, #f6f8fc);
+  font-size: 12.5px;
+  color: var(--ink-3, #6b7891);
+}
+.mcm-doc-file::file-selector-button {
+  margin-right: 10px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* A crawl takes a while and the dialog stays open through it. */
+.mcm-doc-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--accent-edge, #c3d6ff);
+  border-radius: 10px;
+  background: var(--accent-wash, #e8efff);
+  color: var(--accent-ink, #1d4ed8);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mcm-doc-wait svg {
+  flex: none;
+}
+
+/* Suggested FAQs. Machine-written, so they sit on the violet the design system
+   keeps for that — and every one is a checkbox because the point of the list is
+   deciding which of them are actually right. */
+.mcm-doc-faqs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--ai-edge, #ddccff);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ai-wash, #f2ecff) 45%, transparent);
+}
+.mcm-doc-faqs-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--ink, #0d1526);
+}
+.mcm-doc-faqs-h span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-doc-faqs-l {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* A label, so the whole row is the target — picking three of five from a list
+   should not mean hitting five 16px boxes. */
+.mcm-doc-faqs-l label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.mcm-doc-faqs-l label.is-on {
+  border-color: var(--ai-edge, #ddccff);
+  background: color-mix(in srgb, var(--ai-wash, #f2ecff) 55%, var(--surface, #fff));
+}
+.mcm-doc-faq-t {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink-3, #6b7891);
+}
+.mcm-doc-faq-t b {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink, #0d1526);
+}
+
+/* The edit dialog's footer carries an action on the left as well as the pair on
+   the right, so it justifies apart rather than to the end. */
+.mcm-asst-dlg-f.is-split {
+  justify-content: space-between;
+}
+
+/* ── Captain · FAQs ───────────────────────────────────────────────────────
+   Answers the assistant gives verbatim. The old list drew `draft` in yellow and
+   `approved` in green and stopped there — but that difference is the screen:
+   one of them is answering customers and the other is doing nothing at all.
+   Drafts also arrive in batches from the Documents screen's generator, so they
+   pile up among the live ones with nothing to separate them.
+
+   So: the states are named for what they do (Live / Draft), drafts carry their
+   own filter with a count, and publishing is a button on the row rather than a
+   dropdown three steps into a modal.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-faq-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 22px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.mcm-admin .mcm-faq-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 340px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-4);
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.mcm-admin .mcm-faq-search svg {
+  flex: none;
+}
+/* The ring belongs to the pill. The console's global `:focus-visible` rule is
+   more specific than a bare input selector and would otherwise draw a second
+   rounded box inside the first — the same doubling the admin home search had.
+   Stated at enough weight to actually win. */
+.mcm-admin .mcm-faq-search:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.mcm-page .mcm-faq-search input,
+.mcm-page .mcm-faq-search input:focus,
+.mcm-page .mcm-faq-search input:focus-visible {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.mcm-admin .mcm-faq-search input::placeholder {
+  color: var(--ink-4);
+  font-weight: 500;
+}
+
+.mcm-admin .mcm-faq-filters {
+  display: flex;
+  gap: 3px;
+}
+.mcm-admin .mcm-faq-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-faq-filters button:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--ink);
+  }
+}
+.mcm-admin .mcm-faq-filters button.is-on {
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1px var(--accent-edge);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+/* The count. Carried on the tab rather than in a line above the list, so a
+   batch of unpublished drafts is visible without opening anything. */
+.mcm-admin .mcm-faq-filters button > span {
+  min-width: 18px;
+  padding: 0 5px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-faq-filters button.is-on > span {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-ink);
+}
+
+.mcm-admin .mcm-faq-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 22px 28px;
+}
+.mcm-admin .mcm-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mcm-admin .mcm-faq-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-faq-row:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* A draft is the row that still needs a decision, so it is the row that looks
+   unfinished — warm-edged rather than sitting flush with the published ones. */
+.mcm-admin .mcm-faq-row.is-draft {
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--line));
+  background: color-mix(in srgb, var(--warn-wash) 30%, var(--surface));
+}
+
+.mcm-admin .mcm-faq-main {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-faq-q {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mcm-admin .mcm-faq-q h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 20px;
+  color: var(--ink);
+}
+/* The answer, at reading width. Full-bleed on a wide screen it runs past 150
+   characters a line, and this is prose meant to be read as the customer will
+   read it. */
+.mcm-admin .mcm-faq-a {
+  margin: 5px 0 0;
+  max-width: 92ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.mcm-admin .mcm-faq-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  /* Baseline-aligned with the question beside it: the row is baseline flex so
+     the words line up, and the pill needs nudging off its own text baseline to
+     sit centred against them. */
+  position: relative;
+  top: 1px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.mcm-admin .mcm-faq-status.is-live {
+  border-color: color-mix(in srgb, var(--live) 28%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+}
+.mcm-admin .mcm-faq-status.is-draft {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--surface));
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+
+.mcm-admin .mcm-faq-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Publish. The one action a draft exists to receive, so it is on the row and it
+   is the only filled control there. */
+.mcm-admin .mcm-faq-publish {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--live);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-faq-publish:hover {
+    filter: brightness(0.93);
+  }
+}
+.mcm-admin .mcm-faq-publish:focus-visible {
+  outline: 2px solid var(--live);
+  outline-offset: 2px;
+}
+
+.mcm-admin .mcm-faq-confirm {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-faq-confirm button {
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mcm-admin .mcm-faq-confirm button.is-go {
+  border-color: transparent;
+  background: var(--crit);
+  color: #fff;
+}
+
+.mcm-admin .mcm-faq-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 60px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-faq-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-faq-blank h2 {
+  margin: 12px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-faq-blank p {
+  margin: 0 0 14px;
+  max-width: 44ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 760px) {
+  .mcm-admin .mcm-faq-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mcm-admin .mcm-faq-acts {
+    justify-content: flex-end;
+  }
+  .mcm-admin .mcm-faq-body {
+    padding: 12px 14px 24px;
+  }
+  .mcm-admin .mcm-faq-search {
+    max-width: none;
+  }
+}
+
+/* ── Captain · Actions ────────────────────────────────────────────────────
+   Three surfaces on one screen: connected apps, the individual actions inside
+   one of them, and hand-built HTTP tools. They shared no vocabulary — a
+   connected app was a card, a custom tool a wide band, an app's action a
+   divided row, each with its own idea of what a status pill looks like.
+
+   The tier control is one component now (see TierPicker). What is left here is
+   making the three lists read as three views of the same thing.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-act-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 22px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.mcm-admin .mcm-act-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 28px;
+}
+
+.mcm-admin .mcm-act-sec + .mcm-act-sec {
+  margin-top: 22px;
+}
+/* A section heading with its count. Was a bare bold line; the count is what
+   says whether "Connected apps" is worth scrolling to. */
+.mcm-admin .mcm-act-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-act-h > span {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* ---- app cards: connected, and the catalogue -------------------------- */
+
+.mcm-admin .mcm-act-apps {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  align-items: start;
+}
+
+.mcm-admin .mcm-act-app {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 100%;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-app:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* The app whose actions are open below. It has to stay findable once the panel
+   pushes the rest of the grid down. */
+.mcm-admin .mcm-act-app.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* A connection that needs attention says so on its own edge, not only in a
+   pill. */
+.mcm-admin .mcm-act-app.is-bad {
+  border-color: color-mix(in srgb, var(--crit) 30%, var(--line));
+}
+.mcm-admin .mcm-act-app.is-work {
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--line));
+}
+
+.mcm-admin .mcm-act-app header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mcm-admin .mcm-act-app h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-admin .mcm-act-app p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink-3);
+  /* Descriptions from a third-party catalogue run to any length; two lines is
+     enough to tell Gmail from Gmail for Workspace. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mcm-admin .mcm-act-app footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.mcm-admin .mcm-act-logo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+}
+.mcm-admin .mcm-act-logo img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+/* The custom-API tile. A button, and dashed so it reads as "make one" rather
+   than as an app that happens to be listed first. */
+.mcm-admin .mcm-act-app.is-custom {
+  border-style: dashed;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.mcm-admin .mcm-act-app.is-custom:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-app.is-custom:not(:disabled):hover {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+  }
+}
+.mcm-admin .mcm-act-app.is-custom .mcm-act-logo {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-act-connstate,
+.mcm-admin .mcm-act-count {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-act-connstate::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mcm-admin .mcm-act-connstate.is-live {
+  color: var(--live);
+}
+.mcm-admin .mcm-act-connstate.is-work {
+  color: var(--warn);
+}
+.mcm-admin .mcm-act-connstate.is-bad {
+  color: var(--crit);
+}
+
+/* ---- the panel of one app's actions ----------------------------------- */
+
+.mcm-admin .mcm-act-browse {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--accent-edge);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--accent-wash) 35%, var(--surface));
+}
+.mcm-admin .mcm-act-browse-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.mcm-admin .mcm-act-browse-h > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-act-browse-h h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.mcm-admin .mcm-act-browse-h p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-act-all {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.mcm-admin .mcm-act-browse-search {
+  max-width: none;
+  background: var(--surface);
+}
+
+.mcm-admin .mcm-act-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcm-admin .mcm-act-mini > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+/* An action that is switched on is one the assistant can actually call, which
+   is worth seeing without reading the switch. */
+.mcm-admin .mcm-act-mini > li.is-on {
+  border-color: var(--ai-edge);
+  background: color-mix(in srgb, var(--ai-wash) 40%, var(--surface));
+}
+.mcm-admin .mcm-act-mini-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mcm-admin .mcm-act-mini-t b {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.mcm-admin .mcm-act-mini-t code,
+.mcm-admin .mcm-act-meta code {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-act-mini-blank {
+  padding: 22px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-4);
+}
+
+/* ---- custom action rows ------------------------------------------------ */
+
+.mcm-admin .mcm-act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcm-admin .mcm-act-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-row:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* Switched off. Faded rather than hidden — it is still configured, it just is
+   not callable, and it should not read as prominently as the live ones. */
+.mcm-admin .mcm-act-row.is-off {
+  background: var(--surface-2);
+}
+.mcm-admin .mcm-act-row.is-off .mcm-act-t h3,
+.mcm-admin .mcm-act-row.is-off .mcm-act-desc {
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-act-kind {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-act-main {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-act-t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcm-admin .mcm-act-t h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+/* A write action changes something at the far end. Amber, because it is not a
+   fault — it is the property you want to notice before anything else. */
+.mcm-admin .mcm-act-write {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--surface));
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.mcm-admin .mcm-act-desc {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-act-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 7px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-act-meta code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-act-url {
+  max-width: 52ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+/* Dots as elements, not as text between spans — a "·" text node wraps onto a
+   line of its own and strands a dot under the URL. */
+.mcm-admin .mcm-act-meta > i {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  opacity: 0.6;
+}
+
+.mcm-admin .mcm-act-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+/* ---- the tier control -------------------------------------------------- */
+
+.mcm-admin .mcm-act-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 650;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-tier:hover {
+    border-color: var(--ink-4);
+  }
+}
+.mcm-admin .mcm-act-tier:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.mcm-admin .mcm-act-tier[data-state='open'] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+/* Anyone can trigger it. The loosest setting, so it is the one that stands out
+   rather than the one that blends in. */
+.mcm-admin .mcm-act-tier.is-open {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--surface));
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+.mcm-admin .mcm-act-tier.is-standard {
+  border-color: var(--accent-edge);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+.mcm-admin .mcm-act-tier.is-secure {
+  border-color: color-mix(in srgb, var(--live) 30%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+}
+.mcm-admin .mcm-act-tier.is-none {
+  border-style: dashed;
+}
+
+/* Portalled outside `.mcm-admin`, so tokens carry fallbacks. */
+.mcm-act-tiermenu {
+  width: 268px;
+  padding: 5px;
+  border-radius: 14px;
+}
+.mcm-act-tiermenu-h {
+  padding: 6px 9px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'] {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'] > svg:first-child {
+  margin-top: 1px;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'] > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--ink-3, #6b7891);
+  /* The descriptions are full sentences; the menu is fixed-width, so they wrap
+     rather than being clipped to one line each. */
+  white-space: normal;
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'] b {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink, #0d1526);
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'].is-on {
+  background: var(--accent-wash, #e8efff);
+}
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'].is-on b,
+.mcm-act-tiermenu [data-slot='dropdown-menu-item'].is-on > svg {
+  color: var(--accent-ink, #1d4ed8);
+}
+
+/* A write action has no tier: it is never offered to a customer at all, so the
+   slot says that rather than sitting empty. */
+.mcm-admin .mcm-act-staff {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: help;
+}
+
+/* ---- shared bits ------------------------------------------------------- */
+
+/* Was a <span onClick> on both lists — no keyboard, no announcement, on the
+   control that severs an integration or deletes a tool. */
+.mcm-admin .mcm-act-kill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-kill:hover {
+    background: var(--crit-wash);
+    color: var(--crit);
+  }
+}
+.mcm-admin .mcm-act-kill:focus-visible {
+  outline: 2px solid var(--crit);
+  outline-offset: 1px;
+}
+
+.mcm-admin .mcm-act-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-act-confirm button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mcm-admin .mcm-act-confirm button.is-go {
+  border-color: transparent;
+  background: var(--crit);
+  color: #fff;
+}
+
+/* Category chips. A scrolling row rather than a dropdown: the catalogue decides
+   how many there are, and they are the fastest way through it. */
+.mcm-admin .mcm-act-cats {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mcm-admin .mcm-act-cats::-webkit-scrollbar {
+  height: 0;
+}
+.mcm-admin .mcm-act-cats button {
+  flex: none;
+  height: 30px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-act-cats button:hover {
+    border-color: var(--accent-edge);
+    color: var(--ink);
+  }
+}
+.mcm-admin .mcm-act-cats button.is-on {
+  border-color: var(--accent-edge);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.mcm-admin .mcm-act-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 60px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-act-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-act-blank h2 {
+  margin: 12px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-act-blank p {
+  margin: 0 0 14px;
+  max-width: 46ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+@media (max-width: 760px) {
+  .mcm-admin .mcm-act-row {
+    flex-wrap: wrap;
+  }
+  .mcm-admin .mcm-act-acts {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .mcm-admin .mcm-act-body {
+    padding: 14px;
+  }
+  .mcm-admin .mcm-act-url {
+    max-width: 24ch;
+  }
+}
+
+/* ── Captain · an unbuilt section ─────────────────────────────────────────
+   Scenarios and Settings are in the nav and not in the software. The old
+   placeholder was two lines of grey text centred in an empty frame, which is
+   also what a page looks like when it has failed to render — so the honest
+   state and the broken one were indistinguishable.
+
+   It gets the page head every other Admin screen has, and the message goes in
+   a card rather than floating: a bordered box reads as something that was put
+   there, where centred bare text reads as something that is missing.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-soon-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+}
+
+.mcm-admin .mcm-soon-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 520px;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: center;
+}
+
+.mcm-admin .mcm-soon-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  /* Not the AI violet the built Captain screens use. Violet on this page would
+     say "machine output" about a screen that has no output at all. */
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-soon-card h2 {
+  margin: 11px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-admin .mcm-soon-card > p {
+  margin: 6px 0 0;
+  max-width: 44ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+/* The way out. An unbuilt section should not also be a dead end whose only
+   exit is the back button. */
+.mcm-admin .mcm-soon-links {
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line-2);
+  text-align: left;
+}
+/* Two across rather than four down. The column was what made this card taller
+   than a short window, and these are four peer destinations, not a ranked
+   list — nothing is lost by pairing them. */
+.mcm-admin .mcm-soon-links-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+@media (max-width: 520px) {
+  .mcm-admin .mcm-soon-links-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.mcm-admin .mcm-soon-links-h {
+  margin-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-soon-links a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.mcm-admin .mcm-soon-links a > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-soon-links a b {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.mcm-admin .mcm-soon-links a svg {
+  flex: none;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-soon-links a:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .mcm-admin .mcm-soon-links a:hover b {
+    color: var(--accent-ink);
+  }
+}
+.mcm-admin .mcm-soon-links a:hover svg,
+.mcm-admin .mcm-soon-links a:focus-visible svg {
+  opacity: 1;
+  transform: translateX(0);
+}
+.mcm-admin .mcm-soon-links a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcm-admin .mcm-soon-links a svg {
+    transition: opacity 0.14s ease;
+    transform: none;
+  }
+}
+
+/* ── Captain · Inboxes ────────────────────────────────────────────────────
+   The places a customer can start a conversation, and the conversations
+   themselves. The list said "Website · domain · AI: name" as one run of small
+   blue text, and whether an inbox was actually live was carried by a switch
+   alone — which states it only if you already know which way is on.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-inb-count {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.mcm-admin .mcm-inb-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 22px 28px;
+}
+
+/* A channel group. There is one channel today (website), so this is a heading
+   with a collapse rather than a card wrapped around a card. */
+.mcm-admin .mcm-inb-group + .mcm-inb-group {
+  margin-top: 18px;
+}
+.mcm-admin .mcm-inb-grouph {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 0 2px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-4);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mcm-admin .mcm-inb-grouph svg {
+  flex: none;
+  transition: transform 0.16s ease;
+}
+.mcm-admin .mcm-inb-grouph svg.is-shut {
+  transform: rotate(-90deg);
+}
+.mcm-admin .mcm-inb-grouph > span {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-inb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mcm-admin .mcm-inb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-inb-row:hover {
+    border-color: var(--ai-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* Paused. Still configured, just not answering anyone — so it recedes rather
+   than disappearing. */
+.mcm-admin .mcm-inb-row.is-off {
+  background: var(--surface-2);
+}
+.mcm-admin .mcm-inb-row.is-off .mcm-inb-t h3 {
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-inb-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-inb-row.is-off .mcm-inb-mark {
+  border-color: var(--line);
+  background: var(--surface-3);
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-inb-main {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-inb-t {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mcm-admin .mcm-inb-t h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* Said in a word, not left to the switch. */
+.mcm-admin .mcm-inb-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.mcm-admin .mcm-inb-state::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mcm-admin .mcm-inb-state.is-live {
+  border-color: color-mix(in srgb, var(--live) 28%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+}
+.mcm-admin .mcm-inb-state.is-off {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+/* The widget that predates inboxes. It is managed through its assistant, not
+   here, which is worth flagging because its Delete button is absent and the
+   gap would otherwise read as a bug. */
+.mcm-admin .mcm-inb-legacy {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--line);
+  background: var(--surface-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  cursor: help;
+}
+
+.mcm-admin .mcm-inb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-inb-meta svg {
+  flex: none;
+}
+.mcm-admin .mcm-inb-meta > i {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  opacity: 0.6;
+}
+
+.mcm-admin .mcm-inb-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.mcm-admin .mcm-inb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-inb-btn:hover {
+    border-color: var(--accent-edge);
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+  }
+}
+.mcm-admin .mcm-inb-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mcm-admin .mcm-inb-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 56px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-inb-blank-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  border: 1px solid var(--ai-edge);
+  background: var(--ai-wash);
+  color: var(--ai);
+}
+.mcm-admin .mcm-inb-blank h2 {
+  margin: 11px 0 0;
+  font-size: 15.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-inb-blank p {
+  margin: 0 0 13px;
+  max-width: 44ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--ink-3);
+}
+
+/* ---- the conversation viewer ------------------------------------------
+   One dialog for both kinds of inbox. Portalled outside `.mcm-admin`, so the
+   tokens carry fallbacks.
+   ---------------------------------------------------------------------- */
+
+.mcm-inb-dlg {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  height: 78vh;
+  max-height: 720px;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.mcm-inb-dlg-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line, #dfe5f0);
+  background: var(--surface-2, #f6f8fc);
+}
+.mcm-inb-dlg-sideh {
+  flex: none;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line, #dfe5f0);
+}
+.mcm-inb-dlg-sideh [data-slot='dialog-title'] {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--ink, #0d1526);
+}
+.mcm-inb-dlg-sideh p {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-4, #93a0b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcm-inb-dlg-side ul {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+.mcm-inb-dlg-side button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.mcm-inb-dlg-side button:hover {
+  background: var(--surface, #fff);
+}
+.mcm-inb-dlg-side button.is-on {
+  background: var(--surface, #fff);
+  box-shadow: inset 0 0 0 1px var(--accent-edge, #c3d6ff);
+}
+.mcm-inb-who {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink, #0d1526);
+}
+/* Who currently owns the conversation. A person having taken over is the state
+   worth spotting from the list, because it is the one that needs somebody. */
+.mcm-inb-who .is-human {
+  color: var(--warn, #b45309);
+}
+.mcm-inb-who .is-ai {
+  color: var(--ai, #7c3aed);
+}
+.mcm-inb-last {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-4, #93a0b8);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mcm-inb-dlg-none {
+  padding: 26px 18px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-4, #93a0b8);
+}
+
+.mcm-inb-dlg-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.mcm-inb-dlg-mainh {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line, #dfe5f0);
+}
+.mcm-inb-dlg-mainh h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 750;
+  color: var(--ink, #0d1526);
+}
+.mcm-inb-dlg-mainh p {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: var(--ink-4, #93a0b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 46ch;
+}
+
+.mcm-inb-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--ground, #eef1f8);
+}
+.mcm-inb-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 82%;
+}
+/* Both of your voices sit on the right; the visitor's on the left. */
+.mcm-inb-turn.is-agent,
+.mcm-inb-turn.is-ai {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+.mcm-inb-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.mcm-inb-turn.is-agent .mcm-inb-side,
+.mcm-inb-turn.is-ai .mcm-inb-side {
+  align-items: flex-end;
+}
+.mcm-inb-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #dfe5f0);
+  background: var(--surface, #fff);
+  color: var(--ink-3, #6b7891);
+}
+.mcm-inb-turn.is-ai .mcm-inb-avatar {
+  border-color: var(--ai-edge, #ddccff);
+  background: var(--ai-wash, #f2ecff);
+  color: var(--ai, #7c3aed);
+}
+.mcm-inb-turn.is-agent .mcm-inb-avatar {
+  border-color: color-mix(in srgb, var(--warn, #b45309) 30%, transparent);
+  background: var(--warn-wash, #fdf3e6);
+  color: var(--warn, #b45309);
+}
+/* Named, not only coloured. Two of the three speakers are on your side and
+   which one answered is the whole point of reading this. */
+.mcm-inb-role {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-inb-bubble {
+  padding: 9px 13px;
+  border-radius: 13px;
+  font-size: 13px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mcm-inb-turn.is-them .mcm-inb-bubble {
+  border: 1px solid var(--line, #dfe5f0);
+  border-top-left-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--ink, #0d1526);
+}
+.mcm-inb-turn.is-ai .mcm-inb-bubble {
+  border: 1px solid var(--ai-edge, #ddccff);
+  border-top-right-radius: 4px;
+  background: color-mix(in srgb, var(--ai-wash, #f2ecff) 62%, var(--surface, #fff));
+  color: var(--ink, #0d1526);
+}
+/* A person wrote this. Filled and warm — it is the one kind of message here
+   that a colleague is accountable for. */
+.mcm-inb-turn.is-agent .mcm-inb-bubble {
+  border: 1px solid transparent;
+  border-top-right-radius: 4px;
+  background: var(--warn, #b45309);
+  color: #fff;
+}
+
+.mcm-inb-reply {
+  flex: none;
+  padding: 11px 14px 12px;
+  border-top: 1px solid var(--line, #dfe5f0);
+  background: var(--surface, #fff);
+}
+/* The composer is borrowed from the Playground, whose rules are written under
+   `.mcm-admin`. This dialog is portalled to the end of <body>, outside that
+   scope, so none of them reached it — the field rendered as a plain block and
+   the button as inline-block sitting on top of the placeholder. Restated here
+   without the ancestor, with token fallbacks for the same reason. */
+.mcm-inb-reply .mcm-cpg-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: 18px;
+  background: var(--surface-2, #f6f8fc);
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.mcm-inb-reply .mcm-cpg-field:focus-within {
+  border-color: var(--accent, #2563eb);
+  background: var(--surface, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
+}
+.mcm-inb-reply .mcm-cpg-field textarea,
+.mcm-inb-reply .mcm-cpg-field textarea:focus,
+.mcm-inb-reply .mcm-cpg-field textarea:focus-visible {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  max-height: 110px;
+  padding: 7px 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  resize: none;
+  background: transparent;
+  color: var(--ink, #0d1526);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+.mcm-inb-reply .mcm-cpg-field textarea::placeholder {
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-inb-reply .mcm-cpg-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.mcm-inb-reply .mcm-cpg-send:not(:disabled):hover {
+  background: var(--accent-ink, #1d4ed8);
+}
+.mcm-inb-reply .mcm-cpg-send:disabled {
+  background: var(--surface-3, #eaeef7);
+  color: var(--ink-4, #93a0b8);
+  cursor: default;
+}
+.mcm-inb-note {
+  margin: 7px 2px 0;
+  font-size: 10.5px;
+  color: var(--ink-4, #93a0b8);
+}
+
+@media (max-width: 720px) {
+  .mcm-inb-dlg {
+    grid-template-columns: 1fr;
+    grid-template-rows: 180px 1fr;
+  }
+  .mcm-inb-dlg-side {
+    border-right: 0;
+    border-bottom: 1px solid var(--line, #dfe5f0);
+  }
+  .mcm-admin .mcm-inb-row {
+    flex-wrap: wrap;
+  }
+  .mcm-admin .mcm-inb-acts {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* ── Company & Locations ──────────────────────────────────────────────────
+   The page head was centred — alone among Admin screens — and every location
+   printed its address twice: once as a line of prose, then again underneath as
+   a five-column Country / State / City / Postal / Timezone grid with a heading
+   over each value. Four locations of that is most of a screen spent saying the
+   same thing in two shapes.
+   ------------------------------------------------------------------------- */
+
+/* The explainer above the locations. Kept, because a location is not a label —
+   it decides how calls behave — but set as a note rather than as a card
+   competing with the records below it. */
+.mcm-admin .mcm-co-explain {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.mcm-admin .mcm-co-explain-h {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--ink);
+}
+.mcm-admin .mcm-co-explain-p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-co-explain ul {
+  display: grid;
+  gap: 8px 18px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.mcm-admin .mcm-co-explain li {
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink-3);
+  padding-left: 11px;
+  border-left: 2px solid var(--accent-edge);
+}
+.mcm-admin .mcm-co-explain li b {
+  display: block;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+/* Section heading, matching the ones on the Captain screens. */
+.mcm-admin .mcm-co-sech {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-co-sech > span {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.mcm-admin .mcm-co-otherh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* One row, and it does not wrap.
+
+   With `flex-wrap: wrap` the browser sized this container to 435px while its
+   two children needed 439 — the gap falls outside the max-content the wrapping
+   container resolves to — so the button dropped onto a second line with nearly
+   550px of empty space beside it. Nowrap sizes it correctly; the search shrinks
+   if the row ever does get tight, and the outer header still wraps as a whole
+   on a narrow screen. */
+.mcm-admin .mcm-co-otheracts {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+.mcm-admin .mcm-co-otheracts > button,
+.mcm-admin .mcm-co-otheracts > a {
+  flex: none;
+}
+/* The search sits beside the button, not above it. `.mcm-faq-search` carries
+   `width: 100%` for its own page, where it is the only thing on its row; in
+   this wrapping flex row that made it claim the full width and push the button
+   onto a second line. */
+.mcm-admin .mcm-co-otheracts .mcm-faq-search {
+  flex: 0 1 240px;
+  width: auto;
+  max-width: 240px;
+}
+
+.mcm-admin .mcm-co-none {
+  padding: 26px 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* ---- one location ------------------------------------------------------ */
+
+.mcm-admin .mcm-loc {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-loc:hover {
+    border-color: var(--accent-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* The main location. Marked by its edge rather than by the 3px top border it
+   had, which sat above the card's own rounded corners and broke them. */
+.mcm-admin .mcm-loc.is-main {
+  border-color: var(--accent-edge);
+  background: color-mix(in srgb, var(--accent-wash) 26%, var(--surface));
+}
+
+.mcm-admin .mcm-loc-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.mcm-admin .mcm-loc-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-loc.is-main .mcm-loc-mark {
+  border-color: var(--accent-edge);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.mcm-admin .mcm-loc-id {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-loc-t {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* The name opens the location. A button, not a styled div — it was already a
+   button, and it stays one. */
+.mcm-admin .mcm-loc-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-loc-name:hover {
+    color: var(--accent-ink);
+    text-decoration: underline;
+  }
+}
+.mcm-admin .mcm-loc-name:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.mcm-admin .mcm-loc-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-edge);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: help;
+}
+/* The location's reference. Was prefixed "Location ID:" on every card — six
+   words of label for a value that already looks like one. */
+.mcm-admin .mcm-loc-ref {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-loc-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.mcm-admin .mcm-loc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-loc-btn:hover {
+    border-color: var(--accent-edge);
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+  }
+  .mcm-admin .mcm-loc-btn.is-kill:hover {
+    border-color: color-mix(in srgb, var(--crit) 35%, var(--line));
+    background: var(--crit-wash);
+    color: var(--crit);
+  }
+}
+.mcm-admin .mcm-loc-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.mcm-admin .mcm-loc-mainbtn {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-loc-mainbtn:not(:disabled):hover {
+    border-color: var(--accent-edge);
+    color: var(--accent-ink);
+  }
+}
+.mcm-admin .mcm-loc-mainbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.mcm-admin .mcm-loc-locked {
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-loc-body {
+  margin: 10px 0 0 45px;
+}
+.mcm-admin .mcm-loc-addr {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-loc-addr.is-empty {
+  color: var(--ink-4);
+  font-style: italic;
+}
+/* State, city and postcode on one line, unlabelled. They were three columns
+   with a heading each, repeating what the address above already says. */
+.mcm-admin .mcm-loc-where {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-loc-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.mcm-admin .mcm-loc-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-loc-factk {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* LocationFacts sits under the body and keeps its own markup; this only pulls
+   it into line with the text above it. */
+.mcm-admin .mcm-loc > div:last-child {
+  margin-left: 45px;
+}
+
+@media (max-width: 640px) {
+  .mcm-admin .mcm-loc-body,
+  .mcm-admin .mcm-loc > div:last-child {
+    margin-left: 0;
+  }
+  .mcm-admin .mcm-loc-h {
+    flex-wrap: wrap;
+  }
+  .mcm-admin .mcm-loc-acts {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+
+/* ── My account · Profile ─────────────────────────────────────────────────
+   The screen describes itself as your details "as colleagues see them in the
+   directory" and then showed a column of labelled inputs — so the one question
+   it exists to answer was the one thing you had to save and go elsewhere to
+   check. The card on the left is that answer, drawn from the same form fields
+   the inputs write.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-prof-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 28px;
+}
+
+.mcm-admin .mcm-prof-cols {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+/* One column below the point where 300px of card leaves the form too narrow
+   for its own two-up fields. */
+@media (max-width: 960px) {
+  .mcm-admin .mcm-prof-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Sticks while the form scrolls. The fields are what you are looking at; the
+   card is what you are checking against, and a card that has scrolled away is
+   no longer being checked against. */
+.mcm-admin .mcm-prof-side {
+  position: sticky;
+  top: 0;
+}
+@media (max-width: 960px) {
+  .mcm-admin .mcm-prof-side {
+    position: static;
+  }
+}
+
+/* ---- the directory card ------------------------------------------------ */
+
+.mcm-admin .mcm-dircard {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  overflow: hidden;
+}
+/* Says what it is, so the card reads as a picture of the record rather than a
+   second thing to fill in. */
+.mcm-admin .mcm-dircard-cap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-dircard-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent);
+}
+
+.mcm-admin .mcm-dircard-body {
+  position: relative;
+  padding: 0 18px 18px;
+  text-align: center;
+}
+/* A tinted band behind the top of the card, with the photo sitting across it.
+   The shape a directory entry takes everywhere people already recognise one —
+   and it gives the avatar an edge to sit on rather than floating in white. */
+.mcm-admin .mcm-dircard-band {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 58px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 13%, var(--surface)),
+    var(--surface)
+  );
+}
+.mcm-admin .mcm-dircard-photo {
+  position: relative;
+  display: inline-flex;
+  margin-top: 20px;
+  border-radius: 50%;
+  /* The ring is the card's own background, so the photo reads as sitting on
+     the band rather than cut into it. */
+  box-shadow: 0 0 0 4px var(--surface);
+}
+.mcm-admin .mcm-dircard-photo img {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.mcm-admin .mcm-dircard h3 {
+  position: relative;
+  margin: 12px 0 0;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* Pronouns sit with the name exactly as they do in the directory — which is
+   the reason for showing any of this. */
+.mcm-admin .mcm-dircard-pro {
+  margin-left: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-dircard-role {
+  position: relative;
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+/* An unfilled field shows what its absence will look like, in the place it
+   would appear — which is more use than a blank. */
+.mcm-admin .mcm-dircard h3.is-empty,
+.mcm-admin .mcm-dircard .is-empty {
+  color: var(--ink-4);
+  font-style: italic;
+  font-weight: 600;
+}
+
+.mcm-admin .mcm-dircard-rows {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--line-2);
+  text-align: left;
+}
+.mcm-admin .mcm-dircard-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mcm-admin .mcm-dircard-rows dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-dircard-rows dt svg {
+  flex: none;
+}
+.mcm-admin .mcm-dircard-rows dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink-2);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* ---- photo controls, under the card ----------------------------------- */
+
+.mcm-admin .mcm-dircard-acts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 11px;
+}
+.mcm-admin .mcm-dircard-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.mcm-admin .mcm-dircard-change svg {
+  width: 13px;
+  height: 13px;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-dircard-change:hover {
+    border-color: var(--accent-edge);
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+  }
+}
+/* Removing was a bare "×" shown on hover only. A named control, and only when
+   there is something to remove. */
+.mcm-admin .mcm-dircard-drop {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-4);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-dircard-drop:hover {
+    color: var(--crit);
+  }
+}
+.mcm-admin .mcm-dircard-drop:focus-visible {
+  outline: 2px solid var(--crit);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---- the form column --------------------------------------------------- */
+
+.mcm-admin .mcm-prof-main {
+  min-width: 0;
+  padding: 18px 20px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.mcm-admin .mcm-prof-form {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+/* Sticks to the bottom of the card it belongs to. The button was in a shared
+   `.mcm-stickyfoot`, which is right for a full-width form and wrong here, where
+   the form is one column of two. */
+/* Sits at the end of the card, not stuck to the viewport.
+
+   It was sticky, which meant the bar floated over the middle of the form for
+   as long as there was anything below it — a footer detached from the thing it
+   is the footer of, with form fields sliding under it. The form is short
+   enough to reach, and the bar now closes the card it belongs to. */
+.mcm-admin .mcm-prof-foot {
+  display: flex;
+  align-items: center;
+  /* Space-between, not flex-end. The bar was a white strip with a button
+     floating at one end and nothing to explain the gap; the left side now
+     carries the state the button acts on. */
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px -20px 0;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line);
+  /* Tinted, not the form's own white. At 65px of white against a white card it
+     read as an empty band with a button dropped in one corner; a shade of its
+     own makes it a footer the button belongs to. */
+  background: var(--surface-2);
+  border-radius: 0 0 var(--r) var(--r);
+}
+.mcm-admin .mcm-prof-footnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--warn);
+}
+/* The dot does the work a colour alone would not: the hint is the only amber
+   thing here, and a reader who cannot pick that out still gets a mark. */
+.mcm-admin .mcm-prof-footnote:not(:empty)::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* The button is left exactly as the app draws every other primary action —
+   40px, shadcn's radius, 14px text. An attempt to shrink it here died on
+   `min-h-10` anyway, and winning that fight would only have made the one
+   button on this page a different size from Add document, Add inbox and the
+   rest. The bar was the thing out of proportion, not the button. */
+
+/* ---- hover, on the things that answer to a pointer ---------------------
+   The fields had none. `.mcm-field:hover` existed but paints the wrapper, not
+   the control inside it, so moving over an input changed nothing — the only
+   feedback a text field gave was the focus ring after you had already
+   committed to clicking it.
+   ---------------------------------------------------------------------- */
+
+.mcm-admin .mcm-prof-main input:not([disabled]),
+.mcm-admin .mcm-prof-main textarea:not([disabled]) {
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-prof-main input:not([disabled]):hover,
+  .mcm-admin .mcm-prof-main textarea:not([disabled]):hover {
+    border-color: var(--ink-4);
+  }
+  /* The react-select control is a div, so it needs saying separately. */
+  .mcm-admin .mcm-prof-main .selectBox [class*='control']:hover {
+    border-color: var(--ink-4);
+  }
+}
+/* A locked field should not pretend to be hoverable — these are read-only by
+   design and say so in their own badge. */
+.mcm-admin .mcm-prof-main input[disabled],
+.mcm-admin .mcm-prof-main input[readonly] {
+  cursor: default;
+}
+
+/* The section cards lift a little under the pointer, the same way every other
+   card on the redesigned screens does. */
+.mcm-admin .mcm-prof-main .mcm-fsec {
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.mcm-admin .mcm-prof-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1100px;
+  margin: 20px auto 0;
+}
+
+/* ── My account · Preferences ─────────────────────────────────────────────
+   The head was hand-rolled and eyebrow-less, and the two honest notes about
+   what the switch does and does not read sat loose above a shared editor. The
+   notes stay — they are the most useful thing on the page — but they are given
+   the same column and rhythm as everything else.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-pref-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 0;
+}
+.mcm-admin .mcm-pref-body form {
+  min-height: 0;
+  flex: 1;
+  gap: 0;
+}
+.mcm-admin .mcm-pref-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+}
+/* Capped to a reading column. The editor below stretches to whatever it is
+   given, and a 1900px-wide row puts a setting's name and its control at
+   opposite ends of the desk. */
+.mcm-admin .mcm-pref-scroll > * {
+  max-width: 1060px;
+  margin-inline: auto;
+}
+
+/* The notes stack above the editor, one column, like every other settings
+   screen in the console. */
+.mcm-admin .mcm-pref-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* The link in the page description. It was `text-primary`, which is shadcn's
+   near-black in this build rather than the console's accent — so "Company →
+   Company Rules" read as bold body text and not as somewhere to go. */
+.mcm-admin .mcm-pref .mcm-adminpage-title a {
+  font-weight: 650;
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.mcm-admin .mcm-pref .mcm-adminpage-title a:hover {
+  text-decoration: underline;
+}
+
+/* Sits at the end of the page, not stuck to the viewport — the same call as
+   the Profile screen's footer. */
+.mcm-admin .mcm-pref-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 11px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* ── My account · My Phone ────────────────────────────────────────────────
+   One column: the note about what the switch reads, then the shared call-rules
+   editor, then the save bar — the shape every other settings screen has.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-phone-form {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.mcm-admin .mcm-phone-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+}
+/* Capped to a reading column. The shared editor stretches to whatever it is
+   given, and a very wide row puts a setting's name and its control at opposite
+   ends of the screen. */
+.mcm-admin .mcm-phone-scroll > * {
+  max-width: 1060px;
+  margin-inline: auto;
+}
+.mcm-admin .mcm-phone-scroll > .mcm-callsummary {
+  margin-bottom: 16px;
+}
+/* The editor scrolls itself when handed a height; inside a column that already
+   scrolls that is two scrollbars for one list. */
+.mcm-admin .mcm-phone-scroll > div > div {
+  overflow: visible;
+}
+.mcm-admin .mcm-phone-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 11px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* ── My account · Notifications ───────────────────────────────────────────
+   Three events, four channels: a matrix. It was drawn as three cards of four
+   boxes, which meant every channel's explanation appeared three times — twelve
+   hints for twelve switches, where the hints only differ four ways. Each
+   channel is explained once in its column heading now.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-notif-form {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.mcm-admin .mcm-notif-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+}
+.mcm-admin .mcm-notif-body > * {
+  max-width: 1000px;
+  margin-inline: auto;
+}
+.mcm-admin .mcm-notif-body > .mcm-notsaved {
+  margin-bottom: 16px;
+}
+.mcm-admin .mcm-notif-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 11px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* Scrolls sideways rather than crushing the columns. Four channels plus the
+   event name is about as narrow as this gets before the switches start
+   colliding with their own headings. */
+.mcm-admin .mcm-notif-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.mcm-admin .mcm-notif-grid {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: collapse;
+}
+
+/* `.mcm-admin .mcm-adminpage table th` styles every Admin table head: 9.5px,
+   uppercase, nowrap. Right for a column called STATUS; wrong for a column that
+   carries a sentence, which came out shouted and clipped to one line. Stated
+   back for this table only. */
+.mcm-admin .mcm-notif-grid thead th {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: center;
+  vertical-align: top;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  font-size: 12.5px;
+}
+.mcm-admin .mcm-notif-grid thead th:first-child {
+  white-space: nowrap;
+}
+.mcm-admin .mcm-notif-grid thead th:first-child {
+  text-align: left;
+  width: 40%;
+}
+.mcm-admin .mcm-notif-corner {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-notif-ch {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+/* Said once per channel instead of once per switch. */
+.mcm-admin .mcm-notif-chhint {
+  display: block;
+  margin: 2px auto 0;
+  max-width: 17ch;
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  color: var(--ink-4);
+}
+
+.mcm-admin .mcm-notif-grid tbody th,
+.mcm-admin .mcm-notif-grid tbody td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line-2);
+  text-align: center;
+  vertical-align: middle;
+}
+.mcm-admin .mcm-notif-grid tbody tr:last-child th,
+.mcm-admin .mcm-notif-grid tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Same reason as the head: the shared Admin table style shouts every `th`, and
+   these carry an event's name and a sentence about it, not a column label. */
+.mcm-admin .mcm-notif-grid tbody th {
+  text-align: left;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  font-size: 13px;
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-notif-grid tbody tr:not(.mcm-notif-phonerow):hover th,
+  .mcm-admin .mcm-notif-grid tbody tr:not(.mcm-notif-phonerow):hover td {
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
+  }
+}
+
+.mcm-admin .mcm-notif-ev {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mcm-admin .mcm-notif-evmark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.mcm-admin .mcm-notif-evtxt {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.mcm-admin .mcm-notif-evtxt b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.mcm-admin .mcm-notif-evtxt span {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* An event with every channel off reaches nobody. */
+.mcm-admin .mcm-notif-silent {
+  display: inline-block;
+  margin: 7px 0 0 40px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--surface));
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 700;
+}
+.mcm-admin .mcm-notif-grid tbody tr.is-silent th {
+  background: color-mix(in srgb, var(--warn) 4%, transparent);
+}
+
+/* The one cell that is not a choice: a text telling you a text arrived. */
+.mcm-admin .mcm-notif-na {
+  color: var(--ink-4);
+  font-size: 14px;
+  cursor: help;
+}
+
+.mcm-admin .mcm-notif-phonerow td {
+  padding: 0 12px 14px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+.mcm-admin .mcm-notif-phone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-top: 12px;
+  text-align: left;
+}
+.mcm-admin .mcm-notif-phone label {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-admin .mcm-notif-phone > span {
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+/* ── My account · Greetings ───────────────────────────────────────────────
+   One column, same as the rest: the four slots in the shared editor, then the
+   save bar. Which of them the switch plays is said in the page description.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-greet-form {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.mcm-admin .mcm-greet-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 24px;
+}
+.mcm-admin .mcm-greet-scroll > * {
+  max-width: 1060px;
+  margin-inline: auto;
+}
+.mcm-admin .mcm-greet-scroll > div > div {
+  overflow: visible;
+}
+.mcm-admin .mcm-greet-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 11px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* ── My account · Security & Privacy ──────────────────────────────────────
+   One column, like the rest of My account. The session list is the part that
+   changed: every row on this page belongs to the same person, so the avatar,
+   name and email that led each one were identical however many sessions there
+   were, and the only things that differ — which machine, which browser, which
+   address, how long ago — sat underneath in small grey text.
+   ------------------------------------------------------------------------- */
+
+.mcm-admin .mcm-sec-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 18px 22px 28px;
+}
+.mcm-admin .mcm-sec-body > * {
+  width: 100%;
+  max-width: 1060px;
+  margin-inline: auto;
+}
+
+/* A settings row: mark, name, explanation, and its control on the right. */
+.mcm-admin .mcm-setrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.mcm-admin .mcm-setrow-t {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+  flex: 1 1 340px;
+}
+.mcm-admin .mcm-setrow-t b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.mcm-admin .mcm-setrow-t p {
+  margin: 3px 0 0;
+  max-width: 68ch;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-setrow-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-edge);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+/* The row whose buttons end sessions. */
+.mcm-admin .mcm-setrow-mark.is-risky {
+  border-color: color-mix(in srgb, var(--crit) 30%, var(--surface));
+  background: var(--crit-wash);
+  color: var(--crit);
+}
+.mcm-admin .mcm-sec-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- sessions ---------------------------------------------------------- */
+
+.mcm-admin .mcm-sec-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+.mcm-admin .mcm-sec-sessh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mcm-admin .mcm-sec-sessh h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-admin .mcm-sec-sessh h2 > span {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-sec-sessh p {
+  margin: 5px 0 0;
+  max-width: 74ch;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-sec-sessh .mcm-faq-search {
+  flex: 0 1 240px;
+  width: auto;
+  max-width: 240px;
+}
+
+.mcm-admin .mcm-sec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mcm-admin .mcm-sec-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+@media (hover: hover) {
+  .mcm-admin .mcm-sec-row:hover {
+    border-color: var(--accent-edge);
+    box-shadow: var(--shadow-sm);
+  }
+}
+/* The one you are reading this on. It has no sign-out button, so it says why
+   rather than leaving a gap where every other row has one. */
+.mcm-admin .mcm-sec-row.is-current {
+  border-color: color-mix(in srgb, var(--live) 32%, var(--line));
+  background: color-mix(in srgb, var(--live-wash) 40%, var(--surface));
+}
+.mcm-admin .mcm-sec-mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.mcm-admin .mcm-sec-row.is-current .mcm-sec-mark {
+  border-color: color-mix(in srgb, var(--live) 30%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+}
+.mcm-admin .mcm-sec-main {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-admin .mcm-sec-t {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mcm-admin .mcm-sec-t b {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.mcm-admin .mcm-sec-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--live) 30%, var(--surface));
+  background: var(--live-wash);
+  color: var(--live);
+  font-size: 10px;
+  font-weight: 700;
+}
+.mcm-admin .mcm-sec-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 7px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-admin .mcm-sec-meta > i {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  opacity: 0.6;
+}
+/* The raw string, kept for the moment the summary is not enough — one line,
+   truncated, full text on hover. */
+.mcm-admin .mcm-sec-ua {
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  color: var(--ink-4);
+  cursor: help;
+}
+
+.mcm-admin .mcm-sec-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--ink-3);
 }

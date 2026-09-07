@@ -2,7 +2,6 @@ import FileCropper from '@/components/custom/file-cropper';
 import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
 import { requiredString } from '@/lib/schema';
-import { Icon } from '@/assets/icons/icon';
 import { handleAlert, MAX_FILE_SIZE, validateFileSize } from '@/lib/utils';
 import { invalidateGlobalUsersDirectory } from '@/lib/invalidate-global-users-directory';
 import { basicInitialState } from '@/pages/admin-settings/constants';
@@ -11,10 +10,10 @@ import '@/components/mcm/mcm-page.css';
 import { getUserDetails, mediaUploadUrl, userProfileUpdate } from '@/services/api';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import * as yup from 'yup';
-import CustomAvatar from '@/components/custom/custom-avatar';
+import DirectoryPreview, { PhotoControls } from './directory-preview';
 import HowCallsReachYou from './how-calls-reach-you';
 import CallSetupGuide from './call-setup-guide';
 import { buildProfileUpdatePayload } from './profile-update-payload';
@@ -62,7 +61,19 @@ const BasicInfoSettings = () => {
     resolver: yupResolver(BasicInfoSettingSchema),
   });
 
-  const { handleSubmit, setValue, watch } = methods;
+  const {
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { isDirty },
+  } = methods;
+
+  /* The photo is uploaded outside the form, so `isDirty` never sees it. Both
+     halves are counted here — and only to word the hint. The button itself
+     stays enabled either way: this is a person's own name and photo, and a
+     save they ask for should not be refused because the page disagrees about
+     whether anything changed. */
+  const hasChanges = isDirty || Boolean(imagePreview) || isImageRemoved;
 
   const { data: userInfoData, isPending: PendingUserData } = useQuery({
     queryKey: ['getUserDetailsQueryFn'],
@@ -248,14 +259,17 @@ const BasicInfoSettings = () => {
 
   return (
     <>
-      <section className="flex h-full w-full flex-col overflow-hidden bg-gray-200/15">
-        {/* <Breadcrumb breadcrumbs={breadcrumbData} /> */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-          <div>
-            <p className="text-gray-900 font-semibold text-lg">Basic Info</p>
-            <p className="text-gray-500 text-xs">
-              Your name, job title and location as colleagues see them in the directory — and below,
-              how calls actually reach you.
+      <section className="mcm-adminpage mcm-prof">
+        {/* The same head as every other Admin screen, and titled the way the nav
+            titles it. "Basic Info" was the only name for this page that did not
+            appear in the menu you clicked to get here. */}
+        <div className="mcm-adminpage-head">
+          <div className="mcm-adminpage-title">
+            <div className="mcm-adminpage-eyebrow">My account</div>
+            <h1>Profile</h1>
+            <p>
+              Your name, job title and location as colleagues see them in the directory — and
+              below, how calls actually reach you.
             </p>
           </div>
         </div>
@@ -264,112 +278,49 @@ const BasicInfoSettings = () => {
             <Loader variant="blue" size="sm" />
           </div>
         ) : (
-          <div className="w-full flex-1 overflow-y-auto p-4">
-            <div className="mx-auto mb-4 w-full md:max-w-[80%]">
-              {/* Reads the extension and location off `user_info` and fetches
-                  the person's own assigned numbers itself. */}
-              <HowCallsReachYou userInfo={userInfoData?.user_info} />
-            </div>
-            <div className="mx-auto flex w-full flex-col gap-4 rounded-xl bg-white p-6 shadow-xs md:max-w-[80%]">
-              <label htmlFor="file-upload" className="w-16 h-16 cursor-pointer mb-6">
-                {imagePreview || watch('profile') ? (
-                  <div className="relative w-20 h-20 rounded-full group">
-                    <img
-                      src={imagePreview || watch('profile')}
-                      alt="Preview"
-                      className="w-full h-full rounded-full border"
-                      loading="lazy"
-                    />
-                    <span
-                      title="Edit image"
-                      className="absolute bottom-0 right-0 w-4 h-4 bg-primary rounded-full p-1"
-                    >
-                      <Icon name="EditIcon" className="text-white w-full h-full" />
-                    </span>
+          <div className="mcm-prof-body">
+            {/* Two columns, and the left one is the point of the screen.
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
+                The page has always said these are your details "as colleagues
+                see them in the directory", and then shown a column of labelled
+                inputs — so the one question it exists to answer was the one
+                thing you had to save and go elsewhere to check. The card reads
+                the same form fields the inputs write, so it cannot drift from
+                what will be saved.
 
-                        setImagePreview('');
-                        setValue('profile', '');
-                        setIsImageRemoved(true);
-                      }}
-                      className="absolute cursor-pointer top-0 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-0"
-                      title="Remove image"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative w-20 h-20 rounded-full group">
-                    <CustomAvatar
-                      size="80"
-                      name={`${userInfoData?.user_info?.first_name} ${userInfoData?.user_info?.last_name || ''}`}
-                      showPresence={false}
-                      extension={userInfoData?.user_info?.extension}
-                      image={
-                        isImageRemoved
-                          ? null
-                          : imagePreview || watch('profile') || userInfoData?.user_info?.profile
-                      }
-                      isActivityInfo={false}
-                    />
+                It sticks while the form scrolls: the fields are what you are
+                looking at, the card is what you are checking against, and a
+                card that scrolls away is no longer being checked against. */}
+            <FormProvider {...methods}>
+              <div className="mcm-prof-cols">
+                <aside className="mcm-prof-side">
+                  <DirectoryPreview
+                    photo={imagePreview || watch('profile')}
+                    isImageRemoved={isImageRemoved}
+                    storedPhoto={userInfoData?.user_info?.profile}
+                  />
+                  <PhotoControls
+                    hasPhoto={Boolean(
+                      !isImageRemoved &&
+                        (imagePreview || watch('profile') || userInfoData?.user_info?.profile),
+                    )}
+                    onRemove={() => {
+                      setImagePreview('');
+                      setValue('profile', '');
+                      setIsImageRemoved(true);
+                    }}
+                  />
+                  <input
+                    id="file-upload"
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleChangeFile}
+                  />
+                </aside>
 
-                    <span
-                      title="Edit image"
-                      className="absolute bottom-0 right-0 w-4 h-4 bg-primary rounded-full p-1"
-                    >
-                      <Icon name="EditIcon" className="text-white w-full h-full" />
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        setImagePreview(null);
-                        setValue('profile', '');
-                        setIsImageRemoved(true);
-                      }}
-                      className="absolute cursor-pointer top-0 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-0"
-                      title="Remove image"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
-
-                <input
-                  id="file-upload"
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleChangeFile}
-                />
-              </label>
-              <div
-                className="mcm-page"
-                style={
-                  {
-                    display: 'block',
-                    height: 'auto',
-                    minHeight: 0,
-                    overflow: 'visible',
-                    background: 'transparent',
-                    fontFamily: 'inherit',
-                    fontSize: 'inherit',
-                    lineHeight: 'inherit',
-                    '--sans': 'inherit',
-                    '--mono': 'inherit',
-                  } as CSSProperties
-                }
-              >
-                <FormProvider {...methods}>
-                  <form onSubmit={handleSubmit(onSubmit)} className="flex w-full flex-col gap-5">
+                <div className="mcm-prof-main">
+                  <form onSubmit={handleSubmit(onSubmit)} className="mcm-prof-form">
                     <ProfileForm selfProfile={selfProfileAvailable} />
                     {/* Always shown. This is the person's own name, title and
                         photo, and saving those is theirs to do. The button used
@@ -377,23 +328,30 @@ const BasicInfoSettings = () => {
                         (account_setting.USER.action.edit), which is the key that
                         gates editing OTHER people - so anyone without it saw a
                         form with no way to save it. */}
-                    <div className="flex justify-end border-t border-gray-200 pt-4 mcm-stickyfoot">
+                    <div className="mcm-prof-foot">
+                      {/* The bar was a white strip with a button floating at one
+                          end of it. It says what it is waiting for now. */}
+                      <span className="mcm-prof-footnote" aria-live="polite">
+                        {hasChanges ? 'You have unsaved changes' : null}
+                      </span>
                       <Button
                         variant={'primary'}
                         type="submit"
                         disabled={PendingProfileUpdate || PendingSelfUpdate}
                       >
-                        {PendingProfileUpdate || PendingSelfUpdate ? 'Saving...' : 'Save profile'}
+                        {PendingProfileUpdate || PendingSelfUpdate ? 'Saving…' : 'Save profile'}
                       </Button>
                     </div>
                   </form>
-                </FormProvider>
-
-                {/* The profile above says who you are; this says what happens
-                    when someone calls you, which is the part people arrive on
-                    this page looking for and could not previously see. */}
-                <CallSetupGuide userInfo={userInfoData} />
+                </div>
               </div>
+            </FormProvider>
+
+            {/* Below, as the page's own description promises — it used to sit
+                above everything, which made the sentence wrong. */}
+            <div className="mcm-prof-calls">
+              <HowCallsReachYou userInfo={userInfoData?.user_info} />
+              <CallSetupGuide userInfo={userInfoData} />
             </div>
           </div>
         )}

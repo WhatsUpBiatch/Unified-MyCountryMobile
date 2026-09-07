@@ -59,6 +59,9 @@ const STATES = ['available', 'busy', 'away', 'offline'];
 const DIRECTIONS = ['inbound', 'outbound'];
 const CALL_STATUS = ['answered', 'missed', 'voicemail', 'abandoned'];
 
+/* The first three locations get people; the fourth deliberately gets none. */
+const SITE_UUIDS = [f.uuid('site0'), f.uuid('site1'), f.uuid('site2')];
+
 const user = (i) => {
   const p = f.person(`u${i}`);
   return {
@@ -74,6 +77,11 @@ const user = (i) => {
     status: f.bool(`s${i}`, 0.85) ? 'Y' : 'N',
     socket_status: f.choice(STATES, `st${i}`),
     job_title: f.department(i),
+    /* Every user belongs to a location, so the per-site headcount on the
+       Company screen can be filtered rather than answering 24 for all of
+       them. Uneven on purpose: a location with nobody in it is a real state
+       the card has copy for. */
+    site_uuid: SITE_UUIDS[i % 3],
     site_detail: { name: f.city(i) },
     department: f.department(i),
     created_at: f.daysAgo(i * 3 + 2),
@@ -202,6 +210,166 @@ const ivr = (i) => ({
   status: 'active',
 });
 
+/* Company locations. The screen reads `is_default === '1'` to find the main
+   one, so exactly one row carries it — with none, the page shows "No default
+   location found", which is a real state but not the one anybody is designing
+   against. The rest are deliberately uneven: one fully filled in, one missing
+   its address, so the "---" placeholders are exercised on purpose rather than
+   because the mock forgot. */
+const SITES = [
+  {
+    uuid: f.uuid('site0'),
+    site_id: 'LOC-1001',
+    name: 'Austin HQ',
+    is_default: '1',
+    address: '100 Example Street, Austin, TX 78701',
+    country: 'United States',
+    state: 'Texas',
+    city: 'Austin',
+    postal_code: '78701',
+    timezone: 'America/Chicago',
+    users_count: 18,
+    numbers_count: 6,
+  },
+  {
+    uuid: f.uuid('site1'),
+    site_id: 'LOC-1002',
+    name: 'London',
+    is_default: '0',
+    address: '4 Example Road, London EC2A 4NE',
+    country: 'United Kingdom',
+    state: 'England',
+    city: 'London',
+    postal_code: 'EC2A 4NE',
+    timezone: 'Europe/London',
+    users_count: 9,
+    numbers_count: 3,
+  },
+  {
+    uuid: f.uuid('site2'),
+    site_id: 'LOC-1003',
+    name: 'Singapore',
+    is_default: '0',
+    address: '',
+    country: 'Singapore',
+    state: '',
+    city: 'Singapore',
+    postal_code: '',
+    timezone: 'Asia/Singapore',
+    users_count: 4,
+    numbers_count: 0,
+  },
+  {
+    uuid: f.uuid('site3'),
+    site_id: 'LOC-1004',
+    name: 'Dubai',
+    is_default: '0',
+    address: 'Office 12, Example Tower, Dubai',
+    country: 'United Arab Emirates',
+    state: 'Dubai',
+    city: 'Dubai',
+    postal_code: '',
+    timezone: 'Asia/Dubai',
+    users_count: 6,
+    numbers_count: 2,
+  },
+];
+
+/* The company rule, as the section store returns it.
+
+   `assembleFromSections` turns `sections[key].settings` into `settings[key]`,
+   and `readRuleFlags` then looks for `apply` / `locked` on that node (falling
+   back to the older single `override`). Two fields are locked here on purpose:
+   with none, every personal-settings screen shows "all yours to change" and the
+   governed half of those screens is never seen. */
+const COMPANY_RULE_SECTIONS = {
+  recording: { settings: { apply: true, locked: true }, version: 3 },
+  ai_call_monitoring: { settings: { apply: true, locked: true }, version: 2 },
+  transcription: { settings: { apply: false, locked: false }, version: 1 },
+  display_number: { settings: { apply: false, locked: false }, version: 1 },
+  operational_hours: { settings: { apply: false, locked: false, regional: { apply: false, locked: false } }, version: 4 },
+  voicemail_pin: { settings: { apply: false, locked: false }, version: 1 },
+  role: { settings: { apply: false, locked: false }, version: 1 },
+};
+
+/* The recording library. `greetingsForSlot` picks by `type`, so each slot needs
+   at least one row of its own kind plus something of the generic 'greeting'
+   type to fall back to — otherwise every picker on every greetings screen opens
+   empty and the row cannot be exercised at all. */
+const GREETINGS = [
+  { uuid: f.uuid('g1'), name: 'Default welcome', filename: 'default-welcome.wav', type: 'welcome_greeting', is_default: 1, duration: 6 },
+  { uuid: f.uuid('g2'), name: 'Out of hours welcome', filename: 'ooh-welcome.wav', type: 'welcome_greeting', is_default: 0, duration: 9 },
+  { uuid: f.uuid('g3'), name: 'Piano hold loop', filename: 'piano-hold.wav', type: 'on_hold_music', is_default: 1, duration: 62 },
+  { uuid: f.uuid('g4'), name: 'Classic ringback', filename: 'ringback.wav', type: 'ring_tone', is_default: 1, duration: 4 },
+  { uuid: f.uuid('g5'), name: 'My voicemail greeting', filename: 'vm-personal.wav', type: 'voicemail', is_default: 0, duration: 11 },
+  { uuid: f.uuid('g6'), name: 'Standard voicemail', filename: 'vm-standard.wav', type: 'voicemail', is_default: 1, duration: 8 },
+  { uuid: f.uuid('g7'), name: 'Main menu prompt', filename: 'menu-main.wav', type: 'prompt', is_default: 0, duration: 14 },
+  { uuid: f.uuid('g8'), name: 'Company announcement', filename: 'announce.wav', type: 'greeting', is_default: 0, duration: 12 },
+];
+
+/* Sessions signed in as you. The screen filters to `user_uuid === your uuid`
+   and marks the row whose `uuid` equals your `device_token` as the current one,
+   so both have to line up with the persona or the list comes back empty and the
+   "Current device" badge never appears.
+
+   Deliberately mixed: two browsers, a desktop app and a phone, from three
+   addresses — this list exists so somebody can spot the session they do not
+   recognise, and a list of identical rows cannot be scanned for the odd one. */
+const SESSIONS = (role) => {
+  const uuid = f.uuid(`user-${role}`);
+  const person = f.person(`me-${role}`);
+  const detail = {
+    first_name: person.first_name,
+    last_name: person.last_name,
+    email: person.email,
+    extension: EXTENSIONS_FOR_SESSIONS[role] || '1001',
+    profile: null,
+  };
+  return [
+    {
+      uuid: 'sandbox-device',
+      user_uuid: uuid,
+      user_detail: detail,
+      device_type: 'W',
+      user_agent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      ip_address: '82.14.201.7',
+      last_active_at: new Date(Date.now() - 2 * 6e4).toISOString(),
+    },
+    {
+      uuid: f.uuid('sess-mac'),
+      user_uuid: uuid,
+      user_detail: detail,
+      device_type: 'W',
+      user_agent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      ip_address: '82.14.201.7',
+      last_active_at: new Date(Date.now() - 5 * 36e5).toISOString(),
+    },
+    {
+      uuid: f.uuid('sess-phone'),
+      user_uuid: uuid,
+      user_detail: detail,
+      device_type: 'M',
+      user_agent: 'MyCountryMobile/4.2.1 (iPhone; iOS 17.5; Scale/3.00)',
+      ip_address: '203.0.113.44',
+      last_active_at: new Date(Date.now() - 3 * 864e5).toISOString(),
+    },
+    {
+      uuid: f.uuid('sess-old'),
+      user_uuid: uuid,
+      user_detail: detail,
+      device_type: 'W',
+      user_agent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      ip_address: '198.51.100.9',
+      last_active_at: new Date(Date.now() - 21 * 864e5).toISOString(),
+    },
+  ];
+};
+
+const EXTENSIONS_FOR_SESSIONS = { ADMIN: '1001', MANAGER: '1002', 'SUB-ADMIN': '1003', AGENT: '1004' };
+
 /* Named handlers, matched on the path ending. */
 const HANDLERS = [
   ['/api/user/info', () => ok(persona(currentRole))],
@@ -220,7 +388,34 @@ const HANDLERS = [
       login_image: '',
       fav_icon: '',
     })],
-  ['/api/user/list', (b) => page(f.seq(24, user), b)],
+  ['/api/tenant/user/company-settings/list', () =>
+    ok({ sections: COMPANY_RULE_SECTIONS, uuid: 'company-settings', versions: {} })],
+  /* Not `page()`: this screen reads `data.data.result` as the array itself. */
+  ['/api/user/device-securities', (b) => {
+    const term = String(b?.search || '').toLowerCase();
+    const rows = SESSIONS(currentRole);
+    return ok(
+      term
+        ? rows.filter(
+            (r) =>
+              r.user_agent.toLowerCase().includes(term) ||
+              r.ip_address.includes(term) ||
+              `${r.user_detail.first_name} ${r.user_detail.last_name}`.toLowerCase().includes(term),
+          )
+        : rows,
+    );
+  }],
+  ['/api/tenant/greeting/list', (b) => page(GREETINGS, b)],
+  ['/api/site/list', (b) => page(SITES, b)],
+  ['/api/user/list', (b) => {
+    /* `filters: [{key, value}]` is how the console narrows this list, and the
+       Company screen counts a location's people by asking for one row and
+       reading the total. Ignoring the filter made every location report the
+       whole company. */
+    const siteFilter = (b?.filters || []).find((x) => x?.key === 'site_uuid')?.value;
+    const rows = f.seq(24, user);
+    return page(siteFilter ? rows.filter((r) => r.site_uuid === siteFilter) : rows, b);
+  }],
   ['/api/user/role/list', (b) => page(f.seq(6, role), b)],
   ['/api/call-queue/list', (b) => page(f.seq(6, queue), b)],
   ['/api/tenant/report/call-queue/list', (b) => page(f.seq(6, queue), b)],
@@ -292,6 +487,412 @@ const readBody = (req) =>
     req.on('error', () => resolve({}));
   });
 
+/* Captain assistants. Shaped as the Assistants screen reads them - config,
+   guidelines and guardrails included - rather than the {id, name} the
+   playground's picker needs, so both screens work off one list. Deliberately
+   uneven: one with everything filled in, one with features off and no
+   guardrails, one bare. A screen only looks finished when every row is full. */
+const CAPTAIN_ASSISTANTS = [
+  {
+    id: 'default-assistant',
+    name: 'Support assistant',
+    description: 'First line for everything that arrives in the shared inbox.',
+    config: {
+      instructions:
+        'Answer from the knowledge base only. If the answer is not there, say so and hand off rather than guessing.',
+      product_name: 'MyCountryMobile',
+      welcome_message: 'Hi! How can I help you today?',
+      handoff_message: 'Let me connect you with a team member.',
+      resolution_message: 'Glad I could help! Anything else?',
+      temperature: 0.3,
+      feature_faq: true,
+      feature_memory: true,
+      feature_citation: true,
+      feature_contact_attributes: false,
+    },
+    response_guidelines: ['Keep replies under three sentences.', 'Never invent a policy.'],
+    guardrails: ['Never share pricing without approval.', 'Do not discuss other customers.'],
+  },
+  {
+    id: 'asst_sales',
+    name: 'Sales assistant',
+    description: 'Qualifies inbound interest and books demos.',
+    config: {
+      instructions: 'Be brief and concrete. Offer a demo slot once intent is clear.',
+      product_name: 'MyCountryMobile',
+      welcome_message: 'Hey - looking for numbers, calling, or both?',
+      handoff_message: 'Passing you to someone on the sales team.',
+      resolution_message: 'Anything else before you go?',
+      temperature: 0.6,
+      feature_faq: false,
+      feature_memory: true,
+      feature_citation: false,
+      feature_contact_attributes: true,
+    },
+    response_guidelines: ['Ask one question at a time.'],
+    guardrails: [],
+  },
+  {
+    id: 'asst_billing',
+    name: 'Billing assistant',
+    description: '',
+    config: {
+      instructions: '',
+      temperature: 0.2,
+      feature_faq: false,
+      feature_memory: false,
+      feature_citation: false,
+      feature_contact_attributes: false,
+    },
+    response_guidelines: [],
+    guardrails: [],
+  },
+];
+
+/* Captain documents. One of each state the list draws — ready, still
+   processing, and failed with a reason — because the three look nothing alike
+   and only the ready one ever turns up by accident. */
+const CAPTAIN_DOCS = [
+  {
+    id: 'doc_pricing',
+    assistant_id: 'default-assistant',
+    name: 'Pricing and plans',
+    type: 'url',
+    source_url: 'https://help.example.com/pricing',
+    status: 'ready',
+    error_message: null,
+    created_at: new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 19).replace('T', ' '),
+    content_length: 8420,
+  },
+  {
+    id: 'doc_porting',
+    assistant_id: 'default-assistant',
+    name: 'Number porting guide.pdf',
+    type: 'pdf',
+    source_url: null,
+    status: 'ready',
+    error_message: null,
+    created_at: new Date(Date.now() - 26 * 36e5).toISOString().slice(0, 19).replace('T', ' '),
+    content_length: 31900,
+  },
+  {
+    /* Ready, and nearly empty. The crawl answered 200 and produced a cookie
+       banner — the failure that looks like a success, and the reason the list
+       shows how much text it actually got. */
+    id: 'doc_status',
+    assistant_id: 'default-assistant',
+    name: 'Status page',
+    type: 'url',
+    source_url: 'https://status.example.com',
+    status: 'ready',
+    error_message: null,
+    created_at: new Date(Date.now() - 5 * 36e5).toISOString().slice(0, 19).replace('T', ' '),
+    content_length: 180,
+  },
+  {
+    id: 'doc_sla',
+    assistant_id: 'default-assistant',
+    name: 'Service level agreement',
+    type: 'url',
+    source_url: 'https://help.example.com/sla',
+    status: 'processing',
+    error_message: null,
+    created_at: new Date(Date.now() - 4 * 6e4).toISOString().slice(0, 19).replace('T', ' '),
+    content_length: 0,
+  },
+  {
+    id: 'doc_legacy',
+    assistant_id: 'default-assistant',
+    name: 'Legacy tariff sheet',
+    type: 'url',
+    source_url: 'https://old.example.com/tariffs',
+    status: 'failed',
+    error_message: 'The page returned 404. Check the address, or the page may have moved.',
+    created_at: new Date(Date.now() - 9 * 864e5).toISOString().slice(0, 19).replace('T', ' '),
+    content_length: 0,
+  },
+];
+
+/* Newlines in the body on purpose: the edit dialog's textarea is the one place
+   a document's extracted text is seen, and text that arrives as a single
+   unbroken run tells you nothing about whether the wrapping there works. */
+const CAPTAIN_DOC_BODY = [
+  'Plans are billed monthly and can be changed at any time. A change takes',
+  'effect at the start of the next billing period, and the difference is',
+  'prorated on the following invoice.',
+  '',
+  'Cancelling stops the next renewal. Numbers stay active until the end of the',
+  'period already paid for.',
+].join('\n');
+
+/* Captain FAQs. Weighted the way a real set is: mostly approved, with a few
+   drafts still waiting on someone — which is the state the screen has to make
+   findable, because a draft is written but not answering anyone. */
+const ago = (ms) => new Date(Date.now() - ms).toISOString().slice(0, 19).replace('T', ' ');
+const CAPTAIN_FAQS = [
+  {
+    id: 'faq_hours',
+    assistant_id: 'default-assistant',
+    question: 'What are your support hours?',
+    answer: 'Monday to Friday, 9am to 6pm UK time. Outside those hours the assistant takes a message and the team replies the next working day.',
+    status: 'approved',
+    created_at: ago(12 * 864e5),
+  },
+  {
+    id: 'faq_port',
+    assistant_id: 'default-assistant',
+    question: 'How long does it take to port a number?',
+    answer: 'Usually three to five working days once the losing carrier confirms. Mobile numbers are often quicker; landlines with an active contract can take longer.',
+    status: 'approved',
+    created_at: ago(9 * 864e5),
+  },
+  {
+    id: 'faq_plan',
+    assistant_id: 'default-assistant',
+    question: 'Can I change my plan mid-month?',
+    answer: 'Yes. The change takes effect at the start of the next billing period and the difference is prorated on the following invoice.',
+    status: 'draft',
+    created_at: ago(2 * 36e5),
+  },
+  {
+    id: 'faq_cancel',
+    assistant_id: 'default-assistant',
+    question: 'What happens to my numbers if I cancel?',
+    answer: 'They stay active until the end of the period you have already paid for, then they are released.',
+    status: 'draft',
+    created_at: ago(2 * 36e5),
+  },
+  {
+    id: 'faq_refund',
+    assistant_id: 'default-assistant',
+    question: 'Do you offer refunds?',
+    answer: 'Unused credit can be refunded within 14 days of purchase. Call charges already placed cannot be refunded.',
+    status: 'approved',
+    created_at: ago(40 * 864e5),
+  },
+  {
+    id: 'faq_intl',
+    assistant_id: 'default-assistant',
+    question: 'Which countries can I call on the standard plan?',
+    answer: 'The standard plan covers 40 destinations. Anything outside that list is billed at the published per-minute rate.',
+    status: 'approved',
+    created_at: ago(21 * 864e5),
+  },
+];
+
+/* Captain Actions. Three surfaces on one screen — connected apps, the actions
+   inside a connected app, and hand-built HTTP tools — so the fixtures cover a
+   connection in each of its three states, and custom tools that are read and
+   write, enabled and not, at each security tier. */
+const CAPTAIN_CONNECTIONS = [
+  {
+    id: 'conn_gmail',
+    toolkit_slug: 'gmail',
+    toolkit_name: 'Gmail',
+    connected_account_id: 'ca_1',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'conn_hubspot',
+    toolkit_slug: 'hubspot',
+    toolkit_name: 'HubSpot',
+    connected_account_id: 'ca_2',
+    status: 'INITIALIZING',
+  },
+  {
+    id: 'conn_stripe',
+    toolkit_slug: 'stripe',
+    toolkit_name: 'Stripe',
+    connected_account_id: 'ca_3',
+    status: 'FAILED',
+  },
+];
+
+const CAPTAIN_TOOLKITS = [
+  { slug: 'gmail', name: 'Gmail', description: 'Read and send mail from the connected mailbox.', logo: null, tools_count: 24, categories: ['Productivity'] },
+  { slug: 'hubspot', name: 'HubSpot', description: 'Contacts, deals and companies from your CRM.', logo: null, tools_count: 61, categories: ['CRM'] },
+  { slug: 'stripe', name: 'Stripe', description: 'Customers, invoices and payment status.', logo: null, tools_count: 38, categories: ['Finance & Accounting'] },
+  { slug: 'slack', name: 'Slack', description: 'Post to channels and read recent messages.', logo: null, tools_count: 19, categories: ['Productivity'] },
+  { slug: 'github', name: 'GitHub', description: 'Issues, pull requests and repository activity.', logo: null, tools_count: 44, categories: ['Issue Tracking'] },
+  { slug: 'notion', name: 'Notion', description: 'Pages and databases from your workspace.', logo: null, tools_count: 17, categories: ['Productivity'] },
+  { slug: 'shopify', name: 'Shopify', description: 'Orders, customers and fulfilment status.', logo: null, tools_count: 33, categories: ['E-commerce'] },
+  { slug: 'zendesk', name: 'Zendesk', description: 'Tickets and their history.', logo: null, tools_count: 22, categories: ['Support'] },
+];
+
+/* The actions inside a connected app. Deliberately a mix: reads that a customer
+   could trigger and writes that must never be exposed, so the screen's
+   "Staff only" branch is not a code path nobody ever sees. */
+const CAPTAIN_TOOLKIT_ACTIONS = {
+  gmail: [
+    { id: 't1', slug: 'GMAIL_FETCH_EMAILS', name: 'Fetch emails', description: 'List recent messages.', input_parameters: {}, enabled: true, operation_type: 'read', security_tier: 'standard' },
+    { id: 't2', slug: 'GMAIL_SEND_EMAIL', name: 'Send email', description: 'Send a message as the connected account.', input_parameters: {}, enabled: false, operation_type: 'write', security_tier: null },
+    { id: 't3', slug: 'GMAIL_GET_PROFILE', name: 'Get profile', description: 'Read the mailbox owner.', input_parameters: {}, enabled: true, operation_type: 'read', security_tier: 'open' },
+    { id: 't4', slug: 'GMAIL_DELETE_MESSAGE', name: 'Delete message', description: 'Permanently remove a message.', input_parameters: {}, enabled: false, operation_type: 'write', security_tier: null },
+    { id: 't5', slug: 'GMAIL_SEARCH', name: 'Search mail', description: 'Find messages matching a query.', input_parameters: {}, enabled: false, operation_type: 'read', security_tier: null },
+  ],
+};
+
+const CAPTAIN_CUSTOM_TOOLS = [
+  {
+    id: 'tool_order',
+    assistant_id: 'default-assistant',
+    slug: 'get_order_status',
+    title: 'Get order status',
+    description: "Looks up an order's shipping status by order ID.",
+    http_method: 'GET',
+    endpoint_url: 'https://api.example.com/orders/{order_id}',
+    request_template: null,
+    response_template: null,
+    auth_type: 'bearer',
+    auth_config: {},
+    param_schema: [{ name: 'order_id', type: 'string', description: 'The order reference', required: true }],
+    config: { data_access: 'limited', allowed_response_fields: ['status', 'eta'] },
+    operation_type: 'read',
+    security_tier: 'standard',
+    enabled: true,
+    kind: 'http',
+    composio_tool_slug: null,
+    composio_connection_id: null,
+  },
+  {
+    id: 'tool_balance',
+    assistant_id: 'default-assistant',
+    slug: 'get_account_balance',
+    title: 'Get account balance',
+    description: 'Returns the current credit on the account.',
+    http_method: 'GET',
+    endpoint_url: 'https://api.example.com/billing/balance',
+    request_template: null,
+    response_template: null,
+    auth_type: 'api_key',
+    auth_config: {},
+    param_schema: [],
+    config: { data_access: 'full' },
+    operation_type: 'read',
+    security_tier: 'secure',
+    enabled: true,
+    kind: 'http',
+    composio_tool_slug: null,
+    composio_connection_id: null,
+  },
+  {
+    id: 'tool_refund',
+    assistant_id: 'default-assistant',
+    slug: 'issue_refund',
+    title: 'Issue refund',
+    description: 'Refunds a charge. Staff use only.',
+    http_method: 'POST',
+    endpoint_url: 'https://api.example.com/billing/refund',
+    request_template: '{"charge_id": "{charge_id}"}',
+    response_template: null,
+    auth_type: 'bearer',
+    auth_config: {},
+    param_schema: [{ name: 'charge_id', type: 'string', description: 'Charge to refund', required: true }],
+    config: { data_access: 'full' },
+    operation_type: 'write',
+    security_tier: null,
+    enabled: false,
+    kind: 'http',
+    composio_tool_slug: null,
+    composio_connection_id: null,
+  },
+  {
+    id: 'tool_gmail_fetch',
+    assistant_id: 'default-assistant',
+    slug: 'gmail_fetch_emails',
+    title: 'Fetch emails',
+    description: 'From the connected Gmail account.',
+    http_method: 'GET',
+    endpoint_url: '',
+    request_template: null,
+    response_template: null,
+    auth_type: 'none',
+    auth_config: {},
+    param_schema: [],
+    config: {},
+    operation_type: 'read',
+    security_tier: 'standard',
+    enabled: true,
+    kind: 'composio',
+    composio_tool_slug: 'GMAIL_FETCH_EMAILS',
+    composio_connection_id: 'conn_gmail',
+  },
+];
+
+/* Captain inboxes. One legacy row (the single widget that predates the
+   multi-inbox model, kept working through the old per-assistant endpoints) and
+   two ordinary ones, because the screen treats them differently and the legacy
+   path is the one nobody remembers to test. */
+const CAPTAIN_INBOXES = [
+  {
+    id: 'inbox_site',
+    name: 'Website chat',
+    channel_type: 'website',
+    website_domain: 'mycountrymobile.com',
+    assistant_id: 'default-assistant',
+    assistant_name: 'Support assistant',
+    enabled: true,
+    legacy_assistant_id: null,
+  },
+  {
+    id: 'inbox_help',
+    name: 'Help centre',
+    channel_type: 'website',
+    website_domain: 'help.mycountrymobile.com',
+    assistant_id: 'asst_sales',
+    assistant_name: 'Sales assistant',
+    enabled: false,
+    legacy_assistant_id: null,
+  },
+  {
+    id: 'inbox_legacy',
+    name: 'Original widget',
+    channel_type: 'website',
+    website_domain: 'mycountrymobile.com',
+    assistant_id: 'default-assistant',
+    assistant_name: 'Support assistant',
+    enabled: true,
+    legacy_assistant_id: 'default-assistant',
+  },
+];
+
+const CAPTAIN_CONVERSATIONS = [
+  {
+    id: 'conv_1',
+    visitor_name: 'Priya N.',
+    page_url: 'https://mycountrymobile.com/pricing',
+    owner: 'human',
+    last_message: 'Thanks — can someone confirm the porting date?',
+    last_message_at: new Date(Date.now() - 6 * 6e4).toISOString(),
+  },
+  {
+    id: 'conv_2',
+    visitor_name: null,
+    page_url: 'https://mycountrymobile.com/',
+    owner: 'ai',
+    last_message: 'What are your support hours?',
+    last_message_at: new Date(Date.now() - 52 * 6e4).toISOString(),
+  },
+  {
+    id: 'conv_3',
+    visitor_name: 'Tomas R.',
+    page_url: 'https://help.mycountrymobile.com/porting',
+    owner: 'ai',
+    last_message: 'That answered it, thanks.',
+    last_message_at: new Date(Date.now() - 5 * 36e5).toISOString(),
+  },
+];
+
+/* A thread that exercises all three roles the viewer draws — visitor, the
+   assistant, and a human agent who took over. */
+const CAPTAIN_THREAD = [
+  { id: 'm1', role: 'visitor', content: 'Hi, how long does porting take?', created_at: new Date(Date.now() - 30 * 6e4).toISOString() },
+  { id: 'm2', role: 'assistant', content: 'Usually three to five working days once the losing carrier confirms.', created_at: new Date(Date.now() - 29 * 6e4).toISOString() },
+  { id: 'm3', role: 'visitor', content: 'Mine has been nine days.', created_at: new Date(Date.now() - 12 * 6e4).toISOString() },
+  { id: 'm4', role: 'agent', content: 'Let me take a look at that for you — could you confirm the number?', created_at: new Date(Date.now() - 8 * 6e4).toISOString() },
+  { id: 'm5', role: 'visitor', content: 'Thanks — can someone confirm the porting date?', created_at: new Date(Date.now() - 6 * 6e4).toISOString() },
+];
+
 export const mockApiPlugin = () => ({
   name: 'sandbox-mock-api',
   configureServer(server) {
@@ -315,6 +916,141 @@ export const mockApiPlugin = () => ({
          <p><a href="/">← back to the app</a> (reload it after switching)</p>
          </body>`,
       );
+    });
+
+    /* Captain. Its own middleware because Captain does not use the console's
+       envelope: the playground reads `json.data` straight off the response,
+       where every /api route wraps rows in `data.result`. Routing it through
+       the handler table above would have meant teaching that table a second
+       envelope for one screen.
+
+       Only the two routes the playground actually calls. The replies are
+       canned and say so - this is here so the screen can be built and looked
+       at without a Captain backend, not to imitate one. */
+    server.middlewares.use('/captain-api', async (req, res) => {
+      const [urlPath, rawQuery = ''] = String(req.url || '').split('?');
+      const query = new URLSearchParams(rawQuery);
+      const body = req.method === 'POST' ? await readBody(req) : {};
+      let payload;
+
+      if (urlPath.endsWith('/assistants') && req.method === 'GET') {
+        payload = { data: CAPTAIN_ASSISTANTS };
+      } else if (urlPath.includes('/composio-access')) {
+        /* The toolkits an assistant may reach. PUT just echoes success — the
+           screen already moved its own switch and only reverts on a failure. */
+        payload =
+          req.method === 'GET'
+            ? {
+                data: [
+                  { toolkit_slug: 'gmail', toolkit_name: 'Gmail', allowed: true },
+                  { toolkit_slug: 'hubspot', toolkit_name: 'HubSpot', allowed: true },
+                  { toolkit_slug: 'stripe', toolkit_name: 'Stripe', allowed: false },
+                ],
+              }
+            : { data: {} };
+      } else if (urlPath.includes('/generate-faqs')) {
+        payload = {
+          data: {
+            faqs: [
+              { question: 'Can I change my plan mid-month?', answer: 'Yes — it takes effect next period and is prorated.' },
+              { question: 'What happens to my numbers if I cancel?', answer: 'They stay active until the end of the period already paid for.' },
+              { question: 'When am I billed?', answer: 'Monthly, at the start of each billing period.' },
+            ],
+          },
+        };
+      } else if (urlPath.startsWith('/api/captain/documents/') && req.method === 'GET') {
+        /* The edit dialog asks for one document's extracted text. */
+        payload = { data: { content: CAPTAIN_DOC_BODY } };
+      } else if (urlPath.endsWith('/documents') && req.method === 'GET') {
+        payload = { data: CAPTAIN_DOCS };
+      } else if (urlPath.endsWith('/documents') && req.method === 'POST') {
+        /* The screen reads `documents.length` to say how many a crawl produced,
+           so the count has to follow max_pages rather than always being one. */
+        const made = Math.max(1, Math.min(Number(body.max_pages) || 1, 20));
+        payload = { data: { documents: Array.from({ length: made }, (_, i) => ({ id: `doc_new_${i}` })) } };
+      } else if (urlPath.endsWith('/faqs') && req.method === 'GET') {
+        /* The screen debounces a search term into the query string, so the mock
+           has to actually filter — a list that ignores `search` makes the box
+           look broken rather than empty. */
+        const term = String(query.get('search') || '').toLowerCase();
+        payload = {
+          data: term
+            ? CAPTAIN_FAQS.filter(
+                (f) =>
+                  f.question.toLowerCase().includes(term) || f.answer.toLowerCase().includes(term),
+              )
+            : CAPTAIN_FAQS,
+        };
+      } else if (urlPath.includes('/composio/connections') && req.method === 'GET') {
+        payload = { data: CAPTAIN_CONNECTIONS };
+      } else if (urlPath.includes('/composio/toolkits/') && urlPath.endsWith('/tools')) {
+        const slug = urlPath.split('/toolkits/')[1].split('/')[0];
+        /* `data.tools`, not `data`: this one route nests, and the screen reads
+           `json.data.tools`. Every other Captain route returns the array
+           directly. */
+        payload = { data: { tools: CAPTAIN_TOOLKIT_ACTIONS[slug] || CAPTAIN_TOOLKIT_ACTIONS.gmail } };
+      } else if (urlPath.endsWith('/composio/toolkits')) {
+        const term = String(query.get('search') || '').toLowerCase();
+        payload = {
+          data: term
+            ? CAPTAIN_TOOLKITS.filter((t) => t.name.toLowerCase().includes(term))
+            : CAPTAIN_TOOLKITS,
+        };
+      } else if (urlPath.endsWith('/custom-tools') && req.method === 'GET') {
+        payload = { data: CAPTAIN_CUSTOM_TOOLS };
+      } else if (urlPath.endsWith('/custom-tools/test')) {
+        payload = { data: { ok: true, status: 200, body: { status: 'shipped', eta: '2 days' } } };
+      } else if (urlPath.includes('/composio/connect')) {
+        /* No OAuth window in the sandbox. Returning no redirect leaves the
+           screen on the page rather than sending it somewhere that cannot
+           answer. */
+        payload = { data: { redirect_url: null, connection_id: 'conn_new' } };
+      } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/messages')) {
+        payload = { data: CAPTAIN_THREAD };
+      } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/reply')) {
+        payload = { data: { id: `m_${Date.now()}` } };
+      } else if (urlPath.endsWith('/widget-conversations')) {
+        payload = { data: CAPTAIN_CONVERSATIONS };
+      } else if (urlPath.includes('/inboxes/') && urlPath.endsWith('/conversations')) {
+        payload = { data: CAPTAIN_CONVERSATIONS };
+      } else if (urlPath.endsWith('/inboxes') && req.method === 'GET') {
+        payload = { data: CAPTAIN_INBOXES };
+      } else if (urlPath.endsWith('/inbox-channels')) {
+        payload = { data: [{ channel_type: 'website', enabled: true }] };
+      } else if (urlPath.includes('/playground')) {
+        const asked = String(body.message || '');
+        /* Enough shape to exercise every branch the screen draws: a plain
+           answer, the handoff badge, and cited sources. Keyed off the question
+           so each can be triggered on purpose rather than at random. */
+        const wantsHuman = /human|agent|person|refund/i.test(asked);
+        payload = {
+          data: {
+            reply: wantsHuman
+              ? 'That one needs a person. Passing you to an agent now.'
+              : `Sandbox reply. You asked: "${asked}"`,
+            handoff: wantsHuman,
+            sources: wantsHuman
+              ? []
+              : [
+                  { id: 'kb_1', question: 'What are your opening hours?', score: 0.91 },
+                  /* Deliberately under the 0.6 the screen calls weak, so both
+                     states of the similarity chip can be seen without having to
+                     find a badly-matched question by hand. */
+                  { id: 'kb_2', question: 'How do I change my plan?', score: 0.42 },
+                ],
+          },
+        };
+      } else {
+        /* Create, update and delete. Nothing is kept: the sandbox has no store,
+           and a screen that appears to save and then loses it on reload is
+           worse than one that plainly does not. The list re-fetches after a
+           save and comes back as it was. */
+        payload = { data: { id: 'asst_new', ...body } };
+      }
+
+      res.statusCode = req.method === 'DELETE' ? 204 : 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(payload));
     });
 
     server.middlewares.use('/api', async (req, res) => {
