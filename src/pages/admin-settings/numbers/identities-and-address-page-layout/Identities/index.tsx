@@ -21,6 +21,24 @@ import Loader from '@/components/custom/loader';
 import { handleAlert } from '@/lib/utils';
 import AlertConfirm from '@/components/custom/alert-confirm';
 
+/** A count of records attached to an identity, and what it means when it is
+    zero. Shared by the Addresses and Proofs columns. */
+const Count = ({ n, noun, warnOnZero }: { n?: number; noun: string; warnOnZero?: boolean }) => {
+  const count = Number(n ?? 0);
+  if (count === 0) {
+    return (
+      <span className={warnOnZero ? 'mcm-ident-gap' : 'mcm-numnone'}>
+        {warnOnZero ? 'None uploaded' : 'None'}
+      </span>
+    );
+  }
+  return (
+    <span className="mcm-ident-n">
+      {count} <span>{count === 1 ? noun : `${noun}${noun.endsWith('s') ? 'es' : 's'}`}</span>
+    </span>
+  );
+};
+
 const Identities = ({ search }: { search: string }) => {
   const [drawerState, setDrawerState] = useState({
     editIdentity: false,
@@ -137,34 +155,53 @@ const Identities = ({ search }: { search: string }) => {
 
   const columns = [
     {
-      header: 'Name',
+      header: 'Registered to',
       accessorKey: 'identity',
       cell: ({ row }: any) => {
         const data = row?.original || {};
-        const name = `${data?.identity?.firstname || ''} ${data?.identity?.lastname || ''}`;
-        return name;
+        const name = `${data?.identity?.firstname || ''} ${data?.identity?.lastname || ''}`.trim();
+        return (
+          <span className="mcm-ident-who">
+            <b>{name || 'Unnamed identity'}</b>
+            {/* The one the account is held under. It is also the only row with
+                no actions, and nothing said why. */}
+            {data?.is_primary ? <span className="mcm-ident-pri">Primary</span> : null}
+            {data?.identity?.email ? <span>{data.identity.email}</span> : null}
+          </span>
+        );
       },
     },
     {
       header: 'Type',
       accessorKey: 'identity_type',
+      cell: ({ row }: any) => (
+        <span className="mcm-ident-type">{row?.original?.identity_type || 'Unknown'}</span>
+      ),
     },
     {
-      header: 'Phone Number',
-      accessorKey: 'exp_year',
+      /* `exp_year` — a card expiry field — was the accessor under a heading
+         reading "Phone Number", so sorting and searching this column acted on
+         a value that is not on the row. */
+      header: 'Phone',
+      accessorKey: 'identity.phone',
       cell: ({ row }: any) => {
         const data = row?.original || {};
-        const phone = `${data?.identity?.prefix || ''} ${data?.identity?.phone || ''}`;
-        return phone;
+        const phone = `${data?.identity?.prefix || ''} ${data?.identity?.phone || ''}`.trim();
+        return phone || <span className="mcm-numnone">Not given</span>;
       },
     },
     {
-      header: 'Address',
+      header: 'Addresses',
       accessorKey: 'address_count',
+      cell: ({ row }: any) => <Count n={row?.original?.address_count} noun="address" />,
     },
     {
+      /* A number on its own did not say what it was counting or that zero is a
+         problem — an identity with no proof uploaded cannot be verified, and
+         it read the same as one with two. */
       header: 'Proofs',
       accessorKey: 'proof_count',
+      cell: ({ row }: any) => <Count n={row?.original?.proof_count} noun="proof" warnOnZero />,
     },
     {
       header: 'Action',
@@ -179,7 +216,7 @@ const Identities = ({ search }: { search: string }) => {
               setRowData({ isEdit: true, formData: data });
               setDrawerState((prev) => ({ ...prev, editIdentity: true }));
             },
-            className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
+            className: '',
             tooltipText: 'Edit',
           },
           {
@@ -188,24 +225,27 @@ const Identities = ({ search }: { search: string }) => {
               setRowData({ isEdit: true, formData: data });
               setModalState((prev) => ({ ...prev, deleteIdentity: true }));
             },
-            className: 'bg-red-100 text-red-500 hover:bg-red-500 hover:text-white',
+            className: 'is-risky',
             tooltipText: 'Delete',
           },
         ];
 
         return (
-          <div className="flex items-center gap-2">
-            {actions?.map((action, index) => (
-              <CustomTooltip text={action.tooltipText} side="top">
-                <div
-                  key={index}
-                  className={`cursor-pointer flex items-center justify-center rounded-full w-8 h-8 ${action.className}`}
-                  onClick={() => {
-                    action.onClick();
-                  }}
+          /* The key belongs on the element the map returns, not on a child of
+             it — React was keying nothing here. And these are buttons: they
+             were divs with a click handler, so neither could be reached or
+             fired from a keyboard. */
+          <div className="mcm-rowacts">
+            {actions?.map((action) => (
+              <CustomTooltip key={action.tooltipText} text={action.tooltipText} side="top">
+                <button
+                  type="button"
+                  aria-label={action.tooltipText}
+                  className={`mcm-rowact ${action.className}`}
+                  onClick={() => action.onClick()}
                 >
-                  <Icon name={action.icon as IconName} className="w-5 h-5" />
-                </div>
+                  <Icon name={action.icon as IconName} className="w-4 h-4" />
+                </button>
               </CustomTooltip>
             ))}
           </div>
@@ -268,7 +308,7 @@ const Identities = ({ search }: { search: string }) => {
 
   return (
     <div>
-      <div className="w-ful p-3 flex flex-col gap-2">
+      <div className="mcm-ident-tab">
         <TableManager
           {...{
             columns,

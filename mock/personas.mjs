@@ -53,7 +53,21 @@ const fullFeatures = () => ({
   chat: node(),
   omni_channel: node(),
   billing: node(),
-  virtual_numbers: node(),
+  /* The numbers screens gate on domain verbs, not on the generic CRUD set:
+     buying a number, assigning it to an extension, setting and removing its
+     forwarding, releasing it back to the carrier. Without these the whole
+     Action column rendered empty and there was no Add number button, which
+     looks like a broken screen rather than a plan that does not include them. */
+  virtual_numbers: node({
+    action: {
+      buy: true,
+      assign_number: true,
+      release: true,
+      set_forwarding: true,
+      update_forwarding: true,
+      remove_forwarding: true,
+    },
+  }),
   monitoring: node(),
   monitoring_features: node({ action: { whisper: true, barge: true, listen: true } }),
   messages: node(),

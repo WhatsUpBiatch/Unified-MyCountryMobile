@@ -135,18 +135,216 @@ const queue = (i) => ({
   status: 'active',
 });
 
-const numberRow = (i) => ({
-  uuid: f.uuid(`n${i}`),
-  did_number: f.phone(`n${i}`),
-  did_name: `${f.city(i)} line`,
-  type: f.choice(['P', 'T'], `t${i}`),
-  country: 'United States',
-  city: f.city(i),
-  monthly_cost: f.money(i, 1, 15),
-  assigned_to: f.person(`u${i}`).name,
-  status: 'active',
-  created_at: f.daysAgo(i * 9 + 5),
-});
+/* A number as the numbers list actually returns one.
+
+   The old row was invented from the column headings and matched none of the
+   real field names, so every screen that reads it showed a table of dashes:
+   `type` where the code reads `did_type`, a plain `assigned_to` string where it
+   reads a nested `User`, no `forward_call_actions` at all — which is where both
+   the routing AND the editable label live — and no `features` or `Site`.
+
+   The eight states below are the ones the cells branch on, so each branch is
+   reachable: assigned to a person; forwarded to an extension, a department, a
+   queue, an IVR and an outside phone; a fax line (which suppresses the
+   forwarding cell entirely); and numbers sitting unused with and without a
+   label, because "Add label" and "Assign to extension" are only offered on
+   those. */
+const FORWARD_TARGETS = [
+  null,
+  null,
+  { type: 'EXTENSION', name: 'Zara Adeyemi', value: '1001' },
+  { type: 'DEPARTMENT', name: 'Support' },
+  { type: 'QUEUE', name: 'Billing Queue' },
+  { type: 'IVR', name: 'Main menu' },
+  { type: 'PHONE', name: '15125550143' },
+  { type: 'VOICEMAIL', name: 'Sales voicemail', value: '7002' },
+];
+
+const numberRow = (i) => {
+  const target = FORWARD_TARGETS[i % FORWARD_TARGETS.length];
+  /* A fax line every seventh number. Fax rows carry no forwarding, which is
+     the one case the cell short-circuits before parsing anything. */
+  const isFax = i % 7 === 3;
+  /* Every third number is held by a person; the rest are free to assign. */
+  const holder = i % 3 === 0 ? f.person(`u${i}`) : null;
+  /* Two thirds carry a label. The rest are what "Add label" is for, and a
+     table where every row already has one never shows that link. */
+  const label = i % 3 === 2 ? '' : `${SITE_NAMES[i % 3]} ${['main', 'sales', 'support', 'invoices'][i % 4]}`;
+
+  const actions =
+    isFax || (!target && !label)
+      ? null
+      : JSON.stringify({
+          did_info: { did_name: label },
+          call_handling: target ? { business_hours: target } : {},
+        });
+
+  return {
+    uuid: f.uuid(`n${i}`),
+    did_number: f.phone(`n${i}`),
+    /* The name a number was bought with. `labelOf` prefers the one in the blob
+       above and falls back to this, so the two differ on purpose. */
+    did_name: `${f.city(i)} line`,
+    did_type: f.choice(['L', 'N', 'T', 'M'], `dt${i}`),
+    is_fax_enabled: isFax,
+    User: holder ? { uuid: f.uuid(`u${i}`), first_name: holder.first_name, last_name: holder.last_name } : null,
+    forward_call_actions: actions,
+    features: [
+      'voice_in',
+      'voice_out',
+      ...(i % 2 === 0 ? ['sms_in', 'sms_out'] : []),
+    ],
+    Site: { uuid: SITE_UUIDS[i % 3], name: SITE_NAMES[i % 3] },
+    country: 'United States',
+    monthly_cost: f.money(i, 1, 15),
+    status: 'active',
+    created_at: f.daysAgo(i * 9 + 5),
+  };
+};
+
+/* Who a number is registered to, and where it is served.
+
+   Regulators require a named holder and a service address for most number
+   ranges, and the three tabs of Identities & addresses read three different
+   endpoints with three different row shapes. None of them were mocked, so all
+   three tables drew the right headings over completely empty rows.
+
+   Uneven on purpose: an individual and two businesses, one identity with no
+   proof uploaded at all, one address without a description, and verifications
+   spread across every status the column can show — including one that has
+   already expired, which is the state the countdown has to cope with. */
+const IDENTITIES = () => [
+  {
+    identity_id: f.uuid('id0'),
+    identity_type: 'Individual',
+    is_primary: true,
+    identity: { firstname: 'Hannah', lastname: 'Okafor', prefix: '+1', phone: '5125559618', email: 'hannah.okafor@example.com' },
+    address_count: 2,
+    proof_count: 2,
+  },
+  {
+    identity_id: f.uuid('id1'),
+    identity_type: 'Business',
+    identity: { firstname: 'Sandbox', lastname: 'Communications', prefix: '+44', phone: '2079460321', email: 'ops@sandboxcomms.example' },
+    address_count: 1,
+    proof_count: 1,
+  },
+  {
+    identity_id: f.uuid('id2'),
+    identity_type: 'Business',
+    identity: { firstname: 'Sandbox', lastname: 'Singapore Pte', prefix: '+65', phone: '69700142', email: 'sg@sandboxcomms.example' },
+    address_count: 1,
+    /* Nothing uploaded yet. The count is what tells somebody a record is
+       incomplete, so a table where every row reads 2 never shows it. */
+    proof_count: 0,
+  },
+];
+
+const ADDRESSES = () => [
+  {
+    address_id: f.uuid('ad0'),
+    identity_id: f.uuid('id0'),
+    is_primary: true,
+    address: {
+      country: 'United States',
+      state: 'Texas',
+      city: 'Austin',
+      zipcode: '78701',
+      address: '600 Congress Ave, Suite 1400',
+      description: 'Head office',
+    },
+    address_proof: [{ uuid: f.uuid('ap0') }, { uuid: f.uuid('ap1') }],
+  },
+  {
+    address_id: f.uuid('ad1'),
+    identity_id: f.uuid('id1'),
+    address: {
+      country: 'United Kingdom',
+      state: 'England',
+      city: 'London',
+      zipcode: 'EC2A 4NE',
+      address: '55 Old Street',
+      /* No description. The column has to survive one. */
+      description: '',
+    },
+    address_proof: [{ uuid: f.uuid('ap2') }],
+  },
+  {
+    address_id: f.uuid('ad2'),
+    identity_id: f.uuid('id2'),
+    address: {
+      country: 'Singapore',
+      state: 'Central',
+      city: 'Singapore',
+      zipcode: '018956',
+      address: '1 Marina Boulevard, #20-01',
+      description: 'Registered office',
+    },
+    address_proof: [],
+  },
+];
+
+/* Real dialling codes rather than the generator's US numbers: the row shows a
+   flag beside the number and a country beside that, and a British registration
+   under a US flag reads as a bug on a screen whose whole job is registrations. */
+const VERIFICATIONS = () => [
+  {
+    uuid: f.uuid('vf0'),
+    did_number: '+442079460198',
+    country: 'United Kingdom',
+    city: 'London',
+    status: 'approved',
+    awaiting_registration: false,
+    expires_at: f.daysAgo(-96),
+  },
+  {
+    uuid: f.uuid('vf1'),
+    did_number: '+493088776120',
+    country: 'Germany',
+    city: 'Berlin',
+    status: 'pending',
+    awaiting_registration: true,
+    expires_at: f.daysAgo(-4),
+  },
+  {
+    uuid: f.uuid('vf2'),
+    did_number: '+33170610455',
+    country: 'France',
+    city: 'Paris',
+    status: 'rejected',
+    awaiting_registration: false,
+    expires_at: f.daysAgo(-11),
+  },
+  {
+    /* Already past its date. Nothing else on the screen is in this state and
+       it is the one the countdown has to not print as a negative number. */
+    uuid: f.uuid('vf3'),
+    did_number: '+34911982307',
+    country: 'Spain',
+    city: 'Madrid',
+    status: 'pending',
+    awaiting_registration: true,
+    expires_at: f.daysAgo(6),
+  },
+];
+
+/* A released number is a different table: no owner to act on, and the fields
+   are spelled differently again — `user_details` rather than `User`,
+   `site_data` rather than `Site`. One row was never assigned, because the cell
+   has copy for that and it should be reachable. */
+const releasedRow = (i) => {
+  const held = i === 1 ? null : f.person(`ru${i}`);
+  return {
+    uuid: f.uuid(`rn${i}`),
+    did_number: f.phone(`rn${i}`),
+    did_name: `${f.city(i + 4)} line`,
+    did_type: f.choice(['L', 'T'], `rdt${i}`),
+    user_details: held ? { first_name: held.first_name, last_name: held.last_name } : null,
+    site_data: { name: SITE_NAMES[i % 3] },
+    buy_date: f.daysAgo(i * 40 + 120),
+    released_at: f.daysAgo(i * 11 + 3),
+  };
+};
 
 const campaign = (i) => ({
   uuid: f.uuid(`cm${i}`),
@@ -550,6 +748,10 @@ const HANDLERS = [
       b,
     )],
   ['/api/numbers/list', (b) => page(f.seq(18, numberRow), b)],
+  ['/api/identity/list', (b) => page(IDENTITIES(), b)],
+  ['/api/identity/address/list', (b) => page(ADDRESSES(), b)],
+  ['/api/identity/did/identity/verification/list', (b) => page(VERIFICATIONS(), b)],
+  ['/api/did/released-number-listing', (b) => page(f.seq(5, releasedRow), b)],
   ['/api/campaign/list', (b) => page(f.seq(9, campaign), b)],
   ['/api/campaign/lead-list', (b) => page(f.seq(30, contact), b)],
   ['/api/contact/list', (b) => page(f.seq(30, contact), b)],

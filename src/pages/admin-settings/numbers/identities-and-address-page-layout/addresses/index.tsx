@@ -87,37 +87,55 @@ const Addresses = ({ search }: { search: string }) => {
 
   const columns = [
     {
-      header: 'Country/Region',
-      accessorKey: 'address.country',
+      /* Street, then the place. Four of the six columns held one line of one
+         address between them — "United States/Texas", "Austin", "78701",
+         "600 Congress Ave" — so reading one address meant reading across four
+         headings, and the table was too wide to do it without scrolling. */
+      header: 'Address',
+      accessorKey: 'address.address',
       cell: ({ row }: any) => {
-        const { country = '', state = '' } = row?.original?.address || {};
-        const name = `${country}/${state}`;
-        return name;
+        const { address = '', city = '', zipcode = '' } = row?.original?.address || {};
+        const below = [city, zipcode].filter(Boolean).join(' \u00b7 ');
+        return (
+          <span className="mcm-ident-who">
+            <b>{address || 'No street address'}</b>
+            {below ? <span>{below}</span> : null}
+          </span>
+        );
       },
     },
     {
-      header: 'City',
-      accessorKey: 'address.city',
-    },
-    {
-      header: 'Postal Code',
-      accessorKey: 'address.zipcode',
-    },
-    {
-      header: 'Address',
-      accessorKey: 'address.address',
+      header: 'Country',
+      accessorKey: 'address.country',
+      cell: ({ row }: any) => {
+        const { country = '', state = '' } = row?.original?.address || {};
+        return (
+          <span className="mcm-ident-place">
+            <b>{country || 'Unknown'}</b>
+            {state ? <span>{state}</span> : null}
+          </span>
+        );
+      },
     },
     {
       header: 'Proofs',
       accessorKey: 'address_proof',
       cell: ({ row }: any) => {
-        const proofsArr = row?.original?.address_proof || [];
-        return proofsArr?.length || 0;
+        const count = (row?.original?.address_proof || []).length;
+        return count ? (
+          <span className="mcm-ident-n">
+            {count} <span>{count === 1 ? 'proof' : 'proofs'}</span>
+          </span>
+        ) : (
+          <span className="mcm-ident-gap">None uploaded</span>
+        );
       },
     },
     {
       header: 'Description',
       accessorKey: 'address.description',
+      cell: ({ row }: any) =>
+        row?.original?.address?.description || <span className="mcm-numnone">&mdash;</span>,
     },
     {
       header: 'Action',
@@ -132,7 +150,7 @@ const Addresses = ({ search }: { search: string }) => {
               setRowData({ isEdit: true, formData: data });
               setDrawerState((prev) => ({ ...prev, editAddress: true }));
             },
-            className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
+            className: '',
             tooltipText: 'Edit',
           },
           {
@@ -141,24 +159,27 @@ const Addresses = ({ search }: { search: string }) => {
               setRowData({ isEdit: true, formData: data });
               setModalState((prev) => ({ ...prev, deleteAddress: true }));
             },
-            className: 'bg-red-100 text-red-500 hover:bg-red-500 hover:text-white',
+            className: 'is-risky',
             tooltipText: 'Delete',
           },
         ];
 
         return (
-          <div className="flex items-center gap-2">
-            {actions?.map((action, index) => (
-              <CustomTooltip text={action.tooltipText} side="top">
-                <div
-                  key={index}
-                  className={`cursor-pointer flex items-center justify-center rounded-full w-8 h-8 ${action.className}`}
-                  onClick={() => {
-                    action.onClick();
-                  }}
+          /* The key belongs on the element the map returns, not on a child of
+             it — React was keying nothing here. And these are buttons: they
+             were divs with a click handler, so neither could be reached or
+             fired from a keyboard. */
+          <div className="mcm-rowacts">
+            {actions?.map((action) => (
+              <CustomTooltip key={action.tooltipText} text={action.tooltipText} side="top">
+                <button
+                  type="button"
+                  aria-label={action.tooltipText}
+                  className={`mcm-rowact ${action.className}`}
+                  onClick={() => action.onClick()}
                 >
-                  <Icon name={action.icon as IconName} className="w-5 h-5" />
-                </div>
+                  <Icon name={action.icon as IconName} className="w-4 h-4" />
+                </button>
               </CustomTooltip>
             ))}
           </div>
@@ -201,7 +222,7 @@ const Addresses = ({ search }: { search: string }) => {
   };
   return (
     <div>
-      <div className="w-ful p-3 flex flex-col gap-2">
+      <div className="mcm-ident-tab">
         <TableManager
           {...{
             columns,

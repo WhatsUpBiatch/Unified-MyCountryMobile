@@ -1112,12 +1112,16 @@
   padding: 0;
 }
 .mcm-page .panel-card > .tbl-wrap:has(> .cs-section) {
-  /* Almost nothing at the top. Three paddings stack between the search box and
-     the first tab — the filter bar's 12px, the body's 16px, and this — and each
-     one looks reasonable alone while together they leave the panel floating
-     well clear of the row above it. The tab strip is 56px tall and carries its
-     own air, so it does not need more added above it. */
-  padding: 2px 20px 14px;
+  /* Little at the top, because three paddings stack between the search box and
+     the first tab — the filter bar's, the body's, and this — and each one looks
+     reasonable alone while together they leave the panel floating well clear of
+     the row above it.
+
+     Not 2px, though. That was written believing the tab strip carried its own
+     air; it carries 12px below the pills and none above, so the pills sat three
+     pixels off the panel's top edge and hung off it. Matching the strip's own
+     bottom padding sits them in the middle of their band. */
+  padding: 12px 20px 14px;
 }
 /* Same reason, one level up: the body's own top padding on a screen whose panel
    opens with a tab strip. */
@@ -12161,4 +12165,270 @@ textarea.mcm-field:focus-visible {
 }
 .mcm-scope-p.is-block > b {
   color: var(--crit, #dc2626);
+}
+
+/* ── The numbers table ─────────────────────────────────────────────────────
+   Where a number's calls go. All three kinds of target read the same way:
+   what it is, then what it is called. */
+.mcm-fwd {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+}
+.mcm-fwd > b {
+  color: var(--ink-3, #64748b);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.mcm-fwd > span {
+  color: var(--ink, #0f172a);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* An action offered in a cell — "Add label", "Assign to extension". A button,
+   not a <p> with a click handler: these are the only way to reach three of
+   this screen's drawers, and they were unreachable by keyboard. */
+.mcm-numlink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+@media (hover: hover) {
+  .mcm-numlink:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Nothing to offer here, and why. The cells used to show the same link greyed
+   out and refusing the pointer, which says "you may not" where the truth is
+   "there is nothing to do". */
+.mcm-numnone {
+  color: var(--ink-4, #94a3b8);
+  font-size: 12px;
+}
+
+/* What buying another number costs. Sits between the view tabs and the table,
+   so it needs to read as a note rather than as a first row. */
+.mcm-numnote {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+  color: var(--ink-3, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* What a number can carry — voice and text, in and out. Four small marks in a
+   narrow column, so they are sized to it rather than to a comfortable icon. */
+.mcm-numfeat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.mcm-numfeat img {
+  flex: none;
+  opacity: 0.75;
+}
+
+/* A scrolling child of the panel takes its spacing as margin, not padding.
+
+   The section rule above gives every child after the first a border-top and
+   16px of padding. On a scroll container that padding is inside the
+   scrollport, so rows scrolled visibly through the strip above the sticky
+   header — the band looked half-transparent with fragments of a row above it.
+   Only the padding moves: the border-top stays, because it doubles as the top
+   edge of the table's own rounded box.
+
+   Weight matched the way `.mcm-rule` does a few thousand lines up: the section
+   rule carries two :not() arguments and scores (0,4,0), so this carries one of
+   its own and comes later. */
+.mcm-page .cs-section > .table-scroll:not(.cs-saverow) {
+  padding-top: 0;
+  margin-top: 16px;
+}
+
+/* The sticky header on every TableManager table.
+   `position: sticky` was set on the <thead>, which does not stick reliably
+   under `border-collapse: collapse` — the cells stayed in normal flow, so the
+   first row scrolled straight over the headings and the band looked
+   half-transparent. Sticking the cells themselves is what actually works.
+   The bottom rule is a shadow rather than a border because a collapsed
+   table's shared borders scroll away with the row that owns them. */
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2, #f6f8fc);
+  box-shadow: inset 0 -1px 0 var(--line, #dfe5f0);
+}
+
+/* ── Identities & addresses ────────────────────────────────────────────────
+   Each tab is one table on the shared panel, which already insets its
+   contents; the tabs were adding another 12px of their own on top.
+
+   The panel's section rule gives every child after the first a divider and
+   16px either side of it. A tab holding nothing but a table that draws its own
+   bordered box does not want a second line above that box, and 33px between
+   the view tabs and the rows they filter is a gap, not rhythm. Weight matched
+   the way the rules above do: the section rule carries two :not() arguments
+   and scores (0,4,0), so this carries one of its own and comes later. */
+.mcm-page .cs-section > .mcm-ident-tab:not(.cs-saverow) {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 12px;
+}
+.mcm-ident-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A name or a street, with the quieter detail beneath it. */
+.mcm-ident-who,
+.mcm-ident-place {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+  min-width: 0;
+}
+.mcm-ident-who > b,
+.mcm-ident-place > b {
+  color: var(--ink, #0f172a);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mcm-ident-who > span,
+.mcm-ident-place > span {
+  color: var(--ink-3, #64748b);
+  font-size: 11px;
+}
+/* The identity the account itself is held under. It is the one row with no
+   edit or delete, and until now nothing said why. */
+.mcm-ident-pri {
+  align-self: flex-start;
+  margin: 2px 0 1px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mcm-ident-type {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 999px;
+  background: var(--surface-2, #f8fafc);
+  color: var(--ink-2, #475569);
+  font-size: 11px;
+  font-weight: 600;
+}
+/* How many addresses or proofs are attached. The number leads, because that is
+   what is being compared down the column. */
+.mcm-ident-n {
+  color: var(--ink, #0f172a);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.mcm-ident-n > span {
+  color: var(--ink-3, #64748b);
+  font-size: 11px;
+  font-weight: 500;
+}
+/* Nothing uploaded. Not an error — the record simply cannot be verified until
+   it is, and a bare "0" said neither. */
+.mcm-ident-gap {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warn-wash, #fffbeb);
+  color: var(--warn, #b45309);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Where a registration has got to with the carrier. */
+.mcm-vstat {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.mcm-vstat.is-ok {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+.mcm-vstat.is-wait {
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+}
+.mcm-vstat.is-bad {
+  background: var(--crit-wash, #fef2f2);
+  color: var(--crit, #dc2626);
+}
+/* How long is left to supply what the carrier is waiting for. A week or less
+   is worth noticing before it becomes "Overdue". */
+.mcm-vleft {
+  color: var(--ink-2, #475569);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mcm-vleft.is-soon {
+  color: var(--warn, #b45309);
+}
+
+/* Edit and delete on a table row. Round targets that carry their meaning in
+   colour rather than in four Tailwind classes repeated per action. */
+.mcm-rowacts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcm-rowact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-2, #475569);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+@media (hover: hover) {
+  .mcm-rowact:hover {
+    border-color: var(--accent, #2563eb);
+    background: var(--accent-wash, #eff6ff);
+    color: var(--accent, #2563eb);
+  }
+  .mcm-rowact.is-risky:hover {
+    border-color: var(--crit, #dc2626);
+    background: var(--crit-wash, #fef2f2);
+    color: var(--crit, #dc2626);
+  }
 }

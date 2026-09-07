@@ -5,7 +5,7 @@ import TableManager from '@/components/custom/table-manager';
 import { AdminPage } from '@/pages/admin-settings/page-shell';
 import { Input } from '@/components/ui/input';
 import { useUser } from '@/hooks/use-user';
-import { capitalizeFirstLetter, handleAlert } from '@/lib/utils';
+import { handleAlert } from '@/lib/utils';
 import {
   allNumbersList,
   releasedNumbersList,
@@ -29,6 +29,8 @@ import {
   FORWARD_TYPES_WITH_NAME,
   FORWARD_TYPES_WITH_PHONE,
   getDidTypeLabel,
+  getForwardTypeLabel,
+  isForwardingConfigured,
 } from '../utils';
 import { invalidateNumberLists } from '@/lib/number-list-cache';
 import { featuresLookUp, featuresObj } from '../all-numbers/constants';
@@ -360,14 +362,17 @@ const NumberList = () => {
           const label = labelOf(data);
           if (label) return label;
           return canEditLabel(data).ok && virtualNumberAccess?.action?.update_forwarding ? (
-            <span
-              className="text-primary cursor-pointer"
+            <button
+              type="button"
+              className="mcm-numlink"
               onClick={() => handleNumberState(data, 'editLabel')}
             >
               Add label
-            </span>
+            </button>
           ) : (
-            <span className="text-gray-500">--</span>
+            /* A number with no call handling at all cannot hold a label — see
+               `canEditLabel`. Nothing to offer, so nothing is offered. */
+            <span className="mcm-numnone">Unnamed</span>
           );
         },
       },
@@ -379,17 +384,32 @@ const NumberList = () => {
           if (data?.first_name) {
             return `${data?.first_name}${data?.last_name ? ` ${data?.last_name}` : ''}`;
           }
-          const canAssign =
-            !row?.original?.forward_call_actions && virtualNumberAccess?.action?.set_forwarding;
+          /* Whether the number is actually routed somewhere, not whether the
+             blob exists. `forward_call_actions` is also where a number's label
+             is kept, so a number that had only ever been given a name counted
+             as forwarded: the cell refused to offer it to anybody, and said it
+             was routed while the next column offered to set its forwarding. */
+          const routed = isForwardingConfigured(
+            parseForwardActions(row?.original?.forward_call_actions)?.call_handling
+              ?.business_hours?.type,
+          );
+          const canAssign = !routed && virtualNumberAccess?.action?.set_forwarding;
           return canAssign ? (
-            <p
-              className="text-primary cursor-pointer"
+            <button
+              type="button"
+              className="mcm-numlink"
               onClick={() => handleNumberState(row?.original, 'assignDID')}
             >
               Assign to extension
-            </p>
+            </button>
           ) : (
-            <p className="text-grey cursor-not-allowed">Assign to extension</p>
+            /* Already forwarded, so its calls follow that rather than an
+               owner. The old cell offered the action anyway and styled it as
+               refused, which reads as "you may not" where the truth is "there
+               is nothing to assign". */
+            <span className="mcm-numnone">
+              {routed ? 'Follows forwarding' : 'Nobody'}
+            </span>
           );
         },
       },
@@ -407,45 +427,46 @@ const NumberList = () => {
           const parsedForwardTo = parseForwardActions(data?.forward_call_actions);
           const forwardedValue = parsedForwardTo?.call_handling?.business_hours || '';
           return (
+            /* One shape for all three kinds of target.
+
+               Each branch used to draw its own thing: an extension came as a
+               bordered tile with a "#" avatar, a department as two stacked
+               lines, an outside number as a flag. Three destinations that
+               answer the same question looked like three different kinds of
+               data, and the tile was tall enough to set the height of every
+               row in the table. What the target is, then what it is called. */
             <div>
-              {FORWARD_TYPES_WITH_EXTENSION.includes(forwardedValue?.type) ? (
-                <div className="flex">
-                  <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-2.5 py-1 w-auto">
-                    <div className="w-7 h-7 rounded-lg border border-primary/30 bg-white flex items-center justify-center text-primary text-base font-semibold leading-none">
-                      #
-                    </div>
-                    <div className="flex flex-col gap-1 leading-tight">
-                      <div className="text-[9px] font-semibold tracking-[0.08em] text-gray-500 uppercase">
-                        {capitalizeFirstLetter(forwardedValue?.type)}
-                      </div>
-                      <small className="text-gray-900 text-xs font-semibold leading-none">
-                        {forwardedValue?.name}
-                        {forwardedValue?.value ? ` (${forwardedValue.value})` : ''}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              ) : FORWARD_TYPES_WITH_NAME.includes(forwardedValue?.type) ? (
-                <div className="flex flex-col items-start">
-                  {capitalizeFirstLetter(forwardedValue?.type)}
-                  <small>{forwardedValue?.name}</small>
-                </div>
+              {FORWARD_TYPES_WITH_EXTENSION.includes(forwardedValue?.type) ||
+              FORWARD_TYPES_WITH_NAME.includes(forwardedValue?.type) ? (
+                <span className="mcm-fwd">
+                  <b>{getForwardTypeLabel(forwardedValue?.type)}</b>
+                  <span>
+                    {forwardedValue?.name}
+                    {forwardedValue?.value ? ` (${forwardedValue.value})` : ''}
+                  </span>
+                </span>
               ) : FORWARD_TYPES_WITH_PHONE.includes(forwardedValue?.type) ? (
-                <div className="flex flex-col items-start">
-                  {capitalizeFirstLetter(forwardedValue?.type)}
-                  <small>
+                <span className="mcm-fwd">
+                  <b>{getForwardTypeLabel(forwardedValue?.type)}</b>
+                  <span>
                     <NumberWithFlag number={`+${forwardedValue?.name}`} />
-                  </small>
-                </div>
+                  </span>
+                </span>
               ) : data?.User || !virtualNumberAccess?.action?.set_forwarding ? (
-                <p className="text-grey cursor-not-allowed">Set Forwarding</p>
+                /* Held by a person, so it rings their extension and there is
+                   nothing to forward. Said, rather than offered as a link that
+                   refuses to be clicked. */
+                <span className="mcm-numnone">
+                  {data?.User ? 'Rings its owner' : 'Not set'}
+                </span>
               ) : (
-                <p
-                  className="text-primary cursor-pointer"
+                <button
+                  type="button"
+                  className="mcm-numlink"
                   onClick={() => handleNumberState(data, 'updateForwarding')}
                 >
-                  Set Forwarding
-                </p>
+                  Set forwarding
+                </button>
               )}
             </div>
           );
@@ -464,13 +485,16 @@ const NumberList = () => {
         accessorKey: 'features',
         cell: ({ getValue }: any) => {
           const rowFeatures = getValue();
+          /* Four 24px icons with gaps and 16px of padding either side needed
+             152px in a column the table gives 80, so they printed over the
+             Site column beside them. */
           return (
-            <div className="flex justify-center items-center gap-2 px-4">
+            <div className="mcm-numfeat">
               {rowFeatures?.map((v: any) => {
                 if (!featuresLookUp[v]) return null;
                 return (
                   <CustomTooltip key={v} text={featuresObj[v]} side="top">
-                    <img src={featuresLookUp[v]} alt={featuresObj[v]} width={24} height={24} />
+                    <img src={featuresLookUp[v]} alt={featuresObj[v]} width={16} height={16} />
                   </CustomTooltip>
                 );
               })}
@@ -662,7 +686,7 @@ const NumberList = () => {
         filters={
           <Input
             placeholder="Search numbers"
-            className="pl-10 w-full min-h-9 rounded-lg"
+            className="pl-10 w-full max-w-sm min-h-9 rounded-lg"
             IconPosition="left-0 pl-2 inset-y-0"
             value={search}
             onChange={(e) => {
@@ -696,7 +720,7 @@ const NumberList = () => {
                charged as a number, that it is not a new subscription, and that
                the monthly total goes up. The first two are the same fact from
                either side. */
-            <p className="text-sm text-gray-600">
+            <p className="mcm-numnote">
               Adding a number to an existing plan charges for the number only, not a new
               subscription. Your monthly total updates to match.
             </p>
