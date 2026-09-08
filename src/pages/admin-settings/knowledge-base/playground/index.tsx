@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { handleAlert } from '@/lib/utils';
 import { getChatAgentList, getAIReceptionistList } from '@/services/api';
-import { MessageSquare, Phone, Search, Activity, Zap, Sparkles } from 'lucide-react';
+import { MessageSquare, Phone, Search, Activity, Zap } from 'lucide-react';
 import Loader from '@/components/custom/loader';
 import CustomAvatar from '@/components/custom/custom-avatar';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -365,48 +365,32 @@ function Playground() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4 pb-2">
-        {/* Dynamic Stats Banner */}
-        <div className="relative overflow-hidden bg-slate-900 border border-slate-800 text-white rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 shrink-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-6 h-6 text-white animate-pulse" />
+        {/* Was a dark slate hero with an indigo-to-purple gradient tile, a
+            pulsing sparkle and a radial glow — the only thing in admin that
+            looks like that, and a fixed dark block that stayed dark in the
+            light theme. It also gave three plain counts the visual weight of
+            an advertisement. The counts are the same shape the receptionist
+            and chat-agent lists use for theirs. */}
+        <div className="mcm-pg-head">
+          <div className="mcm-pg-t">
+            <h1>Agent playground</h1>
+            <p>
+              Test any AI receptionist or chat agent against a real widget. Nothing here counts
+              towards your analytics.
+            </p>
+          </div>
+          <div className="mcm-pg-counts">
+            <div>
+              <p>Total agents</p>
+              <b>{isPageLoading ? '—' : totalAgentsCount}</b>
             </div>
             <div>
-              <h1 className="text-lg font-semibold tracking-tight">Agent Playground</h1>
-              <p className="text-slate-400 text-sm mt-1 max-w-lg">
-                Test any AI Receptionist (voice) or Chat Agent in a safe sandbox. Sessions don't
-                count toward analytics.
-              </p>
+              <p>Receptionists</p>
+              <b>{isPageLoading ? '—' : receptionistAgents?.length}</b>
             </div>
-          </div>
-
-          <div className="flex items-center gap-6 md:gap-8 relative z-10 shrink-0">
-            <div className="text-center md:text-left">
-              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                Total Agents
-              </p>
-              <p className="text-3xl font-extrabold text-white mt-1">
-                {isPageLoading ? '...' : totalAgentsCount}
-              </p>
-            </div>
-            <div className="w-px h-10 bg-slate-800" />
-            <div className="text-center md:text-left">
-              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                Receptionists
-              </p>
-              <p className="text-3xl font-extrabold text-indigo-400 mt-1">
-                {isPageLoading ? '...' : receptionistAgents?.length}
-              </p>
-            </div>
-            <div className="w-px h-10 bg-slate-800" />
-            <div className="text-center md:text-left">
-              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                AI Chatbots
-              </p>
-              <p className="text-3xl font-extrabold text-purple-400 mt-1">
-                {isPageLoading ? '...' : chatAgents?.length || 0}
-              </p>
+            <div>
+              <p>Chat agents</p>
+              <b>{isPageLoading ? '—' : chatAgents?.length || 0}</b>
             </div>
           </div>
         </div>
@@ -414,43 +398,41 @@ function Playground() {
         {/* Workspace Columns */}
         <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
           {/* Left Column: Pick Agent List */}
-          <div className="w-82 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden shrink-0">
-            <div className="p-3 border-b border-gray-100 bg-gray-50/50 space-y-2.5">
+          <div className="mcm-pg-col">
+            <div className="mcm-pg-colhead">
               {/* Mini Tabs (Primary UCAAS selected tab) */}
-              <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200/40">
+              <div className="mcm-pg-tabs" role="tablist" aria-label="Agent kind">
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'voice'}
                   onClick={() => setActiveTab('voice')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all border-0 cursor-pointer ${
-                    activeTab === 'voice'
-                      ? 'bg-ucass-primary-200 text-primary shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800 bg-transparent'
-                  }`}
+                  className={`mcm-pg-tab${activeTab === 'voice' ? ' is-on' : ''}`}
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  AI Receptionist
+                  Receptionists
                 </button>
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'chat'}
                   onClick={() => setActiveTab('chat')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-semibold transition-all border-0 cursor-pointer ${
-                    activeTab === 'chat'
-                      ? 'bg-ucass-primary-200 text-primary shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800 bg-transparent'
-                  }`}
+                  className={`mcm-pg-tab${activeTab === 'chat' ? ' is-on' : ''}`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  AI Chatbot
+                  Chat agents
                 </button>
               </div>
 
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="mcm-aisearch-i" />
                 <input
                   type="text"
-                  placeholder="Search agents..."
+                  placeholder="Search agents…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-primary transition-all placeholder:text-gray-400"
+                  className="mcm-aisearch"
                 />
               </div>
             </div>
@@ -478,11 +460,8 @@ function Playground() {
                     <button
                       key={agentId}
                       onClick={() => handleSelectAgent(agent)}
-                      className={`w-full text-left flex items-center justify-between p-2 rounded-lg border transition-all ${
-                        isSelected
-                          ? 'bg-ucass-primary-200/50 border-primary text-primary shadow-sm'
-                          : 'bg-white border-transparent hover:bg-slate-50 text-gray-700'
-                      }`}
+                      aria-pressed={isSelected}
+                      className={`mcm-pg-agent${isSelected ? ' is-on' : ''}`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <CustomAvatar
@@ -492,11 +471,9 @@ function Playground() {
                           isActivityInfo={false}
                         />
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold truncate leading-4">
-                            {agent?.agentName}
-                          </p>
-                          <p className="text-[10px] text-gray-500 truncate leading-3">
-                            {activeTab === 'chat' ? 'Chat Agent' : 'Voice Agent'}
+                          <p className="mcm-pg-agentn">{agent?.agentName}</p>
+                          <p className="mcm-pg-agentk">
+                            {activeTab === 'chat' ? 'Chat agent' : 'Voice receptionist'}
                           </p>
                         </div>
                       </div>
@@ -508,16 +485,16 @@ function Playground() {
           </div>
 
           {/* Middle Column: Inline Sandbox Session */}
-          <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-0 relative">
+          <div className="mcm-pg-stage">
             {!selectedAgent ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-sm mx-auto">
-                <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-3 text-primary">
+                <div className="mcm-pg-mark">
                   <Activity className="w-6 h-6" />
                 </div>
-                <h3 className="text-sm font-bold text-gray-900">Sandbox Preview</h3>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  Select an agent from the left column. The playground will immediately launch the
-                  chat session or initiate a test voice call.
+                <h3 className="mcm-pg-blankt">Nothing running yet</h3>
+                <p className="mcm-pg-blankd">
+                  Pick an agent on the left. A chat opens straight away; a receptionist places a
+                  test call to your browser.
                 </p>
               </div>
             ) : (
@@ -533,9 +510,22 @@ function Playground() {
                         <h2 className="text-xs font-bold text-gray-900 truncate max-w-[120px]">
                           {selectedAgent?.agentName}
                         </h2>
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/10 shrink-0">
-                          Live
-                        </span>
+                        {/* The agent's real status. This was the literal word
+                            "Live" on every agent, so a paused receptionist was
+                            announced as live in the one place you go to check
+                            whether it works. The commented-out `isLive` line
+                            in the list beside it shows the intent. */}
+                        {(() => {
+                          const state = String(
+                            selectedAgent?.status || selectedAgent?.agentStatus || '',
+                          ).toLowerCase();
+                          const live = state === 'live' || state === 'active';
+                          return (
+                            <span className={`mcm-pg-state${live ? ' is-live' : ''}`}>
+                              {live ? 'Live' : state ? state : 'Not live'}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-gray-500 leading-3">
                         <span>{activeTab === 'chat' ? 'Chat agent' : 'Voice receptionist'}</span>

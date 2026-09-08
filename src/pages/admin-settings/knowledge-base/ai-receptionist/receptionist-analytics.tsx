@@ -2,12 +2,25 @@ import { useState, useMemo, useRef, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getReceptionistAnalytics } from '@/services/api';
 import moment from 'moment';
-import { ArrowLeft, ChevronDown, ChevronRight, Download, FileText, Info } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Download, FileText, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { downloadAnalyticsSectionAsPdf } from '@/lib/analytics-export';
 import { handleAlert } from '@/lib/utils';
+import { Picker } from '@/components/mcm/picker';
+
+/* The option list of a native <select> is drawn by the operating system, so
+   no CSS reaches it: these opened as a plain white box with a hard blue
+   highlight in the middle of a themed page. Same Radix picker as the rest of
+   the console. */
+const dateRangeOptions = [
+  { label: 'Today', value: 'today' },
+  { label: 'Yesterday', value: 'yesterday' },
+  { label: 'Last 7 days', value: '7d' },
+  { label: 'Last 30 days', value: '30d' },
+  { label: 'Last 90 days', value: '90d' },
+];
 
 interface ReceptionistAnalyticsProps {
   onClose: () => void;
@@ -816,36 +829,21 @@ export default function ReceptionistAnalytics({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <div className="relative">
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as any)}
-              className="h-[34px] cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none transition-colors hover:border-gray-300 focus:border-primary"
-            >
-              <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="7d">Last 7 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <select
-              value={selectedRepId}
-              onChange={(e) => setSelectedRepId(e.target.value)}
-              className="h-[34px] cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-1.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none transition-colors hover:border-gray-300 focus:border-primary"
-            >
-              <option value="all">All receptionists</option>
-              {activeReceptionists.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 pointer-events-none" />
-          </div>
+          <Picker
+            label="Period"
+            value={dateRange}
+            options={dateRangeOptions}
+            onChange={(option) => setDateRange(option.value as any)}
+          />
+          <Picker
+            label="Receptionist"
+            value={selectedRepId}
+            options={[
+              { label: 'All receptionists', value: 'all' },
+              ...activeReceptionists.map((r) => ({ label: r.name, value: r.id })),
+            ]}
+            onChange={(option) => setSelectedRepId(option.value)}
+          />
 
           <Button
             type="button"
@@ -1191,7 +1189,7 @@ export default function ReceptionistAnalytics({
                       </td>
                       <td className="py-3 text-right font-semibold text-slate-800">
                         {rep.sentiment !== null
-                          ? `😐 ${Math.round(rep.sentiment)}`
+                          ? `${Math.round(rep.sentiment)}`
                           : 'Not analyzed'}
                       </td>
                     </tr>

@@ -68,6 +68,7 @@ import AgentSiteSelection, {
   getAgentSiteTimezone,
   getPreferredAgentSiteId,
 } from '../components/agent-site-selection';
+import { Picker } from '@/components/mcm/picker';
 
 type SourceStage = 1 | 2 | 3;
 
@@ -3528,27 +3529,35 @@ function CreateChatbotAgent() {
                 />
               </Field>
               <Field label="Primary language">
-                <select
-                  value={selectedLanguage}
-                  onChange={(event) => setSelectedLanguage(event.target.value)}
+                <Picker
+                  label="Primary language"
+                  showLabel={false}
+                  className="mcm-field"
                   disabled={isReadOnly}
-                  className={cx(
-                    'h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-primary',
-                    isReadOnly && 'cursor-not-allowed bg-gray-50 text-slate-600',
-                  )}
-                >
-                  {languageChoices.map((language) => (
-                    <option key={language.value} value={language.value}>
-                      {language.label}
-                    </option>
-                  ))}
-                </select>
+                  value={selectedLanguage}
+                  options={languageChoices.map((language) => ({
+                    label: String(language.label),
+                    value: String(language.value),
+                  }))}
+                  onChange={(option) => setSelectedLanguage(option.value)}
+                />
               </Field>
               <Field label="Role / use case">
-                <select
+                <Picker
+                  label="Role / use case"
+                  showLabel={false}
+                  className="mcm-field"
+                  disabled={isReadOnly || isLoadingUseCaseTemplates}
+                  placeholder={
+                    isLoadingUseCaseTemplates ? 'Loading templates…' : 'Select a template'
+                  }
                   value={roleUseCase}
-                  onChange={(event) => {
-                    const nextUseCase = event.target.value;
+                  options={useCaseTemplateOptions.map((option) => ({
+                    label: option.name,
+                    value: option.name,
+                  }))}
+                  onChange={(picked) => {
+                    const nextUseCase = picked.value;
                     const selectedTemplate = useCaseTemplateOptions.find(
                       (option) => option.name === nextUseCase,
                     );
@@ -3565,21 +3574,7 @@ function CreateChatbotAgent() {
                     );
                     setStepErrors((prev) => ({ ...prev, systemPrompt: '' }));
                   }}
-                  disabled={isReadOnly || isLoadingUseCaseTemplates}
-                  className={cx(
-                    'h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-primary',
-                    isReadOnly && 'cursor-not-allowed bg-gray-50 text-slate-600',
-                  )}
-                >
-                  <option value="">
-                    {isLoadingUseCaseTemplates ? 'Loading templates...' : 'Select a template'}
-                  </option>
-                  {useCaseTemplateOptions.map((option) => (
-                    <option key={option.id} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </Field>
             </div>
           </div>
@@ -5355,33 +5350,30 @@ function CreateChatbotAgent() {
               )}
               {isDataCollectionEnabled && enableCallMonitoring && (
                 <div className="mt-3">
-                  <select
-                    value={selectedCrmPipeline}
-                    onChange={(event) => setSelectedCrmPipeline(event.target.value)}
+                  {/* The four legacy CRM entries under this were in a hidden
+                      <optgroup>: unreachable markup naming pipelines nothing
+                      reads. */}
+                  <Picker
+                    label="CRM pipeline"
+                    showLabel={false}
+                    className="mcm-field"
                     disabled={
                       isReadOnly || isFetchingConnectedCrms || connectedCrmOptions.length === 0
                     }
-                    className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none focus:border-primary disabled:bg-gray-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="" disabled>
-                      {isFetchingConnectedCrms
-                        ? 'Checking connected CRMs...'
+                    placeholder={
+                      isFetchingConnectedCrms
+                        ? 'Checking connected CRMs…'
                         : connectedCrmOptions.length > 0
-                          ? 'Select CRM...'
-                          : 'No connected CRM available'}
-                    </option>
-                    {connectedCrmOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                    <optgroup hidden label="Legacy CRM options">
-                      <option value="hubspot-sales">HubSpot — Sales pipeline</option>
-                      <option value="hubspot-marketing">HubSpot — Marketing pipeline</option>
-                      <option value="salesforce">Salesforce — Leads</option>
-                      <option value="zoho">Zoho CRM — Contacts</option>
-                    </optgroup>
-                  </select>
+                          ? 'Select a CRM…'
+                          : 'No connected CRM available'
+                    }
+                    value={selectedCrmPipeline}
+                    options={connectedCrmOptions.map((option) => ({
+                      label: String(option.label),
+                      value: String(option.value),
+                    }))}
+                    onChange={(option) => setSelectedCrmPipeline(option.value)}
+                  />
                 </div>
               )}
             </div>

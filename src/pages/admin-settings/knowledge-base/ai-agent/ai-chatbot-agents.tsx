@@ -23,7 +23,7 @@ import {
 import { Icon, IconName } from '@/assets/icons/icon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Plus, Search, ChevronDown, Loader2 } from 'lucide-react';
+import { Plus, Search, ChevronDown, Loader2, TrendingUp } from 'lucide-react';
 import moment from 'moment';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -87,17 +87,19 @@ const normalizeSentiment = (value: any) => {
   return ['positive', 'neutral', 'negative'].includes(sentiment) ? sentiment : '';
 };
 
+/* Shared with the receptionist list, so the same feeling reads the same on
+   both screens and both follow the theme. */
 const sentimentBadgeClass = (sentiment: string) => {
-  if (sentiment === 'positive') return 'bg-emerald-100 text-emerald-700';
-  if (sentiment === 'negative') return 'bg-red-100 text-red-700';
-  if (sentiment === 'neutral') return 'bg-slate-100 text-slate-700';
-  return 'bg-gray-100 text-gray-500';
+  if (sentiment === 'positive') return 'mcm-aisent is-good';
+  if (sentiment === 'negative') return 'mcm-aisent is-bad';
+  if (sentiment === 'neutral') return 'mcm-aisent is-neutral';
+  return 'mcm-aisent is-none';
 };
 
 const sentimentEmoji = (sentiment: string) => {
   if (sentiment === 'negative') return '☹️';
-  if (sentiment === 'neutral') return '😐';
-  return '😊';
+  if (sentiment === 'neutral') return '';
+  return '';
 };
 
 const sentimentScoreRows = [
@@ -695,7 +697,7 @@ function AiChatbotAgents() {
                 <button
                   type="button"
                   title={agentName}
-                  className="block max-w-full truncate text-left text-[14px] font-extrabold leading-5 text-slate-950 transition-colors hover:text-primary cursor-pointer"
+                  className="mcm-ainame"
                   onClick={(event) => {
                     event.stopPropagation();
                     openAgentDetails(agent);
@@ -703,7 +705,7 @@ function AiChatbotAgents() {
                 >
                   {agentName}
                 </button>
-                <div className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[11px] leading-4 text-slate-500">
+                <div className="mcm-aisub">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                   <span className="line-clamp-2">{getAgentSubtitle(agent)}</span>
                 </div>
@@ -787,7 +789,7 @@ function AiChatbotAgents() {
         ),
         accessorKey: 'conversations',
         cell: ({ row }: any) => (
-          <div className="text-[14px] font-extrabold text-slate-950">
+          <div className="mcm-aimetric">
             {formatNumber(pickNumber(row?.original, metricPaths.conversations))}
           </div>
         ),
@@ -796,7 +798,7 @@ function AiChatbotAgents() {
         header: 'Resolution',
         accessorKey: 'resolution',
         cell: ({ row }: any) => (
-          <div className="text-[14px] font-extrabold text-slate-950">
+          <div className="mcm-aimetric">
             {formatPercent(pickNumber(row?.original, metricPaths.resolution))}
           </div>
         ),
@@ -897,36 +899,41 @@ function AiChatbotAgents() {
         cell: ({ row }: any) => {
           const agent = row?.original;
           const deleted = isDeletedAgent(agent);
+          /* The same row-action buttons as the AI receptionist list and the
+             rest of admin. These were five bespoke colour pairs — green,
+             primary-wash, grey, grey, red — which made a row of five equally
+             loud controls with no order to them. One leads (open in the
+             playground), one is destructive, the rest are quiet. */
           const actions = [
             {
               icon: 'Play' as IconName,
               onClick: () => handlePlaygroundClick(agent),
-              className: 'bg-green-100 text-green-900/80 hover:bg-green-500 hover:text-white',
-              tooltipText: 'Play',
+              className: 'is-go',
+              tooltipText: 'Open in playground',
             },
             agentAccess?.edit && {
               icon: 'SettingsIcon' as IconName,
               onClick: () => openWidgetConfigure(agent),
-              className: 'bg-primary/5 text-primary hover:bg-primary hover:text-white',
-              tooltipText: 'Configure',
+              className: '',
+              tooltipText: 'Configure widget',
             },
             agentAccess?.edit && {
               icon: 'EditStrokIcon' as IconName,
               onClick: () => openConfigureAgent(agent),
-              className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
+              className: '',
               tooltipText: 'Edit agent',
             },
             agentAccess?.edit && {
               icon: 'Chat' as IconName,
               onClick: () => openPromptEditor(agent),
-              className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
+              className: '',
               tooltipText: 'Edit prompt',
             },
             agentAccess?.delete &&
               !deleted && {
                 icon: 'TrashBin' as IconName,
                 onClick: () => setDeleteAgent(agent),
-                className: 'bg-red-100 text-red-500 hover:bg-red-500 hover:text-white',
+                className: 'is-risky',
                 tooltipText: 'Delete',
               },
           ].filter(Boolean) as Array<{
@@ -936,15 +943,16 @@ function AiChatbotAgents() {
             tooltipText: string;
           }>;
 
-          if (!actions.length) return '---';
+          if (!actions.length) return <span className="mcm-numnone">No actions</span>;
 
           return (
-            <div className="flex w-full min-w-[146px] items-center justify-end gap-1">
+            <div className="mcm-rowacts is-end">
               {actions.map((action) => (
                 <CustomTooltip key={action.tooltipText} text={action.tooltipText} side="top">
                   <button
                     type="button"
-                    className={`cursor-pointer flex h-[26px] w-[26px] items-center justify-center rounded-full ${action.className}`}
+                    aria-label={action.tooltipText}
+                    className={`mcm-rowact ${action.className}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       action.onClick();
@@ -1002,14 +1010,14 @@ function AiChatbotAgents() {
           </div>
 
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-            {agentAccess?.add && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setView('analytics')}
-                className="h-9 gap-2 rounded-lg border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300"
-              >
-                <span className="text-base leading-none">📊</span>
+            {/* Gated on `view`, not `add`. Reading how the agents are doing
+                is not creating one, and somebody allowed to look but not to
+                add had the Analytics button hidden from them. The icon is the
+                same lucide mark the receptionist screen uses rather than an
+                emoji. */}
+            {agentAccess?.view && (
+              <Button type="button" variant="outline" onClick={() => setView('analytics')}>
+                <TrendingUp className="h-4 w-4" />
                 Analytics
               </Button>
             )}
@@ -1018,7 +1026,6 @@ function AiChatbotAgents() {
                 type="button"
                 variant="primary"
                 onClick={() => navigate('/admin-settings/knowledge/create-agent')}
-                className="h-9 gap-2 rounded-lg px-4 text-sm font-semibold shadow-lg shadow-primary/20"
               >
                 <Plus className="h-4 w-4" />
                 Create New AI Chatbot Agent
@@ -1029,54 +1036,48 @@ function AiChatbotAgents() {
 
         <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-6 py-5">
           <div className="relative max-w-full flex-1 sm:max-w-[440px]">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="mcm-aisearch-i" />
             <input
               value={search}
               onChange={(event) => setSearch(sanitizeAiSearchText(event.target.value, 50))}
               placeholder="Search agents by name..."
               maxLength={50}
-              className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-500 hover:border-gray-300 focus:border-primary"
+              className="mcm-aisearch"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`h-9 rounded-full border px-4 text-sm font-bold transition-colors ${
-              statusFilter === 'all'
-                ? 'border-primary bg-primary text-white'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-            }`}
-          >
-            All <span>{totalAgentsCount}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('live')}
-            className={`h-9 rounded-full border px-4 text-sm font-bold transition-colors ${
-              statusFilter === 'live'
-                ? 'border-primary bg-primary text-white'
-                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-            }`}
-          >
-            Live <span>{liveAgentsCount}</span>
-          </button>
+          {/* One control with two positions, like the receptionist list. */}
+          <div className="mcm-segbar" role="tablist" aria-label="Filter agents">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === 'all'}
+              onClick={() => setStatusFilter('all')}
+              className={`mcm-seg${statusFilter === 'all' ? ' is-on' : ''}`}
+            >
+              All <span>{totalAgentsCount}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === 'live'}
+              onClick={() => setStatusFilter('live')}
+              className={`mcm-seg${statusFilter === 'live' ? ' is-on' : ''}`}
+            >
+              Live <span>{liveAgentsCount}</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5 pb-2">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="relative min-h-[86px] rounded-[10px] border border-gray-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-primary"
-              >
+              /* `hover:border-primary` is gone with the rest: these cards do
+                 nothing when clicked, and a hover state promises they do. */
+              <div key={stat.label} className="mcm-aistat">
                 {(isStatsFetching || isMetricsFetching) && <StatCardLoader />}
-                <p className="text-[11px] font-medium text-slate-500">{stat.label}</p>
-                <p className="mt-[3px] text-[22px] font-bold leading-7 text-slate-950">
-                  {stat.value}
-                </p>
-                {stat.helper ? (
-                  <p className="mt-0.5 text-[11px] font-medium text-emerald-500">{stat.helper}</p>
-                ) : null}
+                <p className="mcm-aistat-l">{stat.label}</p>
+                <p className="mcm-aistat-v">{stat.value}</p>
+                {stat.helper ? <p className="mcm-aistat-h">{stat.helper}</p> : null}
               </div>
             ))}
           </div>
@@ -1089,9 +1090,8 @@ function AiChatbotAgents() {
             extraParams={{ filters: tableFilters, date_filters: selectedDateFilters }}
             select={selectTableAgents}
             clientSideSearch={false}
-            customClass="shadow-sm [&_table]:table-fixed [&_thead]:bg-[#f8fafc] [&_th]:px-2 [&_th]:py-3 [&_th]:text-[11px] [&_th]:font-extrabold [&_th]:uppercase [&_th]:tracking-[0.04em] [&_th]:text-slate-500 [&_th:first-child]:w-[27%] [&_td:first-child]:w-[27%] [&_th:last-child]:w-[180px] [&_td]:h-[70px] [&_td]:px-2 [&_td]:py-2.5 [&_td:last-child]:w-[180px]"
+            customClass="mcm-aitable is-chat"
             loaderTableClass="min-h-[320px]"
-            getRowClassName={() => 'transition-colors hover:bg-gray-50/70'}
             emptyTablePlaceholder="No chat agents found"
             descriptionEmptyTable="Try a different search or create a new chat agent."
           />

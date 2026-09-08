@@ -301,7 +301,18 @@
   radio,
   checkbox,
   label {
-    color: var(--color-black);
+    /* Was Tailwind's literal black, which stayed black in the dark theme. */
+    color: var(--ink);
+  }
+
+  /* The option list of a native <select> is drawn by the operating system, and
+     no CSS reaches inside it — which is why a filter menu opened as a plain
+     white box with a hard blue highlight in the middle of a dark page.
+     color-scheme is the one lever there is: it tells the OS which way to draw
+     its own widgets. One declaration covers every native select, date input
+     and scrollbar in the app. */
+  .dark {
+    color-scheme: dark;
   }
 
   html {
@@ -340,16 +351,21 @@
     padding-right: 0.75rem !important;
     justify-content: space-between !important;
     align-items: center !important;
-    border-radius: 0.8rem !important;
+    border-radius: 9px !important;
     border-width: 1px !important;
     width: 100% !important;
     font-size: 0.875rem !important;
     line-height: 1.25rem !important;
-    background-color: var(--color-white) !important;
+    /* Was Tailwind's literal white on a literal grey border, so every
+       dropdown in the app stayed white on a dark page. Only the colours move
+       here — the heights and radii are untouched, because 96 screens are
+       laid out around them. */
+    background-color: var(--surface, #fff) !important;
+    color: var(--ink, #0d1526) !important;
     min-height: 10px !important;
     box-shadow: none !important;
     height: 2.5rem !important;
-    border-color: var(--color-gray-300) !important;
+    border-color: var(--line, #dfe5f0) !important;
     overflow: auto !important;
   }
 
@@ -423,17 +439,18 @@
     padding-right: 0.75rem !important;
     justify-content: space-between !important;
     align-items: center !important;
-    border-radius: 0.8rem !important;
+    border-radius: 9px !important;
     border-width: 1px !important;
     width: 100% !important;
     font-size: 0.875rem !important;
     line-height: 1.25rem !important;
-    background-color: var(--color-white) !important;
+    background-color: var(--surface, #fff) !important;
     min-height: 2.5rem !important;
     height: auto !important;
     box-shadow: none !important;
-    border-color: var(--color-gray-300) !important;
+    border-color: var(--line, #dfe5f0) !important;
     overflow: visible !important;
+    color: var(--ink, #0d1526) !important;
   }
 
   .select-group__control:hover {
@@ -481,15 +498,17 @@
     position: absolute !important;
     z-index: 9999 !important;
     margin-top: 0.25rem !important;
-    border-radius: 0.5rem !important;
+    border-radius: 12px !important;
     border-width: 1px !important;
     width: 100% !important;
-    background-color: var(--color-white) !important;
+    background-color: var(--surface, #fff) !important;
     box-shadow:
       0 10px 15px -3px rgba(0, 0, 0, 0.1),
       0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
     border-style: solid !important;
-    border-color: var(--primary) !important;
+    /* A hard blue outline round every open menu. The menu is already lifted
+       off the page by its shadow; the border only has to close the shape. */
+    border-color: var(--line, #dfe5f0) !important;
     padding: 0.25rem !important;
   }
 
@@ -500,35 +519,36 @@
     padding-right: 0.75rem !important;
     font-size: 0.875rem !important;
     line-height: 1.25rem !important;
-    color: var(--color-black) !important;
+    color: var(--ink, #0d1526) !important;
     cursor: pointer !important;
     border-radius: 0.5rem !important;
   }
 
   .select-group__option:hover,
   .select-group__option--is-focused {
-    background-color: var(--color-gray-100) !important;
-    color: var(--color-black) !important;
+    background-color: var(--accent-wash, #e8efff) !important;
+    color: var(--accent-ink, #1d4ed8) !important;
   }
 
   .select-group__option--is-selected {
-    background-color: var(--primary) !important;
-    color: var(--color-white) !important;
+    background-color: var(--accent-wash, #e8efff) !important;
+    color: var(--accent-ink, #1d4ed8) !important;
+    font-weight: 700 !important;
   }
 
   .select-group__indicator,
   .select-group__single-value,
   .select-group__multi-value__label {
-    color: var(--color-gray-900) !important;
+    color: var(--ink, #0d1526) !important;
   }
 
   .select-group__placeholder {
-    color: var(--color-gray-700) !important;
+    color: var(--ink-4, #93a0b8) !important;
     margin: 0 !important;
   }
 
   .select-group__multi-value {
-    background-color: var(--color-gray-100) !important;
+    background-color: var(--surface-3, #eaeef7) !important;
     margin: 0 !important;
     border-radius: 0.5rem !important;
     max-width: 100% !important;
@@ -592,54 +612,62 @@
     position: absolute !important;
     z-index: 9999 !important;
     margin-top: 0.25rem !important;
-    border-radius: 0.5rem !important;
+    border-radius: 12px !important;
     border-width: 1px !important;
     width: 100% !important;
-    background-color: var(--color-white) !important;
+    background-color: var(--surface, #fff) !important;
     box-shadow:
       0 10px 15px -3px rgba(0, 0, 0, 0.1),
       0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
     border-style: solid !important;
-    border-color: var(--primary) !important;
+    border-color: var(--line, #dfe5f0) !important;
     padding: 0.25rem !important;
   }
 
   .custom-react-select__option {
-    padding-top: 0.5rem !important;
-    padding-bottom: 0.5rem !important;
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
-    font-size: 0.875rem !important;
+    padding: 7px 10px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
     line-height: 1.25rem !important;
-    color: var(--color-black) !important;
+    color: var(--ink, #0d1526) !important;
     cursor: pointer !important;
-    border-radius: 0.5rem !important;
+    border-radius: 8px !important;
   }
 
   .custom-react-select__option:hover,
   .custom-react-select__option--is-focused {
-    background-color: var(--color-gray-100) !important;
-    color: var(--color-black) !important;
+    background-color: var(--accent-wash, #e8efff) !important;
+    color: var(--accent-ink, #1d4ed8) !important;
   }
 
+  /* The soft wash the Picker's menu uses for the chosen row, not a solid blue
+     fill. It was white text on a solid accent, which meant that the moment the
+     token behind the fill failed to resolve the row became white on white —
+     unreadable, and pointing at the row you had actually chosen. */
   .custom-react-select__option--is-selected {
-    background-color: var(--primary) !important;
-    color: var(--color-white) !important;
+    background-color: var(--accent-wash, #e8efff) !important;
+    color: var(--accent-ink, #1d4ed8) !important;
+    font-weight: 700 !important;
   }
 
-  .custom-react-select__indicator,
   .custom-react-select__single-value,
   .custom-react-select__multi-value__label {
-    color: var(--color-gray-900) !important;
+    color: var(--ink, #0d1526) !important;
+  }
+
+  .custom-react-select__indicator {
+    color: var(--ink-3, #6b7891) !important;
   }
 
   .custom-react-select__placeholder {
-    color: var(--color-gray-700) !important;
+    /* Was gray-700, dark enough to read as a chosen value rather than as the
+       absence of one. */
+    color: var(--ink-4, #93a0b8) !important;
     margin: 0 !important;
   }
 
   .custom-react-select__multi-value {
-    background-color: var(--color-gray-100) !important;
+    background-color: var(--surface-3, #eaeef7) !important;
     margin: 0 !important;
     border-radius: 0.5rem !important;
   }
@@ -679,7 +707,7 @@
   }
 
   .react-tel-input .form-control {
-    border-color: var(--color-gray-300) !important;
+    border-color: var(--line, #dfe5f0) !important;
     border-radius: 0.8rem !important;
     min-height: 2rem !important;
     height: 2.5rem !important;
@@ -717,7 +745,9 @@
   /* The country menu is a child of .flag-dropdown, so it has to opt back out of
      the transparent background above or it renders over the page unreadably. */
   .react-tel-input .country-list {
-    background-color: var(--color-white) !important;
+    background-color: var(--surface, #fff) !important;
+    color: var(--ink, #0d1526) !important;
+    border: 1px solid var(--line, #dfe5f0) !important;
     border-radius: 0.6rem !important;
     box-shadow:
       0 8px 24px rgb(0 0 0 / 0.12),
@@ -902,7 +932,14 @@
 
   .react-datepicker__month-select,
   .react-datepicker__year-select {
-    border: 1px solid var(--color-gray-300) !important;
+    border: 1px solid var(--line, #dfe5f0) !important;
+    background: var(--surface, #fff) !important;
+    color: var(--ink, #0d1526) !important;
+    /* The option list of a native select is drawn by the operating system and
+       no CSS reaches it. color-scheme is the one lever there is: it tells the
+       OS to draw the list dark when the page is dark. */
+    color-scheme: light dark;
+    border-radius: 6px !important;
     width: 100% !important;
   }
 
@@ -942,9 +979,9 @@
   .custom-react-select__option--is-disabled,
   .custom-react-select__control--is-disabled,
   input:disabled ~ .flag-dropdown {
-    background-color: var(--color-gray-100) !important;
-    border: var(--color-gray-100) !important;
-    color: var(--color-gray-500) !important;
+    background-color: var(--surface-3, #eaeef7) !important;
+    border: var(--surface-3, #eaeef7) !important;
+    color: var(--ink-4, #93a0b8) !important;
     cursor: not-allowed !important;
     opacity: 50 !important;
   }

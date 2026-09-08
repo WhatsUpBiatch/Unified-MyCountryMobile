@@ -75,6 +75,7 @@ import ForwardActionAllAi from './forward-action-all-ai';
 import { useUser } from '@/hooks/use-user';
 import useDebounce from '@/hooks/use-debounce';
 import { usePaginatedUsers } from '@/hooks/use-paginated-users';
+import { Picker } from '@/components/mcm/picker';
 
 type CreateAiReceptionistProps = {
   onClose: () => void;
@@ -2040,11 +2041,22 @@ const CreateAiReceptionist = ({
 
         <div className="mt-8">
           <label className="block text-sm font-semibold text-[#091A3A]">Select location</label>
-          <div className="relative mt-3">
-            <select
+          <div className="mt-3">
+            <Picker
+              label="Location"
+              showLabel={false}
+              className="mcm-field"
+              placeholder="Select a location"
               value={selectedLocationId}
-              onChange={(e) => {
-                const val = e.target.value;
+              options={[
+                ...sites.map((loc: any) => ({
+                  label: `${loc.name}${loc.is_default === '1' ? ' (Main Site)' : ''}`,
+                  value: String(loc.uuid || loc.id),
+                })),
+                { label: 'None (skip this step)', value: 'none' },
+              ]}
+              onChange={(option) => {
+                const val = option.value;
                 setSelectedLocationId(val);
                 if (val === 'none') {
                   formInstance.setValue('settings.operational_hours.type', '24_hours');
@@ -2056,16 +2068,7 @@ const CreateAiReceptionist = ({
                   setStepErrors((p) => ({ ...p, regionalSettings: '' }));
                 }
               }}
-              className="h-12 w-full appearance-none rounded-xl border border-primary bg-white px-4 pr-10 text-sm text-[#091A3A] outline-none ring-4 ring-primary/10"
-            >
-              {sites.map((loc: any) => (
-                <option key={loc.uuid || loc.id} value={loc.uuid || loc.id}>
-                  {loc.name} {loc.is_default === '1' ? '(Main Site)' : ''}
-                </option>
-              ))}
-              <option value="none">None (Skip this step)</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            />
           </div>
         </div>
 
@@ -2501,19 +2504,18 @@ const CreateAiReceptionist = ({
                 Adjust how creative or consistent the AI&apos;s responses are during calls.
               </p>
             </div>
-            <div className="relative w-full md:w-[280px]">
-              <select
-                value={temperature}
-                onChange={(e) => setTemperature(e.target.value)}
-                className="h-11 w-full appearance-none rounded-xl border border-gray-300 bg-white px-3 pr-10 text-sm text-[#091A3A] outline-none focus:border-primary"
-              >
-                {TEMPERATURE_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="w-full md:w-[280px]">
+              <Picker
+                label="Temperature"
+                showLabel={false}
+                className="mcm-field"
+                value={String(temperature)}
+                options={TEMPERATURE_OPTIONS.map((item) => ({
+                  label: String(item),
+                  value: String(item),
+                }))}
+                onChange={(option) => setTemperature(option.value)}
+              />
             </div>
           </div>
         </div>
@@ -2592,17 +2594,16 @@ const CreateAiReceptionist = ({
                 Set the maximum session length before the AI ends the active conversation.
               </p>
             </div>
-            <select
-              value={maxSessionDuration}
-              onChange={(e) => setMaxSessionDuration(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {MAX_SESSION_DURATION_OPTIONS.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {minutes} min
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Maximum session length"
+              showLabel={false}
+              value={String(maxSessionDuration)}
+              options={MAX_SESSION_DURATION_OPTIONS.map((minutes) => ({
+                label: `${minutes} min`,
+                value: String(minutes),
+              }))}
+              onChange={(option) => setMaxSessionDuration(Number(option.value))}
+            />
           </div>
         </div>
 
@@ -2614,17 +2615,16 @@ const CreateAiReceptionist = ({
                 Set how long to wait before sending an idle reminder.
               </p>
             </div>
-            <select
-              value={idleReminder}
-              onChange={(e) => setIdleReminder(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {IDLE_REMINDER_OPTIONS.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {seconds / 60} min
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Idle reminder"
+              showLabel={false}
+              value={String(idleReminder)}
+              options={IDLE_REMINDER_OPTIONS.map((seconds) => ({
+                label: `${seconds / 60} min`,
+                value: String(seconds),
+              }))}
+              onChange={(option) => setIdleReminder(Number(option.value))}
+            />
           </div>
         </div>
 
@@ -2636,17 +2636,16 @@ const CreateAiReceptionist = ({
                 Set how many reminder retries should be attempted.
               </p>
             </div>
-            <select
-              value={idleReminderRetry}
-              onChange={(e) => setIdleReminderRetry(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {IDLE_REMINDER_RETRY_OPTIONS.map((count) => (
-                <option key={count} value={count}>
-                  {count}
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Reminder retries"
+              showLabel={false}
+              value={String(idleReminderRetry)}
+              options={IDLE_REMINDER_RETRY_OPTIONS.map((count) => ({
+                label: String(count),
+                value: String(count),
+              }))}
+              onChange={(option) => setIdleReminderRetry(Number(option.value))}
+            />
           </div>
         </div>
       </div>

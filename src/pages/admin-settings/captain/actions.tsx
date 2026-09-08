@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AssistantSwitcher, useSelectedAssistant } from './assistant-switcher';
 import '@/components/mcm/mcm-page.css';
+import { Picker } from '@/components/mcm/picker';
 
 /**
  * Captain — Actions.
@@ -190,8 +191,6 @@ const emptyForm = {
   enabled: true,
 };
 
-const fieldClass =
-  'min-h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10';
 const textAreaClass =
   'w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10';
 
@@ -1111,10 +1110,7 @@ const CaptainActions = () => {
             <div className="flex gap-3">
               <div className="flex w-32 flex-col gap-1.5">
                 <Label>Method</Label>
-                <select value={form.http_method} onChange={(e) => setForm((f) => ({ ...f, http_method: e.target.value as any }))} className={fieldClass}>
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                </select>
+                <Picker label="Method" showLabel={false} className="mcm-field" value={form.http_method} options={[{ label: 'GET', value: 'GET' }, { label: 'POST', value: 'POST' }]} onChange={(o) => setForm((f) => ({ ...f, http_method: o.value as any }))} />
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
                 <Label>Endpoint URL</Label>
@@ -1158,11 +1154,7 @@ const CaptainActions = () => {
               {form.param_schema.map((p, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
                   <Input type="text" value={p.name} onChange={(e) => updateParam(i, { name: e.target.value })} placeholder="order_id" className="w-32" />
-                  <select value={p.type} onChange={(e) => updateParam(i, { type: e.target.value })} className={`${fieldClass} w-24`}>
-                    <option value="string">string</option>
-                    <option value="number">number</option>
-                    <option value="boolean">boolean</option>
-                  </select>
+                  <Picker label="Type" showLabel={false} className="mcm-field w-24" value={p.type} options={[{ label: 'string', value: 'string' }, { label: 'number', value: 'number' }, { label: 'boolean', value: 'boolean' }]} onChange={(o) => updateParam(i, { type: o.value })} />
                   <Input type="text" value={p.description} onChange={(e) => updateParam(i, { description: e.target.value })} placeholder="description" className="flex-1" />
                   <label className="flex items-center gap-1 text-xs text-gray-500">
                     <Checkbox checked={p.required} onCheckedChange={(c) => updateParam(i, { required: c === true })} />
@@ -1175,13 +1167,7 @@ const CaptainActions = () => {
 
             <div className="flex flex-col gap-2 rounded-xl border border-gray-200 p-3">
               <Label>Authentication</Label>
-              <select value={form.auth_type} onChange={(e) => setForm((f) => ({ ...f, auth_type: e.target.value as any, auth_config: {} }))} className={fieldClass}>
-                <option value="none">None</option>
-                <option value="bearer">Bearer token</option>
-                <option value="basic">Basic auth</option>
-                <option value="header">Custom header</option>
-                <option value="api_key">API key header</option>
-              </select>
+              <Picker label="Authentication" showLabel={false} className="mcm-field" value={form.auth_type} options={[{ label: 'None', value: 'none' }, { label: 'Bearer token', value: 'bearer' }, { label: 'Basic auth', value: 'basic' }, { label: 'Custom header', value: 'header' }, { label: 'API key header', value: 'api_key' }]} onChange={(o) => setForm((f) => ({ ...f, auth_type: o.value as any, auth_config: {} }))} />
               {form.auth_type === 'bearer' && (
                 <Input type="password" value={form.auth_config.token || ''} onChange={(e) => setForm((f) => ({ ...f, auth_config: { token: e.target.value } }))} placeholder="Token" />
               )}

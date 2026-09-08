@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import useDebounce from '@/hooks/use-debounce';
 import { useCompanyFeatures } from '@/hooks/rbac';
+import { Picker } from '@/components/mcm/picker';
 
 import { useSocketEvents } from '@/hooks/use-socket-events';
 import {
@@ -287,20 +288,20 @@ const UsersExtension: FC = () => {
             : person?.call_forwarding;
 
         return (
-          <select
-            className="mcm-presence-admin"
-            aria-label="Set my availability"
-            value={presenceValueOf(rules?.status)}
-            disabled={isSettingPresence}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => setMyPresence(event.target.value)}
-          >
-            {PRESENCE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <span onClick={(event) => event.stopPropagation()}>
+            <Picker
+              label="Set my availability"
+              showLabel={false}
+              className="mcm-presence-admin"
+              disabled={isSettingPresence}
+              value={presenceValueOf(rules?.status)}
+              options={PRESENCE_OPTIONS.map((option) => ({
+                label: String(option.label),
+                value: String(option.value),
+              }))}
+              onChange={(option) => setMyPresence(option.value)}
+            />
+          </span>
         );
       },
     },

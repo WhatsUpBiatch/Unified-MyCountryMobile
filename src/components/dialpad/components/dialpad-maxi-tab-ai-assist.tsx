@@ -4,6 +4,7 @@ import { getAISettingToken, getChatAgentList } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, SendHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Picker } from '@/components/mcm/picker';
 
 type DialpadMaxiTabAiAssistProps = {
   activeSession: DialpadSession | null;
@@ -419,25 +420,19 @@ const DialpadMaxiTabAiAssist = ({ activeSession }: DialpadMaxiTabAiAssistProps) 
         </div>
 
         <div className="min-w-[160px] max-w-[220px]">
-          <select
-            value={selectedAgentId}
-            onChange={(event) => setSelectedAgentId(event.target.value)}
+          <Picker
+            label="AI agent"
+            showLabel={false}
+            className="mcm-field"
             disabled={isChatAgentListLoading || chatAgentOptions.length === 0}
-            aria-label="Select AI agent"
-            className="h-9 w-full rounded-lg border border-[#d7e3f5] bg-white px-2.5 text-xs font-medium text-[#2b4568] outline-none transition focus:border-primary"
-          >
-            {isChatAgentListLoading ? (
-              <option value="">Loading agents...</option>
-            ) : chatAgentOptions.length === 0 ? (
-              <option value="">No agents available</option>
-            ) : (
-              chatAgentOptions.map((agent) => (
-                <option key={agent.value} value={agent.value}>
-                  {agent.label}
-                </option>
-              ))
-            )}
-          </select>
+            placeholder={isChatAgentListLoading ? 'Loading agents…' : 'No agents available'}
+            value={selectedAgentId}
+            options={chatAgentOptions.map((agent) => ({
+              label: String(agent.label),
+              value: String(agent.value),
+            }))}
+            onChange={(option) => setSelectedAgentId(option.value)}
+          />
         </div>
       </div>
 

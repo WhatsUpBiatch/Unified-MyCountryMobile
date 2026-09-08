@@ -1,6 +1,7 @@
 import type { DialpadSession } from '@/context/dialpad-context';
 import { getDialpadSessionStatusLabel } from '../session-status';
 import { getDialpadSessionDisplayInfo } from '../session-display';
+import { Picker } from '@/components/mcm/picker';
 
 type DialpadSessionSwitcherProps = {
   sessions: DialpadSession[];
@@ -29,21 +30,17 @@ const DialpadSessionSwitcher = ({
         Call Sessions
       </div>
 
-      <select
+      <Picker
+        label="Active call"
+        showLabel={false}
+        className="mcm-field"
         value={activeSessionId ?? ''}
-        onChange={(event) => onSwitchSession(event.target.value)}
-        className="w-full rounded-xl border border-[#d6e3f5] bg-ucass-active-bg px-2 py-1.5 text-[12px] font-medium text-[#274368] outline-none transition max-[380px]:px-1.5 max-[380px]:py-1 max-[380px]:text-[11px] sm:px-2.5 sm:py-2 sm:text-sm md:text-[14px] focus:border-ucass-active-bg focus:ring-2 focus:ring-ucass-active-bg/35"
-      >
-        {sessions.map((session) => {
-          const statusLabel = getDialpadSessionStatusLabel(session);
-          const label = getDialpadSessionSwitcherLabel(session, statusLabel);
-          return (
-            <option key={session.id} value={session.id}>
-              {label}
-            </option>
-          );
-        })}
-      </select>
+        options={sessions.map((session) => ({
+          label: getDialpadSessionSwitcherLabel(session, getDialpadSessionStatusLabel(session)),
+          value: String(session.id),
+        }))}
+        onChange={(option) => onSwitchSession(option.value)}
+      />
     </div>
   );
 };

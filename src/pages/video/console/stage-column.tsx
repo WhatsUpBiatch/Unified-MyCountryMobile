@@ -12,6 +12,7 @@ import { mmss, type BackdropMode, type StageLayout, type VideoConsole } from './
 import DemoChip from './panes/demo-chip';
 import { JoinView, ScheduleView } from './stage-forms';
 import type { PanelTab } from './panel-column';
+import { Picker } from '@/components/mcm/picker';
 
 type Props = {
   vc: VideoConsole;
@@ -471,15 +472,18 @@ const GreenRoom = ({ vc, selfName }: { vc: VideoConsole; selfName: string }) => 
 
             <div className="devrow">
               <Ic n="mic" />
-              <select
+              <Picker
+                label="Microphone"
+                showLabel={false}
+                className="mcm-field"
                 value={vc.media.micDevice}
-                onChange={(e) => vc.patchMedia({ micDevice: e.target.value })}
-                aria-label="Microphone"
-              >
-                <option>MacBook Pro Microphone</option>
-                <option>Jabra Evolve2 65</option>
-                <option>Poly Blackwire 3325</option>
-              </select>
+                options={[
+                  { label: 'MacBook Pro Microphone', value: 'MacBook Pro Microphone' },
+                  { label: 'Jabra Evolve2 65', value: 'Jabra Evolve2 65' },
+                  { label: 'Poly Blackwire 3325', value: 'Poly Blackwire 3325' },
+                ]}
+                onChange={(option) => vc.patchMedia({ micDevice: option.value })}
+              />
             </div>
             <div className="devrow">
               <Ic n="volume" />
@@ -498,27 +502,33 @@ const GreenRoom = ({ vc, selfName }: { vc: VideoConsole; selfName: string }) => 
             </div>
             <div className="devrow">
               <Ic n="volume" />
-              <select
+              <Picker
+                label="Speaker"
+                showLabel={false}
+                className="mcm-field"
                 value={vc.media.spkDevice}
-                onChange={(e) => vc.patchMedia({ spkDevice: e.target.value })}
-                aria-label="Speaker"
-              >
-                <option>MacBook Pro Speakers</option>
-                <option>Jabra Evolve2 65</option>
-                <option>Studio Display Speakers</option>
-              </select>
+                options={[
+                  { label: 'MacBook Pro Speakers', value: 'MacBook Pro Speakers' },
+                  { label: 'Jabra Evolve2 65', value: 'Jabra Evolve2 65' },
+                  { label: 'Studio Display Speakers', value: 'Studio Display Speakers' },
+                ]}
+                onChange={(option) => vc.patchMedia({ spkDevice: option.value })}
+              />
             </div>
             <div className="devrow">
               <Ic n="video" />
-              <select
+              <Picker
+                label="Camera"
+                showLabel={false}
+                className="mcm-field"
                 value={vc.media.camDevice}
-                onChange={(e) => vc.patchMedia({ camDevice: e.target.value })}
-                aria-label="Camera"
-              >
-                <option>FaceTime HD Camera</option>
-                <option>Logitech Brio 4K</option>
-                <option>OBS Virtual Camera</option>
-              </select>
+                options={[
+                  { label: 'FaceTime HD Camera', value: 'FaceTime HD Camera' },
+                  { label: 'Logitech Brio 4K', value: 'Logitech Brio 4K' },
+                  { label: 'OBS Virtual Camera', value: 'OBS Virtual Camera' },
+                ]}
+                onChange={(option) => vc.patchMedia({ camDevice: option.value })}
+              />
             </div>
           </div>
 

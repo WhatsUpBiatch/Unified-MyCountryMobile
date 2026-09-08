@@ -706,6 +706,202 @@ const PERSON_STATES = () =>
     state: i === 5 ? 'PENDING' : i === 11 ? 'SUSPENDED' : 'ACTIVE',
   }));
 
+/* ── AI tools ──────────────────────────────────────────────────────────────
+
+   Five screens read from these: AI receptionists, chat agents, the playground,
+   sessions and settings. None were mocked, so the generic fallback answered
+   every one of them with rows from the user list — eight receptionists all
+   called "Untitled", none live, every metric zero.
+
+   The data is deliberately uneven, because these screens are almost entirely
+   about state: a receptionist that is live and one that is paused and one still
+   a draft; agents with a caller ID assigned and agents without; sentiment that
+   has been measured and sentiment that has not. A list where every row is
+   identical shows one branch of each cell and hides the rest. */
+
+const RECEPTIONISTS = [
+  {
+    uuid: f.uuid('rec0'),
+    agent_uuid: f.uuid('rec0'),
+    agentName: 'Front desk',
+    agentType: 'voice',
+    status: 'live',
+    description: 'Reception · 24/7 voice assistant',
+    /* A number assigned, so the Caller Id cell shows one rather than the
+       "Assign Caller Id" link. Both states are worth seeing. */
+    did_uuid: [{ uuid: f.uuid('n0'), did_number: '+15125559618' }],
+    calls_handled: 412,
+    resolution_rate: 78,
+    average_call_duration: 154,
+    sentiment_calls: 412,
+    avg_sentiment: 74,
+    sentiment_label: 'positive',
+    sentiment_counts: { positive: 305, neutral: 78, negative: 29 },
+    updated_at: f.daysAgo(1),
+  },
+  {
+    uuid: f.uuid('rec1'),
+    agent_uuid: f.uuid('rec1'),
+    agentName: 'After hours',
+    agentType: 'voice',
+    status: 'live',
+    description: 'Out of hours · takes messages',
+    did_uuid: [{ uuid: f.uuid('n5'), did_number: '+15125555800' }],
+    calls_handled: 96,
+    resolution_rate: 54,
+    average_call_duration: 88,
+    sentiment_calls: 96,
+    avg_sentiment: 41,
+    sentiment_label: 'neutral',
+    sentiment_counts: { positive: 30, neutral: 44, negative: 22 },
+    updated_at: f.daysAgo(3),
+  },
+  {
+    uuid: f.uuid('rec2'),
+    agent_uuid: f.uuid('rec2'),
+    agentName: 'Billing questions',
+    agentType: 'voice',
+    status: 'paused',
+    description: 'Billing · answers account questions',
+    did_uuid: [],
+    calls_handled: 58,
+    resolution_rate: 31,
+    average_call_duration: 210,
+    /* Measured, and the answer is not good. A demo where every sentiment is
+       positive never shows the cell's other colours. */
+    sentiment_calls: 58,
+    avg_sentiment: 18,
+    sentiment_label: 'negative',
+    sentiment_counts: { positive: 6, neutral: 14, negative: 38 },
+    updated_at: f.daysAgo(6),
+  },
+  {
+    uuid: f.uuid('rec3'),
+    agent_uuid: f.uuid('rec3'),
+    agentName: 'Order status',
+    agentType: 'voice',
+    status: 'inactive',
+    description: 'Draft · not answering yet',
+    did_uuid: [],
+    /* Never taken a call, so there is nothing to analyse. This is what the
+       "Not analyzed" pill is for. */
+    calls_handled: 0,
+    resolution_rate: 0,
+    average_call_duration: 0,
+    sentiment_calls: 0,
+    avg_sentiment: 0,
+    sentiment_counts: null,
+    forward_call_actions: { receptionist_builder: { draft: true } },
+    updated_at: f.daysAgo(11),
+  },
+];
+
+const CHAT_AGENTS = [
+  {
+    uuid: f.uuid('cha0'),
+    /* `_id` as well: the AI settings pickers build their options with
+       `value: agent._id`, so without it every channel showed "Select agent"
+       however it was configured. */
+    _id: f.uuid('cha0'),
+    agent_uuid: f.uuid('cha0'),
+    agentName: 'Support bot',
+    name: 'Support bot',
+    agentType: 'chat',
+    status: 'live',
+    description: 'chat',
+    conversations: 268,
+    resolution_rate: 71,
+    confidence: 82,
+    sentiment_calls: 268,
+    avg_sentiment: 68,
+    sentiment_label: 'positive',
+    sentiment_counts: { positive: 180, neutral: 61, negative: 27 },
+    updated_at: f.daysAgo(2),
+  },
+  {
+    uuid: f.uuid('cha1'),
+    _id: f.uuid('cha1'),
+    agent_uuid: f.uuid('cha1'),
+    agentName: 'Sales assistant',
+    name: 'Sales assistant',
+    agentType: 'chat',
+    status: 'paused',
+    description: 'chat',
+    conversations: 41,
+    resolution_rate: 39,
+    confidence: 55,
+    sentiment_calls: 0,
+    avg_sentiment: 0,
+    sentiment_counts: null,
+    updated_at: f.daysAgo(9),
+  },
+];
+
+/* Sessions: every AI call and chat, with its transcript and outcome.
+
+   The field names here are the screen's, not the API's house style, because
+   the screen is what has to read them: `startedAt` and `createdAt` in camel
+   case (a snake_case `started_at` fails the date-range filter and every row
+   silently disappears), `durationMs` rather than seconds, `channel: 'call'`
+   for voice, and the contact's details inside `collectedData` as
+   `{ value }` pairs.
+
+   Outcome is derived rather than stored — `status: 'active'`, `handoff` and
+   `scheduledCallback` decide it — so all four states are represented below;
+   with only resolved sessions the outcome filter has nothing to filter. */
+const AI_SESSIONS = () =>
+  f.seq(14, (i) => {
+    const isCall = i % 3 !== 2;
+    const agent = isCall ? RECEPTIONISTS[i % RECEPTIONISTS.length] : CHAT_AGENTS[i % 2];
+    const person = f.person(`sc${i}`);
+    const startedAt = f.minutesAgo(i * 137 + 20);
+    /* One of each: still running, handed to a person, a callback booked, and
+       the rest resolved by the agent alone. */
+    const active = i === 0;
+    const handoff = i % 5 === 1;
+    const callback = i % 7 === 3;
+
+    return {
+      uuid: f.uuid(`ses${i}`),
+      sessionId: f.uuid(`ses${i}`),
+      channel: isCall ? 'call' : 'chat',
+      agentId: agent.uuid,
+      agent_id: agent.uuid,
+      agentName: agent.agentName,
+      agent_name: agent.agentName,
+      startedAt,
+      createdAt: startedAt,
+      durationMs: f.number(`sd${i}`, 25, 420) * 1000,
+      totalCostUSD: f.number(`scst${i}`, 2, 40) / 100,
+      status: active ? 'active' : 'ended',
+      handoff: handoff && !active,
+      scheduledCallback: callback && !active && !handoff,
+      callerId: isCall ? f.phone(`sc${i}`) : '',
+      collectedData: {
+        name: { value: person.name },
+        ...(isCall ? { phone: { value: f.phone(`sc${i}`) } } : { email: { value: person.email } }),
+      },
+      /* `sentiment` is the label and `sentiment_scores` the three-way split
+         the bar in the column draws. Without them the cell renders an empty
+         bar and a dash, which reads as "neutral" rather than "not measured". */
+      sentiment: ['positive', 'neutral', 'negative', 'positive'][i % 4],
+      sentiment_scores: [
+        { positive: 0.82, neutral: 0.13, negative: 0.05 },
+        { positive: 0.31, neutral: 0.55, negative: 0.14 },
+        { positive: 0.09, neutral: 0.22, negative: 0.69 },
+        { positive: 0.74, neutral: 0.2, negative: 0.06 },
+      ][i % 4],
+      summary: [
+        'Asked when the office opens and was told.',
+        'Wanted a copy of last month\'s invoice.',
+        'Reported a fault and was passed to an engineer.',
+        'Asked to be called back tomorrow morning.',
+      ][i % 4],
+      transcript:
+        'Sandbox transcript — the caller asked a question and the agent answered it.',
+    };
+  });
+
 /* Named handlers, matched on the path ending. */
 const HANDLERS = [
   ['/api/user/info', () => ok(persona(currentRole))],
@@ -843,6 +1039,80 @@ const HANDLERS = [
      and SMS — each with its own per-minute or per-message price. Rates differ
      by line type, which is the whole reason the list is not one number, so
      mobile and landline are priced apart here. */
+  ['/api/ai/receptionist/list', (b) => page(RECEPTIONISTS, b)],
+  ['/api/ai/receptionist/metrics', () =>
+    ok({
+      /* The tiles above the table sum the whole estate, not one row. */
+      calls_handled: RECEPTIONISTS.reduce((n, r) => n + r.calls_handled, 0),
+      calls_handled_7d: RECEPTIONISTS.reduce((n, r) => n + r.calls_handled, 0),
+      resolution_rate: 63,
+      average_call_duration: 147,
+      sentiment_calls: RECEPTIONISTS.reduce((n, r) => n + r.sentiment_calls, 0),
+      avg_sentiment: 58,
+      sentiment_label: 'positive',
+      rows: RECEPTIONISTS.map((r) => ({ agent_uuid: r.agent_uuid, ...r })),
+    })],
+  ['/api/ai/chat-agent/list', (b) => page(CHAT_AGENTS, b)],
+  /* Conversations, resolution and confidence come from here, keyed by agent —
+     the list rows alone leave those three columns as dashes. */
+  ['/api/ai/chat-agent/metrics', () =>
+    ok({
+      conversations: CHAT_AGENTS.reduce((n, a) => n + a.conversations, 0),
+      conversations_7d: CHAT_AGENTS.reduce((n, a) => n + a.conversations, 0),
+      resolution_rate: 61,
+      avg_confidence: 74,
+      sentiment_calls: CHAT_AGENTS.reduce((n, a) => n + a.sentiment_calls, 0),
+      avg_sentiment: 68,
+      sentiment_label: 'positive',
+      rows: CHAT_AGENTS.map((a) => ({
+        agent_uuid: a.agent_uuid,
+        conversations: a.conversations,
+        conversations_7d: a.conversations,
+        resolution_rate: a.resolution_rate,
+        avg_confidence: a.confidence,
+        sentiment_calls: a.sentiment_calls,
+        avg_sentiment: a.avg_sentiment,
+        sentiment_label: a.sentiment_label,
+        sentiment_counts: a.sentiment_counts,
+      })),
+    })],
+  /* `getAgentList` — despite the name — posts to /api/ai/agent/list, not
+     /api/agent. The Sessions screen builds its agent lookup from it, so with
+     the wrong path mocked every voice session showed its agent as "Deleted"
+     and the agent picker offered only the chat agents. Longer path first: the
+     matcher takes the first entry the URL starts with, and /api/ai/agent would
+     otherwise swallow /api/ai/agent/session. */
+  ['/api/ai/agent/session', (b) => {
+    let rows = AI_SESSIONS();
+    const channel = b?.channel;
+    const agentId = b?.agentId;
+    /* The tabs send 'voice', the rows carry 'call'. */
+    if (channel) rows = rows.filter((r) => r.channel === (channel === 'voice' ? 'call' : channel));
+    if (agentId) rows = rows.filter((r) => r.agentId === agentId);
+    return page(rows, b);
+  }],
+  ['/api/ai/agent/list', (b) => page(RECEPTIONISTS, b)],
+  ['/api/agent', (b) => page([...RECEPTIONISTS, ...CHAT_AGENTS], b)],
+  ['/api/ai/agent-type', (b) => {
+    const wanted = String(b?.type || '').toLowerCase();
+    const rows = wanted === 'chat' ? CHAT_AGENTS : wanted === 'voice' ? RECEPTIONISTS : [...RECEPTIONISTS, ...CHAT_AGENTS];
+    return page(rows, b);
+  }],
+  /* Which agent answers on which channel.
+
+     A flat array of { type, name, agentId } read at `response.data.data` —
+     not the usual { result } envelope, which is why this one is built by hand.
+     Two channels are wired and the rest are not: the picker's empty state is
+     a real one and worth being able to see. */
+  ['/api/ai/setting/list', () => ({
+    success: true,
+    data: [
+      { type: 'AI_BOT', name: 'WHATSAPP', agentId: f.uuid('cha0') },
+      { type: 'AI_ASSISTANT', name: 'FACEBOOK', agentId: f.uuid('cha0') },
+      { type: 'AI_ASSISTANT', name: 'WHATSAPP', agentId: f.uuid('cha0') },
+      { type: 'AI_ASSISTANT', name: 'TELEGRAM', agentId: f.uuid('cha1') },
+    ],
+  })],
   ['/api/user/rates', (b) => {
     const clause = b?.filter || {};
     const wanted = String(clause?.value || '').trim();

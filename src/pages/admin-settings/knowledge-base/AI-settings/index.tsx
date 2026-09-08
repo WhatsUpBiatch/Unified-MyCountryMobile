@@ -1,12 +1,9 @@
 import { Icon } from '@/assets/icons/icon';
 import { IconType } from '@/assets/icons/type';
-import CustomSelect from '@/components/custom/custom-select';
-// import { Button } from '@/components/ui/button';
-// import { Input } from '@/components/ui/input';
+import { Picker } from '@/components/mcm/picker';
 import { AISettingConfig, getAISettingConfig, getChatAgentList } from '@/services/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { handleAlert } from '@/lib/utils';
 
@@ -16,27 +13,45 @@ const socialMediaList = [
   { key: 'telegram', apiName: 'TELEGRAM', name: 'Telegram', icon: 'TelegramIcon' },
   { key: 'instagram', apiName: 'INSTAGRAM', name: 'Instagram', icon: 'Instagram' },
   { key: 'on_call', apiName: 'ON_CALL', name: 'On call', icon: 'PhoneCallingLine' },
-  { key: 'chat_assistant', apiName: 'CHAT_ASSISTANT', name: 'Chat Assistant', icon: 'Chat2' },
+  { key: 'chat_assistant', apiName: 'CHAT_ASSISTANT', name: 'Chat assistant', icon: 'Chat2' },
+];
+
+/* The page is two columns of the same channel names with nothing saying how
+   they differ — the one thing somebody opening it needs to know. They are two
+   different jobs: the bot talks to your customer instead of you, the assistant
+   sits in your own inbox and drafts what you might say. Picking the wrong
+   column puts an AI in front of a customer when you meant to help an agent. */
+const panels = [
+  {
+    type: 'AI_BOT' as const,
+    field: 'aiBot',
+    title: 'AI bot',
+    blurb: 'Answers the customer directly on that channel, with no one else in the conversation.',
+    /* On call and Chat assistant are staff-side surfaces, so there is no
+       customer-facing bot to put on them. */
+    channels: socialMediaList.filter(
+      (media) => media.key !== 'on_call' && media.key !== 'chat_assistant',
+    ),
+  },
+  {
+    type: 'AI_ASSISTANT' as const,
+    field: 'aiAssistance',
+    title: 'AI assist',
+    blurb: 'Suggests replies to your team inside the inbox. Nothing is sent until someone sends it.',
+    channels: socialMediaList,
+  },
 ];
 
 function AISettings() {
   const navigate = useNavigate();
-  const [initialized, setInitialized] = useState(false);
 
-  const {
-    control,
-    reset,
-    formState: { errors },
-  } = useForm<any>({
-    mode: 'onSubmit',
-    defaultValues: {
-      aiBot: {},
-      aiAssistance: {},
-    },
+  /* Was react-hook-form with a Controller per row. Nothing is ever submitted —
+     every pick fires its own mutation — so the form was holding two plain
+     objects and giving back a `reset` this could do itself. */
+  const [assigned, setAssigned] = useState<Record<string, Record<string, string>>>({
+    aiBot: {},
+    aiAssistance: {},
   });
-
-  // const [customModel, setCustomModel] = useState<any>(null);
-  // const [secretKey, setSecretKey] = useState('');
 
   const { data: typeListData = [] } = useQuery({
     queryKey: ['getChatAgentList'],
@@ -53,14 +68,15 @@ function AISettings() {
     );
   }, [typeListData]);
 
-  // const modelOptions = useMemo(() => {
-  //   return [{ label: 'Open AI', value: 'openai' }];
-  // }, [chatAgents]);
-  // const modelOptions = useMemo(() => {
-  //   return [{ label: 'Open AI', value: 'openai' }, ...(chatAgents || [])];
-  // }, [chatAgents]);
+  /* "Nobody" is the first option rather than a clear button beside the field:
+     turning a channel off is the same kind of decision as picking who answers
+     it, so it belongs in the same list. */
+  const agentChoices = useMemo(
+    () => [{ label: 'Nobody — off', value: '' }, ...allAgents],
+    [allAgents],
+  );
 
-  const { data: savedSettings = [], isLoading } = useQuery({
+  const { data: savedSettings = [] } = useQuery({
     queryKey: ['getAISettingConfig'],
     queryFn: () => getAISettingConfig(),
     select: (data) => data?.data?.data || [],
@@ -79,188 +95,82 @@ function AISettings() {
     },
   });
 
+  /* There were two of these — one guarded by an `initialized` flag that could
+     only ever run first, and this one, which does the same work unguarded. The
+     flag and its effect were dead the moment the second one existed. */
   useEffect(() => {
-    if (initialized) return;
-
-    if (savedSettings?.length && allAgents?.length) {
-      const values = mapSavedValues(savedSettings, allAgents);
-      reset(values);
-      setInitialized(true);
-    }
-  }, [savedSettings, allAgents, initialized, reset]);
-  useEffect(() => {
-    if (savedSettings?.length && allAgents?.length) {
-      const values = mapSavedValues(savedSettings, allAgents);
-      reset(values);
-    }
+    if (!savedSettings?.length || !allAgents?.length) return;
+    const next: Record<string, Record<string, string>> = { aiBot: {}, aiAssistance: {} };
+    savedSettings.forEach((item: any) => {
+      const media = socialMediaList.find((m) => m.apiName === item?.name);
+      const agent = allAgents.find((a: any) => a?.value === item?.agentId);
+      if (!media || !agent) return;
+      next[item?.type === 'AI_BOT' ? 'aiBot' : 'aiAssistance'][media.key] = agent.value;
+    });
+    setAssigned(next);
   }, [savedSettings, allAgents]);
 
-  const mapSavedValues = (settings: any[], agents: any[]) => {
-    const defaults: any = {
-      aiBot: {},
-      aiAssistance: {},
-    };
-
-    settings?.forEach((item) => {
-      const media = socialMediaList?.find((m) => m?.apiName === item?.name);
-      if (!media) return;
-
-      const agent = agents?.find((a) => a?.value === item?.agentId);
-      if (!agent) return;
-
-      if (item.type === 'AI_BOT') {
-        defaults.aiBot[media.key] = agent;
-      } else {
-        defaults.aiAssistance[media.key] = agent;
-      }
-    });
-
-    return defaults;
-  };
-
-  const handleAgentUpdate = (type: 'AI_BOT' | 'AI_ASSISTANT', media: any, selectedAgent: any) => {
-    const payload = {
-      type,
-      name: media?.apiName,
-      agentId: selectedAgent?.value || '',
-    };
-    mutate(payload);
+  const handleAgentUpdate = (panel: (typeof panels)[number], media: any, agentId: string) => {
+    setAssigned((current) => ({
+      ...current,
+      [panel.field]: { ...current[panel.field], [media.key]: agentId },
+    }));
+    mutate({ type: panel.type, name: media?.apiName, agentId });
   };
 
   return (
-    <form className="w-full bg-gray-200/15 flex flex-col">
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-        <div>
-          <div className="text-gray-900 font-semibold text-lg flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => navigate('/admin-settings/knowledge/ai-agent')}
-              className="text-slate-500 transition-colors hover:text-primary"
-            >
-              AI Agents
-            </button>
-            <div className="-rotate-90 text-gray-800">
-              <Icon name="ChevronIcon" className="w-5 h-5" />
-            </div>
-            <span className="text-primary text-md">Settings</span>
-          </div>
+    <section className="mcm-aiset">
+      <div className="mcm-aiset-head">
+        <div className="mcm-aihead-b">
+          <button
+            type="button"
+            onClick={() => navigate('/admin-settings/knowledge/ai-agent')}
+            className="transition-colors hover:text-primary"
+          >
+            AI Agents
+          </button>
+          <span>/</span>
+          <span className="mcm-aihead-here">Settings</span>
         </div>
-        <p className="text-gray-500 text-xs">
-          How your AI tools behave — models, limits and what they may act on.
+        {/* Was floated to the far right of the bar, on its own, reading as a
+            caption belonging to nothing. */}
+        <p className="mcm-aihead-d">
+          Which agent handles each channel. Changes save as you pick them.
         </p>
       </div>
 
-      <div className="w-full h-full flex  flex-col sm:flex-row gap-4 justify-between p-3">
-        <div className="h-full bg-white rounded-lg border p-4 w-full">
-          <h3 className="font-semibold text-gray-800 mb-3">AI Bot</h3>
-          <div className="flex flex-col gap-1 h-[calc(100vh-14rem)] overflow-y-auto pr-1">
-            <div className="flex flex-col gap-2">
-              {socialMediaList
-                ?.filter((media) => media.key !== 'on_call' && media.key !== 'chat_assistant')
-                ?.map((media) => (
-                  <div
-                    key={media.key}
-                    className="flex items-center justify-between border rounded-md p-2 hover:bg-gray-50 transition"
-                  >
-                    <div className="flex items-center gap-2 text-gray-800">
-                      <Icon name={media.icon as IconType} className="w-5 h-5 text-gray-700" />
-                      <span className="font-medium">{media.name}</span>
+      <div className="mcm-aiset-body">
+        <div className="mcm-aiset-cols">
+          {panels.map((panel) => (
+            <section key={panel.type} className="mcm-aiset-card">
+              <header className="mcm-aiset-cardhead">
+                <h3>{panel.title}</h3>
+                <p>{panel.blurb}</p>
+              </header>
+              <div className="mcm-aiset-rows">
+                {panel.channels.map((media) => (
+                  <div key={media.key} className="mcm-aiset-row">
+                    <div className="mcm-aiset-chan">
+                      <Icon name={media.icon as IconType} className="h-[18px] w-[18px]" />
+                      <span>{media.name}</span>
                     </div>
 
-                    <Controller
-                      control={control}
-                      name={`aiBot.${media.key}`}
-                      render={({ field }) => (
-                        <CustomSelect
-                          {...field}
-                          isClearable
-                          isLoading={isLoading}
-                          placeholder="Select agent"
-                          className="max-w-60"
-                          handleChange={(value) => {
-                            field.onChange(value);
-                            handleAgentUpdate('AI_BOT', media, value);
-                          }}
-                          options={allAgents || []}
-                          error={(errors?.aiBot as any)?.[media.key]?.message}
-                        />
-                      )}
+                    <Picker
+                      label={`${panel.title} on ${media.name}`}
+                      showLabel={false}
+                      className="mcm-aiset-sel"
+                      value={assigned[panel.field]?.[media.key] || ''}
+                      options={agentChoices}
+                      onChange={(option) => handleAgentUpdate(panel, media, option.value)}
                     />
                   </div>
                 ))}
-            </div>
-            {/* <h3 className="font-semibold text-gray-800 mb-3 mt-4">Add your own AI Model</h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5 w-full">
-                <p className="text-sm leading-none font-semibold text-gray-800">Select model</p>
-                <CustomSelect
-                  value={customModel}
-                  isLoading={isLoading}
-                  placeholder="Select model"
-                  className=""
-                  handleChange={(value) => {
-                    setCustomModel(value);
-                  }}
-                  options={modelOptions || []}
-                />
               </div>
-              {customModel?.value === 'openai' && (
-                <>
-                  <Input
-                    value={secretKey}
-                    onChange={(e) => setSecretKey(e.target.value)}
-                    placeholder="Enter secret key"
-                    label="Secret Key"
-                    type="password"
-                    autoComplete="false"
-                  />
-                  <Button variant="outline" className="w-full max-w-32">
-                    Save
-                  </Button>
-                </>
-              )}
-            </div> */}
-          </div>
-        </div>
-
-        <div className="h-full bg-white rounded-lg border p-4 w-full">
-          <h3 className="font-semibold text-gray-800 mb-3">AI Assistance</h3>
-          <div className="flex flex-col gap-2 h-[calc(100vh-14rem)] overflow-y-auto pr-1">
-            {socialMediaList.map((media) => (
-              <div
-                key={media?.key}
-                className="flex items-center justify-between border rounded-md p-2 hover:bg-gray-50 transition"
-              >
-                <div className="flex items-center gap-2 text-gray-800">
-                  <Icon name={media?.icon as IconType} className="w-5 h-5 text-gray-700" />
-                  <span className="font-medium">{media?.name}</span>
-                </div>
-
-                <Controller
-                  control={control}
-                  name={`aiAssistance.${media?.key}`}
-                  render={({ field }) => (
-                    <CustomSelect
-                      {...field}
-                      isClearable
-                      isLoading={isLoading}
-                      placeholder="Select agent"
-                      className="max-w-60"
-                      handleChange={(value) => {
-                        field.onChange(value);
-                        handleAgentUpdate('AI_ASSISTANT', media, value);
-                      }}
-                      options={allAgents || []}
-                      error={(errors?.aiAssistance as any)?.[media.key]?.message}
-                    />
-                  )}
-                />
-              </div>
-            ))}
-          </div>
+            </section>
+          ))}
         </div>
       </div>
-    </form>
+    </section>
   );
 }
 

@@ -3,6 +3,7 @@ import { Ic } from './icons';
 import { initialsOf, toneFor, type VideoMeeting } from './demo-data';
 import { clockLabel, dayLabel } from './meeting-list-column';
 import type { VideoConsole } from './use-video-console';
+import { Picker } from '@/components/mcm/picker';
 
 /**
  * The two hub actions that need a form rather than a button: scheduling a
@@ -134,31 +135,29 @@ export const ScheduleView = ({ vc, selfName }: { vc: VideoConsole; selfName: str
           </div>
           <div className="field">
             <label htmlFor="sch-dur">Duration</label>
-            <select
-              id="sch-dur"
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-            >
-              {[15, 30, 45, 60, 90, 120].map((d) => (
-                <option key={d} value={d}>
-                  {d < 60 ? `${d} min` : `${d / 60} hr${d > 60 ? ` ${d % 60 || ''}` : ''}`.trim()}
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Duration"
+              showLabel={false}
+              className="mcm-field"
+              value={String(duration)}
+              options={[15, 30, 45, 60, 90, 120].map((d) => ({
+                label:
+                  d < 60 ? `${d} min` : `${d / 60} hr${d > 60 ? ` ${d % 60 || ''}` : ''}`.trim(),
+                value: String(d),
+              }))}
+              onChange={(option) => setDuration(Number(option.value))}
+            />
           </div>
           <div className="field">
             <label htmlFor="sch-rec">Repeat</label>
-            <select
-              id="sch-rec"
+            <Picker
+              label="Repeat"
+              showLabel={false}
+              className="mcm-field"
               value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value as Recurrence)}
-            >
-              {RECURRENCE.map((r) => (
-                <option key={r.key} value={r.key}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+              options={RECURRENCE.map((r) => ({ label: String(r.label), value: String(r.key) }))}
+              onChange={(option) => setRecurrence(option.value as Recurrence)}
+            />
           </div>
         </div>
 

@@ -23,6 +23,7 @@ import {
   tagRequest,
 } from '@/lib/contact-blocking';
 import { DirectoryPage, EmptyRow, SearchChip } from './page-shell';
+import { Picker } from '@/components/mcm/picker';
 
 /**
  * Directory ▸ Blocked — the numbers you have stopped hearing from.
@@ -157,18 +158,17 @@ const Blocked = () => {
             label="What to stop"
             description="Blocking calls blocks faxes too — they arrive over the same line."
             control={
-              <select
+              <Picker
+                label="What to stop"
+                showLabel={false}
                 className="mcm-field"
                 value={scope}
-                onChange={(event) => setScope(event.target.value as BlockScope)}
-                aria-label="What to stop"
-              >
-                {(Object.keys(SCOPE_LABELS) as BlockScope[]).map((key) => (
-                  <option key={key} value={key}>
-                    {SCOPE_LABELS[key]}
-                  </option>
-                ))}
-              </select>
+                options={(Object.keys(SCOPE_LABELS) as BlockScope[]).map((key) => ({
+                  label: SCOPE_LABELS[key],
+                  value: key,
+                }))}
+                onChange={(option) => setScope(option.value as BlockScope)}
+              />
             }
             status={scope === DEFAULT_BLOCK_CHOICE.scope ? undefined : 'coming-soon'}
           />
@@ -177,18 +177,17 @@ const Blocked = () => {
             label="What the caller gets"
             description={TREATMENT_DESCRIPTIONS[treatment]}
             control={
-              <select
+              <Picker
+                label="What the caller gets"
+                showLabel={false}
                 className="mcm-field"
                 value={treatment}
-                onChange={(event) => setTreatment(event.target.value as BlockTreatment)}
-                aria-label="What the caller gets"
-              >
-                {(Object.keys(TREATMENT_LABELS) as BlockTreatment[]).map((key) => (
-                  <option key={key} value={key}>
-                    {TREATMENT_LABELS[key]}
-                  </option>
-                ))}
-              </select>
+                options={(Object.keys(TREATMENT_LABELS) as BlockTreatment[]).map((key) => ({
+                  label: TREATMENT_LABELS[key],
+                  value: key,
+                }))}
+                onChange={(option) => setTreatment(option.value as BlockTreatment)}
+              />
             }
             status={treatment === DEFAULT_BLOCK_CHOICE.treatment ? undefined : 'coming-soon'}
           />
@@ -197,15 +196,17 @@ const Blocked = () => {
             label="Whose line"
             description="A block on your own line stops that caller reaching you. A shared line has to be blocked for everyone who answers it."
             control={
-              <select
+              <Picker
+                label="Whose line"
+                showLabel={false}
                 className="mcm-field"
                 value={line}
-                onChange={(event) => setLine(event.target.value as BlockLine)}
-                aria-label="Whose line"
-              >
-                <option value="personal">My line</option>
-                <option value="shared">A shared line</option>
-              </select>
+                options={[
+                  { label: 'My line', value: 'personal' },
+                  { label: 'A shared line', value: 'shared' },
+                ]}
+                onChange={(option) => setLine(option.value as BlockLine)}
+              />
             }
             status={line === DEFAULT_BLOCK_CHOICE.line ? undefined : 'coming-soon'}
           />

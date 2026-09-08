@@ -268,7 +268,9 @@ const RegionalModal: FC<RegionalProps> = ({
           </div>
           <div className="flex flex-col gap-1.5 w-full">
             <Label>Country Code</Label>
-            <div className="w-full flex items-center justify-between px-3 py-2 text-sm bg-white border rounded-xl border-grey-400">
+            {/* Derived from the country above, not chosen — it reads as a value,
+                not a field you can edit. */}
+            <div className="mcm-readfield">
               {draftRegional?.country_code?.label}
             </div>
           </div>

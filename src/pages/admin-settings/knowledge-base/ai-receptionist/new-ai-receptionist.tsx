@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Picker } from '@/components/mcm/picker';
 import CustomAvatar from '@/components/custom/custom-avatar';
 import {
   Dialog,
@@ -481,10 +482,10 @@ const sentimentFromScores = (scores: any) => {
 const getCallSentiment = (call: any) =>
   normalizeSentiment(call?.sentiment) || sentimentFromScores(call?.sentiment_scores);
 const sentimentBadgeClass = (sentiment: string) => {
-  if (sentiment === 'positive') return 'bg-emerald-100 text-emerald-700';
-  if (sentiment === 'negative') return 'bg-red-100 text-red-700';
-  if (sentiment === 'neutral') return 'bg-slate-100 text-slate-700';
-  return 'bg-gray-100 text-gray-500';
+  if (sentiment === 'positive') return 'mcm-aisent is-good';
+  if (sentiment === 'negative') return 'mcm-aisent is-bad';
+  if (sentiment === 'neutral') return 'mcm-aisent is-neutral';
+  return 'mcm-aisent is-none';
 };
 const sentimentScoreText = (scores: any) => {
   const positive = Math.round(Number(scores?.positive || 0));
@@ -2338,8 +2339,6 @@ function NewAiReceptionistPage() {
     const sentimentLabel =
       normalizeSentiment(receptionistMetricsData?.sentiment_label) ||
       sentimentLabelFromScore(avgSentiment);
-    const sentimentEmoji =
-      sentimentLabel === 'positive' ? '😊' : sentimentLabel === 'negative' ? '😞' : '😐';
 
     return [
       {
@@ -2355,7 +2354,12 @@ function NewAiReceptionistPage() {
       { label: 'Avg call duration', value: formatDuration(avgDuration) },
       {
         label: 'Overall sentiment',
-        value: sentimentCalls ? `${sentimentEmoji} ${Math.round(avgSentiment)}` : 'Not analyzed',
+        /* The number and what it means, in words. It used to lead with a
+           smiley, which is decoration on a figure somebody is judging their
+           service by. */
+        value: sentimentCalls
+          ? `${Math.round(avgSentiment)} · ${sentimentLabel}`
+          : 'Not analyzed',
       },
     ];
   }, [
@@ -2551,7 +2555,7 @@ function NewAiReceptionistPage() {
                 >
                   {name}
                 </button>
-                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-slate-500">
+                <div className="mcm-aisub">
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                   <span className="truncate">{companyName} · 24/7 voice assistant</span>
                 </div>
@@ -2651,19 +2655,18 @@ function NewAiReceptionistPage() {
             normalizeSentiment(data.sentiment_label) || sentimentLabelFromScore(score) || 'neutral';
           if (!calls) {
             return (
-              <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-500">
+              <span className="mcm-ainone">
                 Not analyzed
               </span>
             );
           }
-          const sentimentEmoji = label === 'positive' ? '😊' : label === 'negative' ? '😞' : '😐';
           return (
             <div className="flex w-[116px] flex-col gap-1.5">
               <span
                 title={sentimentCountsText(data.sentiment_counts)}
                 className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-extrabold capitalize ${sentimentBadgeClass(label)}`}
               >
-                {sentimentEmoji} {label} · {Math.round(score)}
+                {label} · {Math.round(score)}
               </span>
               <div
                 className="relative h-1.5 w-[112px] overflow-hidden rounded-full bg-slate-200"
@@ -2697,11 +2700,11 @@ function NewAiReceptionistPage() {
         cell: ({ row }: any) => {
           const date = row?.original?.updatedAt || row?.original?.updated_at;
           return date ? (
-            <span className="text-[14px] font-medium text-slate-700">
+            <span className="mcm-aicell">
               {moment(date).isValid() ? moment.utc(date).local().fromNow() : '-'}
             </span>
           ) : (
-            <div className="text-center font-medium text-gray-600">---</div>
+            <div className="mcm-aicell is-none">&mdash;</div>
           );
         },
       },
@@ -2719,42 +2722,48 @@ function NewAiReceptionistPage() {
             );
           }
 
+          /* Shares the row-action buttons the rest of admin uses. The test
+             call was `bg-black` — the only pure-black control in the product,
+             and not a token — while the other three carried
+             `hover:border-primary` on buttons that have no border, so two of
+             the three hover rules did nothing. */
           const actions = [
             {
               tooltipText: 'Test call',
               onClick: () => handleTestTalkClick(data),
-              className:
-                'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-black',
-              icon: <Play className="h-4 w-4 text-white" />,
+              className: 'is-go',
+              icon: <Play className="h-4 w-4" />,
             },
             {
-              tooltipText: 'Edit Prompt',
+              tooltipText: 'Edit prompt',
               onClick: () => setPromptAgent(data),
-              className:
-                'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:border-primary hover:text-primary',
+              className: '',
               icon: <MessageSquare className="h-4 w-4" />,
             },
             {
               tooltipText: 'Edit',
               onClick: () => openReceptionistForm(data, 'edit'),
-              className:
-                'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:border-primary hover:text-primary',
+              className: '',
               icon: <PenLine className="h-4 w-4" />,
             },
             {
               tooltipText: 'Delete',
               onClick: () => setDeleteAgent(data),
-              className:
-                'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-100',
+              className: 'is-risky',
               icon: <Trash2 className="h-4 w-4" />,
             },
           ];
 
           return (
-            <div className="flex w-full min-w-[152px] items-center justify-end gap-2">
+            <div className="mcm-rowacts is-end">
               {actions.map((action) => (
                 <CustomTooltip key={action.tooltipText} text={action.tooltipText} side="top">
-                  <button type="button" onClick={action.onClick} className={action.className}>
+                  <button
+                    type="button"
+                    aria-label={action.tooltipText}
+                    onClick={action.onClick}
+                    className={`mcm-rowact ${action.className}`}
+                  >
                     {action.icon}
                   </button>
                 </CustomTooltip>
@@ -2813,7 +2822,7 @@ function NewAiReceptionistPage() {
     <section className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f3f4f6] text-[#07142f]">
       <div className="flex min-h-[72px] items-center justify-between border-b border-gray-200 bg-white px-7">
         <div>
-          <div className="flex items-center gap-2 text-base font-semibold text-slate-500">
+          <div className="mcm-aihead-b">
             <button
               type="button"
               onClick={() => navigate('/admin-settings/knowledge/ai-agent')}
@@ -2822,9 +2831,9 @@ function NewAiReceptionistPage() {
               AI Agents
             </button>
             <span>/</span>
-            <span className="text-gray-950">AI Receptionists</span>
+            <span className="mcm-aihead-here">AI Receptionists</span>
           </div>
-          <p className="mt-0.5 text-[13px] font-normal text-slate-500">
+          <p className="mcm-aihead-d">
             An AI that answers calls, works out what the caller needs, and routes them or handles it
             outright.
           </p>
@@ -2835,7 +2844,7 @@ function NewAiReceptionistPage() {
             onClick={() => {
               setView('analytics');
             }}
-            className="gap-1 text-xs font-semibold text-slate-700 bg-white border border-gray-200"
+            className="gap-1"
           >
             <TrendingUp className="h-4 w-4" />
             Analytics
@@ -2854,37 +2863,37 @@ function NewAiReceptionistPage() {
 
       <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-7 py-4">
         <div className="relative max-w-full flex-1 sm:max-w-[340px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="mcm-aisearch-i" />
           <input
             value={search}
             onChange={(event) => setSearch(sanitizeAiSearchText(event.target.value, 50))}
             placeholder="Search receptionists by name..."
             maxLength={50}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm text-gray-700 outline-none transition-colors placeholder:text-gray-500 hover:border-gray-300 focus:border-primary focus:bg-white"
+            className="mcm-aisearch"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setStatusFilter('all')}
-          className={`h-8 rounded-full border px-3 text-xs font-semibold transition-colors ${
-            statusFilter === 'all'
-              ? 'border-primary bg-primary text-white'
-              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          All <span>{totalReceptionistsCount}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setStatusFilter('live')}
-          className={`h-8 rounded-full border px-3 text-xs font-semibold transition-colors ${
-            statusFilter === 'live'
-              ? 'border-primary bg-primary text-white'
-              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          Live <span>{liveReceptionistsCount}</span>
-        </button>
+        {/* Two views of the same list, so they are one control rather than
+            two buttons that happen to be mutually exclusive. */}
+        <div className="mcm-segbar" role="tablist" aria-label="Filter receptionists">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'all'}
+            onClick={() => setStatusFilter('all')}
+            className={`mcm-seg${statusFilter === 'all' ? ' is-on' : ''}`}
+          >
+            All <span>{totalReceptionistsCount}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === 'live'}
+            onClick={() => setStatusFilter('live')}
+            className={`mcm-seg${statusFilter === 'live' ? ' is-on' : ''}`}
+          >
+            Live <span>{liveReceptionistsCount}</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-[22px] overflow-auto px-7 py-6">
@@ -2908,9 +2917,11 @@ function NewAiReceptionistPage() {
           extraParams={{ filters: tableFilters }}
           clientSideSearch={false}
           select={tableSelect}
-          customClass="shadow-sm [&_table]:table-fixed [&_thead]:bg-[#f8fafc] [&_th]:px-[18px] [&_th]:py-[13px] [&_th]:text-[11px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-[0.04em] [&_th]:text-slate-500 [&_td]:h-[66px] [&_td]:px-[18px] [&_td]:py-[14px] [&_th:first-child]:w-[27%] [&_td:first-child]:w-[27%] [&_th:last-child]:w-[174px] [&_td:last-child]:w-[174px]"
+          /* Was twelve arbitrary-value escape hatches — [&_thead]:bg-[#f8fafc],
+             [&_th]:px-[18px] and so on — setting in Tailwind what a stylesheet
+             class says once, in tokens that follow the theme. */
+          customClass="mcm-aitable"
           loaderTableClass="min-h-[320px]"
-          getRowClassName={() => 'transition-colors hover:bg-gray-50/70'}
           emptyTablePlaceholder="No receptionists found."
         />
       </div>
@@ -5884,12 +5895,21 @@ function NewAiReceptionistBuilder({
           </Field>
         </div>
         <Field label="Use case" className="mt-4">
-          <select
+          <Picker
+            label="Use case"
+            showLabel={false}
+            className="mcm-field"
+            disabled={isReadOnly || isLoadingUseCaseTemplates}
+            placeholder={isLoadingUseCaseTemplates ? 'Loading templates…' : 'Select a template'}
             value={roleUseCase}
-            onChange={(event) => {
-              const nextUseCase = event.target.value;
+            options={useCaseTemplateOptions.map((option) => ({
+              label: option.name,
+              value: option.name,
+            }))}
+            onChange={(option) => {
+              const nextUseCase = option.value;
               const selectedTemplate = useCaseTemplateOptions.find(
-                (option) => option.name === nextUseCase,
+                (item) => item.name === nextUseCase,
               );
               setRoleUseCase(nextUseCase);
               if (selectedTemplate?.welcomeGreeting) {
@@ -5904,18 +5924,7 @@ function NewAiReceptionistBuilder({
               );
               setStepErrors((prev) => ({ ...prev, systemPrompt: '' }));
             }}
-            disabled={isReadOnly || isLoadingUseCaseTemplates}
-            className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-slate-600"
-          >
-            <option value="">
-              {isLoadingUseCaseTemplates ? 'Loading templates...' : 'Select a template'}
-            </option>
-            {useCaseTemplateOptions.map((option) => (
-              <option key={option.id} value={option.name}>
-                {option.name}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
         <Field label="Short description (internal only)" className="mt-4">
           <input
@@ -8005,31 +8014,27 @@ function NewAiReceptionistBuilder({
             </p>
           )}
           {isDataCollectionEnabled && enableCrmPush && (
-            <select
-              value={selectedCrmPipeline}
-              onChange={(event) => setSelectedCrmPipeline(event.target.value)}
+            /* The four legacy CRM entries under this were in a hidden
+               <optgroup>: unreachable markup naming pipelines nothing reads. */
+            <Picker
+              label="CRM pipeline"
+              showLabel={false}
+              className="mcm-field mt-3"
               disabled={isReadOnly || isFetchingConnectedCrms || connectedCrmOptions.length === 0}
-              className="mt-3 h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-gray-50"
-            >
-              <option value="" disabled>
-                {isFetchingConnectedCrms
-                  ? 'Checking connected CRMs...'
+              placeholder={
+                isFetchingConnectedCrms
+                  ? 'Checking connected CRMs…'
                   : connectedCrmOptions.length > 0
-                    ? 'Select CRM...'
-                    : 'No connected CRM available'}
-              </option>
-              {connectedCrmOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              <optgroup hidden label="Legacy CRM options">
-                <option value="hubspot-sales">HubSpot — Sales pipeline</option>
-                <option value="hubspot-marketing">HubSpot — Marketing pipeline</option>
-                <option value="salesforce">Salesforce — Leads</option>
-                <option value="zoho">Zoho CRM — Contacts</option>
-              </optgroup>
-            </select>
+                    ? 'Select a CRM…'
+                    : 'No connected CRM available'
+              }
+              value={selectedCrmPipeline}
+              options={connectedCrmOptions.map((option) => ({
+                label: String(option.label),
+                value: String(option.value),
+              }))}
+              onChange={(option) => setSelectedCrmPipeline(option.value)}
+            />
           )}
         </div>
       </div>
@@ -8070,21 +8075,21 @@ function NewAiReceptionistBuilder({
             </div>
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-gray-950">Manager</span>
-              <select
+              <Picker
+                label="Manager"
+                showLabel={false}
+                className="mcm-field"
+                placeholder="Select a manager"
                 value={selectedManagerId}
-                onChange={(event) => {
-                  setSelectedManagerId(event.target.value);
+                options={managerExtensions.map((ext: any) => ({
+                  label: `${`${ext.first_name || ''} ${ext.last_name || ''}`.trim()} (${ext.extension})`,
+                  value: String(ext.uuid || ext.id),
+                }))}
+                onChange={(option) => {
+                  setSelectedManagerId(option.value);
                   setStepErrors((prev) => ({ ...prev, manager: '' }));
                 }}
-                className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-primary"
-              >
-                <option value="">Select a manager</option>
-                {managerExtensions.map((ext: any) => (
-                  <option key={ext.uuid || ext.id} value={ext.uuid || ext.id}>
-                    {`${ext.first_name || ''} ${ext.last_name || ''}`.trim()} ({ext.extension})
-                  </option>
-                ))}
-              </select>
+              />
             </label>
             {stepErrors.forwardCall && (
               <p className="text-sm text-red-500">{stepErrors.forwardCall}</p>
@@ -9191,15 +9196,15 @@ function StatCard({
   loading?: boolean;
 }) {
   return (
-    <div className="relative min-h-[82px] rounded-[10px] border border-gray-200 bg-white px-4 py-3.5 shadow-sm">
+    <div className="mcm-aistat">
       {loading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-white/70 backdrop-blur-[1px]">
+        <div className="mcm-aistat-load">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
       )}
-      <p className="text-[11px] font-medium leading-4 text-slate-500">{label}</p>
-      <p className="mt-[3px] text-[22px] font-bold leading-7 text-gray-950">{value}</p>
-      {helper ? <p className="mt-0.5 text-[11px] font-medium text-emerald-500">{helper}</p> : null}
+      <p className="mcm-aistat-l">{label}</p>
+      <p className="mcm-aistat-v">{value}</p>
+      {helper ? <p className="mcm-aistat-h">{helper}</p> : null}
     </div>
   );
 }

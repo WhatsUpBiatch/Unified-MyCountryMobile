@@ -41,6 +41,13 @@ function AccordionTrigger({
         'flex',
         isSidebar &&
           'text-gray-900/80 [&>button[data-state=open]]:bg-ucass-primary-200/50 [&>button[data-state=open]]:text-primary [&>button[data-state=open]]:border-r-primary [&>button[data-state=open]]:border-r-2',
+        /* The section holding the page you are on, marked whether or not it is
+           open. Every bit of that state above hangs off [data-state=open] —
+           "is this expanded" — so collapsing the section you are working in
+           erased the only sign of where you were, and it became identical to
+           the six sections you are not in. Which section you are in does not
+           change when you fold it away. */
+        isSidebar && isActive && 'mcm-navhere',
       )}
     >
       <AccordionPrimitive.Trigger

@@ -12,6 +12,7 @@ import {
 } from './demo-data';
 import type { VideoConsole } from './use-video-console';
 import DemoChip from './panes/demo-chip';
+import { Picker } from '@/components/mcm/picker';
 
 export type PanelTab = 'people' | 'chat' | 'ai' | 'captions' | 'apps' | 'details';
 
@@ -502,24 +503,13 @@ const CaptionsPane = ({ vc }: { vc: VideoConsole }) => {
           <Ic n="cc" />
           {vc.captions ? 'On' : 'Off'}
         </button>
-        <select
+        <Picker
+          label="Translate captions to"
+          showLabel={false}
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          aria-label="Translate captions to"
-          style={{
-            height: 26,
-            borderRadius: 7,
-            border: '1px solid var(--line)',
-            background: 'var(--surface)',
-            fontSize: 11,
-            fontWeight: 700,
-            padding: '0 6px',
-          }}
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l}>{l}</option>
-          ))}
-        </select>
+          options={LANGUAGES.map((l) => ({ label: l, value: l }))}
+          onChange={(option) => setLanguage(option.value)}
+        />
         <DemoChip />
       </div>
 

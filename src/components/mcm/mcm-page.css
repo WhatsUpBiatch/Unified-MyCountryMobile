@@ -46,6 +46,7 @@
   --line-2: #eaeef6;
 
   --accent: #2563eb;
+  --accent-solid: #2563eb;
   --accent-ink: #1d4ed8;
   --accent-wash: #e8efff;
   --accent-edge: #c3d6ff;
@@ -93,6 +94,44 @@
     'Inter', 'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', sans-serif;
 }
+/* A few tokens repeated at the document root, for the things that are not
+   inside .mcm-page: react-select portals its menu straight to <body>, so a
+   menu styled in tokens had none of them and fell back to Tailwind's literal
+   white — a white list on a dark page.
+
+   Only the tokens those need, and deliberately NOT --accent: shadcn defines
+   that name too, for the wash behind a hovered menu item, and this file is
+   unlayered so it would win and turn every hover state in the app solid blue.
+   --accent-solid is the same colour under a name nothing else claims. */
+:root {
+  --surface: #ffffff;
+  --surface-2: #f6f8fc;
+  --surface-3: #eaeef7;
+  --ink: #0d1526;
+  --ink-2: #3d4a63;
+  --ink-3: #6b7891;
+  --ink-4: #93a0b8;
+  --line: #dfe5f0;
+  --line-2: #eaeef6;
+  --accent-solid: #2563eb;
+  --accent-ink: #1d4ed8;
+  --accent-wash: #e8efff;
+}
+.dark {
+  --surface: #111827;
+  --surface-2: #161f31;
+  --surface-3: #1e293e;
+  --ink: #eef2f9;
+  --ink-2: #c3cddf;
+  --ink-3: #93a1ba;
+  --ink-4: #6b7a96;
+  --line: #26314a;
+  --line-2: #1c2537;
+  --accent-solid: #3b6fe0;
+  --accent-ink: #87aaff;
+  --accent-wash: #16223d;
+}
+
 .dark .mcm-page,
 .dark .mcm-topbar {
   --ground: #0a0f1a;
@@ -106,6 +145,7 @@
   --line: #26314a;
   --line-2: #1c2537;
   --accent: #5b8dff;
+  --accent-solid: #3b6fe0;
   --accent-ink: #87aaff;
   --accent-wash: #16223d;
   --accent-edge: #2c3f68;
@@ -5830,6 +5870,31 @@ textarea.mcm-field:focus-visible {
    accent ink and nothing else - the filled pill is reserved for the one item
    that is actually the current page, or the two read as equals.
    --------------------------------------------------------------------------- */
+
+/* The section holding the page you are on, while it is folded shut.
+
+   Every bit of the state above hangs off [data-state=open] - "is this section
+   expanded" - so collapsing the section you are working in erased the only
+   sign of where you were, and Company became indistinguishable from the six
+   sections you are not in. Which section you are in and whether it happens to
+   be open are two different facts; this is the first one, and it does not stop
+   being true when you fold the section away.
+
+   Accent ink alone - no rail and no wash. Both of those are how the nav marks
+   the one row that IS the current page, and a collapsed section is not that
+   row, it is the container of it. Colour is enough to separate it from the
+   eight sections you are not in without claiming to be the page. */
+.mcm-admin .mcm-adminnav .mcm-navhere > [data-slot='accordion-trigger'][data-state='closed'] {
+  color: var(--accent-ink);
+}
+.mcm-admin .mcm-adminnav .mcm-navhere > [data-slot='accordion-trigger'][data-state='closed'] svg {
+  color: var(--accent);
+}
+.mcm-admin .mcm-adminnav .mcm-navhere > [data-slot='accordion-trigger'][data-state='closed'] .font-medium,
+.mcm-admin .mcm-adminnav .mcm-navhere > [data-slot='accordion-trigger'][data-state='closed'] > div {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
 
 /* The open section. */
 .mcm-admin .mcm-adminnav [data-slot='accordion-trigger'][data-state='open'] {
@@ -13155,3 +13220,853 @@ textarea.mcm-field:focus-visible {
   color: var(--ink-3, #64748b);
   font-size: 12px;
 }
+
+/* ── AI receptionists and chat agents ──────────────────────────────────────
+   These screens were built entirely in hand-written Tailwind — text-slate-500,
+   bg-gray-50, bg-[#f8fafc], text-gray-950 — so none of it followed the theme.
+   The classes below say the same things in tokens. */
+
+/* Two views of one list. Written as two independent pills, which is how a pair
+   of unrelated toggles looks; they are one control with two positions. */
+.mcm-segbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 999px;
+  background: var(--surface-2, #f8fafc);
+}
+/* inline-flex, not the button default: a segment with an icon in it wrapped
+   the label onto a second line under the icon. */
+.mcm-seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 11px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2, #475569);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.mcm-seg > span {
+  color: var(--ink-4, #94a3b8);
+  font-weight: 600;
+}
+.mcm-seg.is-on {
+  background: var(--accent, #2563eb);
+  color: #fff;
+}
+.mcm-seg.is-on > span {
+  color: rgb(255 255 255 / 0.75);
+}
+@media (hover: hover) {
+  .mcm-seg:not(.is-on):hover {
+    background: var(--surface, #fff);
+    color: var(--ink, #0f172a);
+  }
+}
+
+/* The search field on the AI screens. */
+.mcm-aisearch {
+  height: 34px;
+  width: 100%;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+  color: var(--ink, #0f172a);
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.mcm-aisearch::placeholder {
+  color: var(--ink-4, #94a3b8);
+}
+.mcm-aisearch:hover {
+  border-color: var(--ink-4, #94a3b8);
+}
+.mcm-aisearch:focus {
+  border-color: var(--accent, #2563eb);
+  background: var(--surface, #fff);
+}
+.mcm-aisearch-i {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--ink-4, #94a3b8);
+}
+
+.mcm-aihead-d {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-aihead-here {
+  color: var(--ink, #0f172a);
+}
+
+/* One number about the whole estate. */
+.mcm-aistat {
+  position: relative;
+  min-height: 82px;
+  padding: 13px 15px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 10px);
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 0.05));
+}
+.mcm-aistat-load {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--surface, #fff) 70%, transparent);
+}
+.mcm-aistat-l {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink-3, #64748b);
+}
+.mcm-aistat-v {
+  margin-top: 3px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink, #0f172a);
+}
+.mcm-aistat-h {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--live, #059669);
+}
+
+/* The agent tables. */
+.mcm-aitable {
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 0.05));
+}
+.mcm-aitable table {
+  table-layout: fixed;
+}
+.mcm-aitable thead {
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-aitable th {
+  padding: 13px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+}
+.mcm-aitable td {
+  height: 66px;
+  padding: 14px 18px;
+}
+.mcm-aitable th:first-child,
+.mcm-aitable td:first-child {
+  width: 27%;
+}
+.mcm-aitable th:last-child,
+.mcm-aitable td:last-child {
+  width: 174px;
+}
+@media (hover: hover) {
+  .mcm-aitable tbody tr {
+    transition: background 0.15s ease;
+  }
+  .mcm-aitable tbody tr:hover {
+    background: var(--surface-2, #f8fafc);
+  }
+}
+
+/* The one action on a row that starts something, rather than editing or
+   removing it. Filled, so it leads without being the same weight as delete. */
+.mcm-rowact.is-go {
+  border-color: transparent;
+  background: var(--accent, #2563eb);
+  color: #fff;
+}
+@media (hover: hover) {
+  .mcm-rowact.is-go:hover {
+    border-color: transparent;
+    background: var(--accent-ink, #1d4ed8);
+    color: #fff;
+  }
+}
+
+/* Remaining cells on the AI tables. These carried fixed slate/gray values, so
+   in dark mode the "last updated" column and the name's subtitle went nearly
+   invisible against the dark surface. */
+.mcm-aicell {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2, #475569);
+}
+.mcm-aicell.is-none {
+  text-align: center;
+  color: var(--ink-4, #94a3b8);
+}
+.mcm-aisub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-3, #64748b);
+}
+/* Nothing measured yet. Not a sentiment, so it does not borrow one's colour. */
+.mcm-ainone {
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-3, #64748b);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+/* How the callers felt. */
+.mcm-aisent {
+  border-radius: 999px;
+}
+.mcm-aisent.is-good {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+.mcm-aisent.is-neutral {
+  background: var(--warn-wash, #fffbeb);
+  color: var(--warn, #b45309);
+}
+.mcm-aisent.is-bad {
+  background: var(--crit-wash, #fef2f2);
+  color: var(--crit, #dc2626);
+}
+.mcm-aisent.is-none {
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-3, #64748b);
+}
+.mcm-aihead-b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink-3, #64748b);
+}
+
+/* The chat-agent table sizes its cells a little differently from the
+   receptionist one; everything else is shared. */
+.mcm-aitable.is-chat th {
+  padding: 12px 8px;
+}
+.mcm-aitable.is-chat td {
+  height: 70px;
+  padding: 10px 8px;
+}
+.mcm-aitable.is-chat th:last-child,
+.mcm-aitable.is-chat td:last-child {
+  width: 180px;
+}
+
+/* An agent's name, and the numbers beside it. */
+.mcm-ainame {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink, #0f172a);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+@media (hover: hover) {
+  .mcm-ainame:hover {
+    color: var(--accent, #2563eb);
+  }
+}
+.mcm-aimetric {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+
+/* ── Agent playground ──────────────────────────────────────────────────────
+   Pick an agent on the left, it runs in the panel on the right. */
+.mcm-pg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex: none;
+  padding: 16px 18px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+}
+.mcm-pg-t h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-pg-t p {
+  margin: 3px 0 0;
+  max-width: 56ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-3, #64748b);
+}
+.mcm-pg-counts {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex: none;
+}
+.mcm-pg-counts p {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+}
+.mcm-pg-counts b {
+  display: block;
+  margin-top: 2px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink, #0f172a);
+}
+
+/* Receptionists or chat agents. */
+.mcm-pg-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-pg-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3, #64748b);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.mcm-pg-tab.is-on {
+  background: var(--surface, #fff);
+  color: var(--accent, #2563eb);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 0.06));
+}
+@media (hover: hover) {
+  .mcm-pg-tab:not(.is-on):hover {
+    color: var(--ink, #0f172a);
+  }
+}
+
+.mcm-pg-col {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 328px;
+  overflow: hidden;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+}
+.mcm-pg-colhead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line-2, #eef1f6);
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-pg-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 8px);
+  background: transparent;
+  color: var(--ink-2, #475569);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+@media (hover: hover) {
+  .mcm-pg-agent:hover {
+    background: var(--surface-2, #f8fafc);
+  }
+}
+.mcm-pg-agent.is-on {
+  border-color: var(--accent, #2563eb);
+  background: var(--accent-wash, #eff6ff);
+}
+.mcm-pg-agentn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink, #0f172a);
+}
+.mcm-pg-agent.is-on .mcm-pg-agentn {
+  color: var(--accent-ink, #1d4ed8);
+}
+.mcm-pg-agentk {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--ink-3, #64748b);
+}
+
+.mcm-pg-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+}
+.mcm-pg-mark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+}
+.mcm-pg-blankt {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-pg-blankd {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3, #64748b);
+}
+/* Whether the agent under test is actually answering. */
+.mcm-pg-state {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-3, #64748b);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.mcm-pg-state.is-live {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+
+/* ── Sessions ──────────────────────────────────────────────────────────────
+   Every AI call and chat, with how it ended. */
+.mcm-ses-h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink, #0f172a);
+}
+.mcm-ses-hd {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-ses-tbl {
+  overflow: hidden;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 0.05));
+}
+/* One grid definition, used by the heading row and every row under it — it was
+   written out twice, so the two could drift apart. */
+.mcm-ses-row {
+  display: grid;
+  grid-template-columns: 82px 1.3fr 1.4fr 0.95fr 0.7fr 0.72fr 0.95fr 1fr 96px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line-2, #eef1f6);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.mcm-ses-row:last-child {
+  border-bottom: 0;
+}
+@media (hover: hover) {
+  .mcm-ses-row:not(.is-head):hover {
+    background: var(--surface-2, #f8fafc);
+  }
+}
+.mcm-ses-row.is-head {
+  cursor: default;
+  border-bottom-color: var(--line, #e5e7eb);
+  background: var(--surface-2, #f8fafc);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+}
+.mcm-ses-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-ses-av {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.mcm-ses-agent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+.mcm-ses-agentsub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-3, #64748b);
+}
+/* The agent this session ran on no longer exists. */
+.mcm-ses-gone {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--crit-wash, #fef2f2);
+  color: var(--crit, #dc2626);
+  font-size: 10px;
+  font-weight: 700;
+}
+/* How it ended. */
+.mcm-ses-out {
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: var(--r-sm, 9px);
+  font-size: 11px;
+  font-weight: 700;
+}
+.mcm-ses-out.is-ok {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+.mcm-ses-out.is-warn {
+  background: var(--warn-wash, #fffbeb);
+  color: var(--warn, #b45309);
+}
+.mcm-ses-out.is-info {
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+}
+.mcm-ses-out.is-live {
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-2, #475569);
+}
+.mcm-ses-out.is-bad {
+  background: var(--crit-wash, #fef2f2);
+  color: var(--crit, #dc2626);
+}
+
+/* Whether a session was a call or a chat. */
+.mcm-ses-ch {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--ai-wash, #f5f3ff);
+  color: var(--ai, #7c3aed);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.mcm-ses-ch.is-call {
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+}
+.mcm-ses-ch svg {
+  flex: none;
+}
+
+/* Icons inside a segment shrink to the label's weight rather than sitting as
+   their own block. */
+.mcm-seg svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* How the caller sounded. Word first, bar second — a bar on its own is a
+   quantity with no unit. */
+.mcm-ses-sent {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+.mcm-ses-sent.is-positive {
+  color: var(--live, #059669);
+}
+.mcm-ses-sent.is-neutral {
+  color: var(--warn, #b45309);
+}
+.mcm-ses-sent.is-negative {
+  color: var(--crit, #dc2626);
+}
+.mcm-ses-sent.is-none {
+  color: var(--ink-4, #94a3b8);
+  font-weight: 500;
+}
+.mcm-ses-bar {
+  width: 62px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line, #e5e7eb);
+}
+.mcm-ses-bar > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink-4, #94a3b8);
+}
+.mcm-ses-bar > div.is-positive {
+  background: var(--live, #059669);
+}
+.mcm-ses-bar > div.is-neutral {
+  background: var(--warn, #b45309);
+}
+.mcm-ses-bar > div.is-negative {
+  background: var(--crit, #dc2626);
+}
+
+/* ---- AI settings ------------------------------------------------------
+   Two columns of the same channel names. The page never said how they
+   differed, so each panel now carries the sentence that tells them apart,
+   and the panels size to their rows instead of being pinned to
+   calc(100vh - 14rem) — which left half a screen of empty card under four
+   lines of content.
+   ---------------------------------------------------------------------- */
+.mcm-aiset {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--surface-2, #f6f8fc);
+}
+.mcm-aiset-head {
+  flex: none;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--line, #dfe5f0);
+  background: var(--surface, #fff);
+}
+.mcm-aiset-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 28px 28px;
+}
+.mcm-aiset-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.mcm-aiset-card {
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgb(15 23 42 / 6%));
+  overflow: hidden;
+}
+.mcm-aiset-cardhead {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line-2, #eef2f8);
+  background: var(--surface-3, #f8fafc);
+}
+.mcm-aiset-cardhead h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink, #0f172a);
+}
+.mcm-aiset-cardhead p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3, #64748b);
+}
+.mcm-aiset-rows {
+  display: flex;
+  flex-direction: column;
+}
+.mcm-aiset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-2, #eef2f8);
+}
+.mcm-aiset-row:last-child {
+  border-bottom: 0;
+}
+.mcm-aiset-chan {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+}
+.mcm-aiset-chan svg {
+  flex: none;
+}
+/* The picker in field shape: a chip names what it filters, this one sits in a
+   row that is already labelled, so the value fills it and the chevron holds
+   the right edge. */
+.mcm-admin .mcm-aiset-sel {
+  flex: 0 0 216px;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border-radius: var(--r-sm, 9px);
+  font-weight: 500;
+  color: var(--ink, #0f172a);
+}
+.mcm-admin .mcm-aiset-sel .fchip-v {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A value that came from somewhere else, shown in a field's place. Reads as
+   settled rather than editable, so it is quieter than a real input. */
+.mcm-readfield {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #dfe5f0);
+  border-radius: var(--r-sm, 10px);
+  background: var(--surface-2, #f6f8fc);
+  font-size: 13.5px;
+  color: var(--ink-2, #3d4a63);
+}
+
+/* The picker as a form field: full width, the value on the left, chevron on
+   the right — the shape a <select> had in the same place. */
+.mcm-page .fchip.mcm-field {
+  width: 100%;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 10px 0 12px;
+  font-weight: 500;
+  color: var(--ink, #0f172a);
+}
+.mcm-page .fchip.is-empty .fchip-v {
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-page .fchip:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: var(--surface-2, #f6f8fc);
+}
+.mcm-page .fchip .fchip-v {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcm-page .fchip.is-bad {
+  border-color: var(--crit, #dc2626);
+}
+
+/* A group heading in a picker menu — what <optgroup label> drew. */
+.mcm-fchip-group {
+  padding: 7px 8px 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-4, #93a0b8);
+}
+.mcm-fchip-menu [data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

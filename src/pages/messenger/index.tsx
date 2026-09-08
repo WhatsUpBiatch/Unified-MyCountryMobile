@@ -44,6 +44,7 @@ import { canUseOmniChannel, getAllowedOmniChannels } from './omni-permissions';
 import useDebounce from '@/hooks/use-debounce';
 import { useLoadMoreUsersObserver, useMessengerUsers } from './hooks/use-messenger-users';
 import '@/components/mcm/mcm-page.css';
+import { Picker } from '@/components/mcm/picker';
 
 type ChannelType = keyof typeof CHANNELS_ICON;
 
@@ -1224,14 +1225,17 @@ const SidebarContent = ({
         />
         {!isAgentChat ? (
           <div className="w-full sm:min-w-28 sm:w-28">
-            <select
-              className="border border-gray-300 rounded-xl px-3 min-h-10 text-sm w-full text-gray-700 bg-white"
+            <Picker
+              label="Show"
+              showLabel={false}
+              className="mcm-field"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as MessageStatus)}
-            >
-              <option value="all">All</option>
-              <option value="unread">Unread</option>
-            </select>
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'Unread', value: 'unread' },
+              ]}
+              onChange={(option) => setStatusFilter(option.value as MessageStatus)}
+            />
           </div>
         ) : null}
       </div>

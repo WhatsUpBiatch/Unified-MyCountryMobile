@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { getUserList } from '@/services/api';
+import { Picker } from '@/components/mcm/picker';
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
 
@@ -34,8 +35,6 @@ const STEPS: { key: Step; title: string; desc: string }[] = [
   { key: 'done', title: 'Voilà!', desc: 'You are all set to go!' },
 ];
 
-const fieldClass =
-  'min-h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10';
 
 const AddInboxWizard = ({
   open,
@@ -262,20 +261,12 @@ const AddInboxWizard = ({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Enable channel greeting</Label>
-                <select value={greetingEnabled ? 'enabled' : 'disabled'} onChange={(e) => setGreetingEnabled(e.target.value === 'enabled')} className={fieldClass}>
-                  <option value="disabled">Disabled</option>
-                  <option value="enabled">Enabled</option>
-                </select>
+                <Picker label="Greeting" showLabel={false} className="mcm-field" value={greetingEnabled ? 'enabled' : 'disabled'} options={[{ label: 'Disabled', value: 'disabled' }, { label: 'Enabled', value: 'enabled' }]} onChange={(o) => setGreetingEnabled(o.value === 'enabled')} />
                 <p className="text-xs text-gray-400">Auto-send greeting messages when customers start a conversation.</p>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>AI Assistant (optional)</Label>
-                <select value={assistantId} onChange={(e) => setAssistantId(e.target.value)} className={fieldClass}>
-                  <option value="">No AI assistant — human agents only</option>
-                  {assistants.map((a: any) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <Picker label="AI assistant" showLabel={false} className="mcm-field" value={assistantId} options={[{ label: 'No AI assistant — human agents only', value: '' }, ...assistants.map((a: any) => ({ label: String(a.name), value: String(a.id) }))]} onChange={(o) => setAssistantId(o.value)} />
               </div>
             </div>
           )}

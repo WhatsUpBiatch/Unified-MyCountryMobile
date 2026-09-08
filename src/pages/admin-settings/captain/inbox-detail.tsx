@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getUserList } from '@/services/api';
+import { Picker } from '@/components/mcm/picker';
 
 const CAPTAIN_API_BASE = '/captain-api/api/captain';
 
@@ -88,9 +89,6 @@ const TABS = [
   { key: 'bot-configuration', label: 'AI Assist Configure' },
 ];
 
-function fieldClass() {
-  return 'min-h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10';
-}
 
 function hoursBetween(open: string, close: string) {
   const [oh, om] = open.split(':').map(Number);
@@ -294,17 +292,11 @@ const InboxDetail = ({ inboxId, assistants, onBack }: { inboxId: string; assista
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
                 <Label>Bubble Position</Label>
-                <select value={inbox.widget_position} onChange={(e) => patch({ widget_position: e.target.value as any })} className={fieldClass()}>
-                  <option value="right">Bottom right</option>
-                  <option value="left">Bottom left</option>
-                </select>
+                <Picker label="Position" showLabel={false} className="mcm-field" value={inbox.widget_position} options={[{ label: 'Bottom right', value: 'right' }, { label: 'Bottom left', value: 'left' }]} onChange={(o) => patch({ widget_position: o.value as any })} />
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
                 <Label>Type</Label>
-                <select value={inbox.widget_type} onChange={(e) => patch({ widget_type: e.target.value })} className={fieldClass()}>
-                  <option value="standard">Standard</option>
-                  <option value="expanded_bubble">Expanded bubble</option>
-                </select>
+                <Picker label="Type" showLabel={false} className="mcm-field" value={inbox.widget_type} options={[{ label: 'Standard', value: 'standard' }, { label: 'Expanded bubble', value: 'expanded_bubble' }]} onChange={(o) => patch({ widget_type: o.value })} />
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -313,11 +305,7 @@ const InboxDetail = ({ inboxId, assistants, onBack }: { inboxId: string; assista
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Reply time</Label>
-              <select value={inbox.reply_time} onChange={(e) => patch({ reply_time: e.target.value })} className={fieldClass()}>
-                <option value="in_a_few_minutes">In a few minutes</option>
-                <option value="in_a_few_hours">In a few hours</option>
-                <option value="in_a_day">In a day</option>
-              </select>
+              <Picker label="Reply time" showLabel={false} className="mcm-field" value={inbox.reply_time} options={[{ label: 'In a few minutes', value: 'in_a_few_minutes' }, { label: 'In a few hours', value: 'in_a_few_hours' }, { label: 'In a day', value: 'in_a_day' }]} onChange={(o) => patch({ reply_time: o.value })} />
             </div>
             <div className="flex flex-col gap-2">
               <Label>Widget features</Label>
@@ -460,11 +448,7 @@ const InboxDetail = ({ inboxId, assistants, onBack }: { inboxId: string; assista
             />
             <div className="flex flex-col gap-1.5">
               <Label>Timezone</Label>
-              <select value={inbox.business_hours_timezone} onChange={(e) => patch({ business_hours_timezone: e.target.value })} className={fieldClass()}>
-                {['UTC', 'America/Los_Angeles', 'America/New_York', 'Asia/Kolkata', 'Asia/Jakarta', 'Europe/London'].map((tz) => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
+              <Picker label="Timezone" showLabel={false} className="mcm-field" value={inbox.business_hours_timezone} options={['UTC', 'America/Los_Angeles', 'America/New_York', 'Asia/Kolkata', 'Asia/Jakarta', 'Europe/London'].map((tz) => ({ label: tz, value: tz }))} onChange={(o) => patch({ business_hours_timezone: o.value })} />
             </div>
             <div className="flex flex-col divide-y divide-gray-100 rounded-xl border border-gray-200">
               {DAY_ORDER.map((d) => {
@@ -699,12 +683,7 @@ const InboxDetail = ({ inboxId, assistants, onBack }: { inboxId: string; assista
                 <div className="flex flex-col gap-1.5">
                   <Label>AI Assistant</Label>
                   <p className="text-xs text-gray-400">Pick which Captain assistant answers this inbox automatically. Choose "None" for a human-only inbox.</p>
-                  <select value={inbox.assistant_id || ''} onChange={(e) => patch({ assistant_id: e.target.value || null })} className={fieldClass()}>
-                    <option value="">No AI assistant — human agents only</option>
-                    {assistants.map((a: any) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
+                  <Picker label="AI assistant" showLabel={false} className="mcm-field" value={inbox.assistant_id || ''} options={[{ label: 'No AI assistant — human agents only', value: '' }, ...assistants.map((a: any) => ({ label: String(a.name), value: String(a.id) }))]} onChange={(o) => patch({ assistant_id: o.value || null })} />
                 </div>
                 <Button
                   type="button"

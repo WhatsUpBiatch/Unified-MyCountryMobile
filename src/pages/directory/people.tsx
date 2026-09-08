@@ -30,6 +30,7 @@ import AssignCallerIdModal from '@/pages/admin-settings/people/add-users/assign-
 import AddUsers from '@/pages/admin-settings/people/add-users';
 import { invalidateNumberLists } from '@/lib/number-list-cache';
 import { buildRosterCsv, rosterFileName, toExportRow } from '@/lib/user-roster-export';
+import { Picker } from '@/components/mcm/picker';
 
 /**
  * Directory ▸ People — the organisation roster.
@@ -529,19 +530,18 @@ const People = () => {
                   <td onClick={(event) => event.stopPropagation()}>
                     <span className={TONE_CLASS[row.tone] || 'tag neu'}>{row.presence}</span>
                     {row.uuid === myUuid ? (
-                      <select
+                      <Picker
+                        label="Set my availability"
+                        showLabel={false}
                         className="mcm-presence-set"
-                        aria-label="Set my availability"
-                        value={presenceValueOf(row.availability)}
                         disabled={isSettingPresence}
-                        onChange={(event) => setMyPresence(event.target.value)}
-                      >
-                        {PRESENCE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                        value={presenceValueOf(row.availability)}
+                        options={PRESENCE_OPTIONS.map((option) => ({
+                          label: String(option.label),
+                          value: String(option.value),
+                        }))}
+                        onChange={(option) => setMyPresence(option.value)}
+                      />
                     ) : null}
                   </td>
                   <td>

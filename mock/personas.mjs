@@ -28,7 +28,18 @@ const node = (over = {}) => ({
 });
 
 const fullFeatures = () => ({
-  ai: node(),
+  /* The AI routes gate on nested paths — `ai.action.agent.view`,
+     `ai.action.domain.view`, `ai.action.knowledge_base.view` — which the
+     router compares with === true. `node()` only supplies the flat CRUD verbs,
+     so `ai.action.agent` was undefined and Chat Agents, Domains and Knowledge
+     base all answered "Upgrade to unlock" on a plan that includes them. */
+  ai: node({
+    action: {
+      agent: { view: true, add: true, edit: true, delete: true },
+      domain: { view: true, add: true, edit: true, delete: true },
+      knowledge_base: { view: true, add: true, edit: true, delete: true },
+    },
+  }),
   /* Booleans, like `video.access.RECORDING` next door. The router resolves the
      route's `feature` path and compares it with `=== true`, and every screen
      that reads these wraps them in Boolean() — so an object here meant all

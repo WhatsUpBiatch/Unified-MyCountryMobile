@@ -1,6 +1,6 @@
 import { getSessionChat } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
-import { Copy, Download, Loader2, X } from 'lucide-react';
+import { Copy, Download, Loader2, MessageSquare, Phone, X } from 'lucide-react';
 
 type SessionIntent = { label: string; summary: string };
 type SentimentKey = 'positive' | 'neutral' | 'negative';
@@ -153,9 +153,9 @@ const getSentimentScores = (session: any) => {
 
 const getSentimentEmoji = (session: any) => {
   const sentiment = getSentimentLabel(session);
-  if (sentiment === 'positive') return '😊';
-  if (sentiment === 'negative') return '😞';
-  if (sentiment === 'neutral') return '😐';
+  if (sentiment === 'positive') return '';
+  if (sentiment === 'negative') return '';
+  if (sentiment === 'neutral') return '';
   return '–';
 };
 
@@ -238,7 +238,6 @@ const ChannelPill = ({
   isSessionLabel?: boolean;
 }) => {
   const isCall = channel === 'call';
-  const icon = isCall ? '📞' : '💬';
   const label = isCall
     ? isSessionLabel
       ? 'Voice call'
@@ -247,13 +246,11 @@ const ChannelPill = ({
       ? 'Chat session'
       : 'Chat';
 
+  const Icon = isCall ? Phone : MessageSquare;
+
   return (
-    <span
-      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-[9px] py-1 text-[11.5px] font-bold ${
-        isCall ? 'bg-indigo-50 text-indigo-700' : 'bg-cyan-50 text-cyan-700'
-      }`}
-    >
-      <span className="text-[13px] leading-none">{icon}</span>
+    <span className={`mcm-ses-ch${isCall ? ' is-call' : ''}`}>
+      <Icon className="h-3 w-3" />
       {label}
     </span>
   );
@@ -396,7 +393,7 @@ const AiSessionDetailDrawer = ({
                 <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
                   <DetailItem
                     label="Channel"
-                    value={session?.channel === 'call' ? '📞 Voice' : '💬 Chat'}
+                    value={session?.channel === 'call' ? 'Voice' : 'Chat'}
                   />
                   <DetailItem label="Agent" value={getAgentName(session, agentById)} />
                   <DetailItem

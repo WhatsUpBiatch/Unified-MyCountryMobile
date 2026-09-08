@@ -64,6 +64,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Picker } from '@/components/mcm/picker';
 
 type DetailField = 'name' | 'dob' | 'phone' | 'email' | 'address';
 type ForwardCallState = {
@@ -1958,11 +1959,22 @@ const ConfigureAiAgent = () => {
 
         <div className="mt-8">
           <label className="block text-sm font-semibold text-[#091A3A]">Select location</label>
-          <div className="relative mt-3">
-            <select
+          <div className="mt-3">
+            <Picker
+              label="Location"
+              showLabel={false}
+              className="mcm-field"
+              placeholder="Select a location"
               value={selectedLocationId}
-              onChange={(e) => {
-                const val = e.target.value;
+              options={[
+                ...sites.map((loc: any) => ({
+                  label: `${loc.name}${loc.is_default === '1' ? ' (Main Site)' : ''}`,
+                  value: String(loc.uuid || loc.id),
+                })),
+                { label: 'None (skip this step)', value: 'none' },
+              ]}
+              onChange={(option) => {
+                const val = option.value;
                 setSelectedLocationId(val);
                 if (val === 'none') {
                   formInstance.setValue('settings.operational_hours.type', '24_hours');
@@ -1974,16 +1986,7 @@ const ConfigureAiAgent = () => {
                   setStepErrors((p) => ({ ...p, regionalSettings: '' }));
                 }
               }}
-              className="h-12 w-full appearance-none rounded-xl border border-primary bg-white px-4 pr-10 text-sm text-[#091A3A] outline-none ring-4 ring-primary/10"
-            >
-              {sites.map((loc: any) => (
-                <option key={loc.uuid || loc.id} value={loc.uuid || loc.id}>
-                  {loc.name} {loc.is_default === '1' ? '(Main Site)' : ''}
-                </option>
-              ))}
-              <option value="none">None (Skip this step)</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            />
           </div>
         </div>
 
@@ -2415,19 +2418,18 @@ const ConfigureAiAgent = () => {
                 Adjust how creative or consistent the bot&apos;s responses are during chats.
               </p>
             </div>
-            <div className="relative w-full md:w-[280px]">
-              <select
-                value={temperature}
-                onChange={(e) => setTemperature(e.target.value)}
-                className="h-11 w-full appearance-none rounded-xl border border-gray-300 bg-white px-3 pr-10 text-sm text-[#091A3A] outline-none focus:border-primary"
-              >
-                {TEMPERATURE_OPTIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="w-full md:w-[280px]">
+              <Picker
+                label="Temperature"
+                showLabel={false}
+                className="mcm-field"
+                value={String(temperature)}
+                options={TEMPERATURE_OPTIONS.map((item) => ({
+                  label: String(item),
+                  value: String(item),
+                }))}
+                onChange={(option) => setTemperature(option.value)}
+              />
             </div>
           </div>
         </div>
@@ -2509,17 +2511,16 @@ const ConfigureAiAgent = () => {
                 Set the maximum session length before the AI ends the active conversation.
               </p>
             </div>
-            <select
-              value={maxSessionDuration}
-              onChange={(e) => setMaxSessionDuration(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {MAX_SESSION_DURATION_OPTIONS.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {formatMaxSessionDuration(minutes)}
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Maximum session length"
+              showLabel={false}
+              value={String(maxSessionDuration)}
+              options={MAX_SESSION_DURATION_OPTIONS.map((minutes) => ({
+                label: formatMaxSessionDuration(minutes),
+                value: String(minutes),
+              }))}
+              onChange={(option) => setMaxSessionDuration(Number(option.value))}
+            />
           </div>
         </div>
 
@@ -2531,17 +2532,16 @@ const ConfigureAiAgent = () => {
                 Set how long to wait before sending an idle reminder.
               </p>
             </div>
-            <select
-              value={idleReminder}
-              onChange={(e) => setIdleReminder(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {IDLE_REMINDER_OPTIONS.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {formatIdleReminder(seconds)}
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Idle reminder"
+              showLabel={false}
+              value={String(idleReminder)}
+              options={IDLE_REMINDER_OPTIONS.map((seconds) => ({
+                label: formatIdleReminder(seconds),
+                value: String(seconds),
+              }))}
+              onChange={(option) => setIdleReminder(Number(option.value))}
+            />
           </div>
         </div>
 
@@ -2553,17 +2553,16 @@ const ConfigureAiAgent = () => {
                 Set how many reminder retries should be attempted.
               </p>
             </div>
-            <select
-              value={idleReminderRetry}
-              onChange={(e) => setIdleReminderRetry(Number(e.target.value))}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#091A3A] outline-none focus:border-primary"
-            >
-              {IDLE_REMINDER_RETRY_OPTIONS.map((count) => (
-                <option key={count} value={count}>
-                  {formatIdleReminderRetry(count)}
-                </option>
-              ))}
-            </select>
+            <Picker
+              label="Reminder retries"
+              showLabel={false}
+              value={String(idleReminderRetry)}
+              options={IDLE_REMINDER_RETRY_OPTIONS.map((count) => ({
+                label: formatIdleReminderRetry(count),
+                value: String(count),
+              }))}
+              onChange={(option) => setIdleReminderRetry(Number(option.value))}
+            />
           </div>
         </div>
       </div>

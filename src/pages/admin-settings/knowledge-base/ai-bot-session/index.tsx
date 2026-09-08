@@ -1,7 +1,8 @@
 import { getAgentList, getChatAgentList, getSessionList } from '@/services/api';
 import AiSessionDetailDrawer from '@/pages/admin-settings/knowledge-base/components/ai-session-detail-drawer';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, Download, Loader2, MessageSquare, Phone, Search } from 'lucide-react';
+import { Download, Loader2, MessageSquare, Phone, Search } from 'lucide-react';
+import { Picker } from '@/components/mcm/picker';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -156,14 +157,6 @@ const getSentimentScores = (session: any) => {
   }));
 };
 
-const getSentimentEmoji = (session: any) => {
-  const sentiment = getSentimentLabel(session);
-  if (sentiment === 'positive') return '😊';
-  if (sentiment === 'negative') return '😞';
-  if (sentiment === 'neutral') return '😐';
-  return '–';
-};
-
 const getOutcome = (session: any) => {
   if (session?.status === 'active') return 'Active';
   if (session?.handoff) return 'Handoff';
@@ -171,12 +164,14 @@ const getOutcome = (session: any) => {
   return 'Resolved';
 };
 
+/* How the session ended. Four states that must not read alike: it worked, a
+   person had to take over, somebody is being rung back, or it is still going. */
 const getOutcomeClass = (outcome: string) => {
-  if (outcome === 'Resolved') return 'bg-emerald-100 text-emerald-700';
-  if (outcome === 'Handoff') return 'bg-amber-100 text-amber-800';
-  if (outcome === 'Callback') return 'bg-blue-100 text-blue-700';
-  if (outcome === 'Active') return 'bg-slate-100 text-slate-700';
-  return 'bg-rose-100 text-rose-700';
+  if (outcome === 'Resolved') return 'mcm-ses-out is-ok';
+  if (outcome === 'Handoff') return 'mcm-ses-out is-warn';
+  if (outcome === 'Callback') return 'mcm-ses-out is-info';
+  if (outcome === 'Active') return 'mcm-ses-out is-live';
+  return 'mcm-ses-out is-bad';
 };
 
 const getContactTitle = (session: any) => {
@@ -261,7 +256,6 @@ const ChannelPill = ({
   isSessionLabel?: boolean;
 }) => {
   const isCall = channel === 'call';
-  const icon = isCall ? '📞' : '💬';
   const label = isCall
     ? isSessionLabel
       ? 'Voice call'
@@ -270,28 +264,35 @@ const ChannelPill = ({
       ? 'Chat session'
       : 'Chat';
 
+  /* The lucide marks the rest of the product uses, not the phone and speech
+     bubble emoji — those render as a different picture on every platform and
+     brought their own colours into a themed pill. */
+  const Icon = isCall ? Phone : MessageSquare;
+
   return (
-    <span
-      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-[9px] py-1 text-[11.5px] font-bold ${
-        isCall ? 'bg-indigo-50 text-indigo-700' : 'bg-cyan-50 text-cyan-700'
-      }`}
-    >
-      <span className="text-[13px] leading-none">{icon}</span>
+    <span className={`mcm-ses-ch${isCall ? ' is-call' : ''}`}>
+      <Icon className="h-3 w-3" />
       {label}
     </span>
   );
 };
 
 const SentimentGraph = ({ session }: { session: any }) => {
+  const sentiment = getSentimentLabel(session);
   const score = getSentimentScore(session);
   const sentimentScores = getSentimentScores(session);
   const hasScores = sentimentScores.some((item) => item.score > 0);
 
   return (
     <div className="group relative flex w-fit items-center gap-[7px]">
-      <span className="text-sm">{getSentimentEmoji(session)}</span>
-      <div className="h-1.5 w-[70px] overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${score}%` }} />
+      {/* The word, then the bar. The cell used to lead with a smiley; taking
+          that away left a bare bar meaning nothing, so it says which sentiment
+          it is and colours the bar to match rather than always green. */}
+      <span className={`mcm-ses-sent is-${sentiment || 'none'}`}>
+        {sentiment ? sentiment : 'Not scored'}
+      </span>
+      <div className="mcm-ses-bar">
+        <div className={`is-${sentiment || 'none'}`} style={{ width: `${score}%` }} />
       </div>
       <div className="pointer-events-none absolute right-0 top-6 z-30 hidden w-[190px] rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl group-hover:block">
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500">
@@ -323,12 +324,10 @@ const SentimentGraph = ({ session }: { session: any }) => {
 };
 
 const StatCard = ({ title, value, icon }: { title: string; value: string; icon?: string }) => (
-  <div className="rounded-[10px] border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
-    <div className="text-[11px] font-medium text-slate-500">{title}</div>
-    <div className="mt-1 text-[22px] font-bold leading-tight text-slate-950">{value}</div>
-    <div className="mt-0.5 min-h-[14px] text-[11px] leading-none text-emerald-600">
-      {icon || '\u00a0'}
-    </div>
+  <div className="mcm-aistat">
+    <p className="mcm-aistat-l">{title}</p>
+    <p className="mcm-aistat-v">{value}</p>
+    {icon ? <p className="mcm-aistat-h">{icon}</p> : null}
   </div>
 );
 
@@ -539,20 +538,12 @@ const AiBotSession = () => {
           Sessions
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <select
-              value={dateRange}
-              onChange={(event) => setDateRange(event.target.value)}
-              className="h-[34px] min-w-[140px] appearance-none rounded-[7px] border border-slate-200 bg-white px-3 pr-9 text-xs font-semibold text-slate-950 outline-none"
-            >
-              {dateRangeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          </div>
+          <Picker
+            label="Period"
+            value={dateRange}
+            options={dateRangeOptions}
+            onChange={(option) => setDateRange(option.value)}
+          />
           <button
             type="button"
             onClick={exportCsv}
@@ -566,8 +557,8 @@ const AiBotSession = () => {
 
       <div className="flex-1 overflow-y-auto px-7 py-6">
         <div>
-          <h1 className="text-[19px] font-extrabold leading-tight text-slate-950">Sessions</h1>
-          <p className="mt-1 text-[13px] text-slate-500">
+          <h1 className="mcm-ses-h1">Sessions</h1>
+          <p className="mcm-ses-hd">
             Every AI receptionist call & AI chatbot conversation — with transcripts, sentiment &
             outcomes.
           </p>
@@ -585,71 +576,51 @@ const AiBotSession = () => {
 
         <div className="mb-3.5 flex flex-nowrap items-center gap-2.5 max-xl:flex-wrap">
           <div className="relative min-w-[220px] flex-[1_1_220px]">
-            <Search className="absolute left-[13px] top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="mcm-aisearch-i" />
             <input
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search by contact, agent, intent or transcript..."
-              className="h-[38px] w-full rounded-[10px] border border-slate-200 bg-white pl-[38px] pr-3 text-[13.5px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
+              placeholder="Search by contact, agent, intent or transcript…"
+              className="mcm-aisearch"
             />
           </div>
-          {(['all', 'call', 'chat'] as SessionChannel[]).map((channel) => {
-            const isActive = activeChannel === channel;
-            const Icon = channel === 'call' ? Phone : channel === 'chat' ? MessageSquare : null;
-            return (
-              <button
-                key={channel}
-                type="button"
-                onClick={() => setActiveChannel(channel)}
-                className={`inline-flex h-[34px] items-center gap-1.5 rounded-full border px-3 text-xs font-semibold ${
-                  isActive
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-                {channel === 'all' ? 'All' : channel === 'call' ? 'Voice' : 'Chat'}
-              </button>
-            );
-          })}
-          <div className="relative min-w-[190px]">
-            <select
-              value={selectedAgent.value}
-              onChange={(event) => {
-                const option = agentOptions.find((item) => item.value === event.target.value);
-                setSelectedAgent(option || allAgentsOption);
-              }}
-              className="h-[38px] w-full appearance-none rounded-[10px] border border-slate-200 bg-white px-3 pr-8 text-[13.5px] text-slate-900 outline-none"
-            >
-              {agentOptions.map((option) => (
-                <option key={option.value || 'all-agents'} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
+          {/* Three views of one list, so they are one control — the same
+              segmented strip the receptionist and chat-agent lists use. */}
+          <div className="mcm-segbar" role="tablist" aria-label="Filter by channel">
+            {(['all', 'call', 'chat'] as SessionChannel[]).map((channel) => {
+              const isActive = activeChannel === channel;
+              const Icon = channel === 'call' ? Phone : channel === 'chat' ? MessageSquare : null;
+              return (
+                <button
+                  key={channel}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveChannel(channel)}
+                  className={`mcm-seg${isActive ? ' is-on' : ''}`}
+                >
+                  {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+                  {channel === 'all' ? 'All' : channel === 'call' ? 'Voice' : 'Chat'}
+                </button>
+              );
+            })}
           </div>
-          <div className="relative min-w-[170px]">
-            <select
-              value={selectedOutcome.value}
-              onChange={(event) => {
-                const option = outcomeOptions.find((item) => item.value === event.target.value);
-                setSelectedOutcome(option || allOutcomesOption);
-              }}
-              className="h-[38px] w-full appearance-none rounded-[10px] border border-slate-200 bg-white px-3 pr-8 text-[13.5px] text-slate-900 outline-none"
-            >
-              {outcomeOptions.map((option) => (
-                <option key={option.value || 'all-outcomes'} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
-          </div>
+          <Picker
+            label="Agent"
+            value={selectedAgent.value}
+            options={agentOptions}
+            onChange={setSelectedAgent}
+          />
+          <Picker
+            label="Outcome"
+            value={selectedOutcome.value}
+            options={outcomeOptions}
+            onChange={setSelectedOutcome}
+          />
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid w-full min-w-0 grid-cols-[82px_1.3fr_1.4fr_0.95fr_0.7fr_0.72fr_0.95fr_1fr_96px] items-center gap-3 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50 px-[18px] py-3 text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500">
+        <div className="mcm-ses-tbl">
+          <div className="mcm-ses-row is-head">
             <div>Channel</div>
             <div>Agent</div>
             <div>Contact</div>
@@ -662,7 +633,7 @@ const AiBotSession = () => {
           </div>
 
           {isLoadingSessions || isLoadingReceptionists || isLoadingChatAgents ? (
-            <div className="flex min-h-[260px] items-center justify-center text-slate-500">
+            <div className="mcm-ses-blank">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               Loading sessions...
             </div>
@@ -675,28 +646,23 @@ const AiBotSession = () => {
               return (
                 <div
                   key={session?.sessionId}
-                  className="grid w-full min-w-0 cursor-pointer grid-cols-[82px_1.3fr_1.4fr_0.95fr_0.7fr_0.72fr_0.95fr_1fr_96px] items-center gap-3 border-b border-slate-100 px-[18px] py-3 last:border-b-0 hover:bg-slate-50"
+                  className="mcm-ses-row"
                   onClick={() => setSelectedSession(session)}
                 >
                   <div>
                     <ChannelPill channel={session?.channel} />
                   </div>
                   <div className="flex min-w-0 items-center gap-[9px]">
-                    <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                    <div className="mcm-ses-av">
                       {getInitials(agentName)}
                     </div>
                     <div className="min-w-0">
-                      <div
-                        className="truncate text-[13px] font-bold text-slate-950"
-                        title={agentName}
-                      >
+                      <div className="mcm-ses-agent" title={agentName}>
                         {agentName}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                      <div className="mcm-ses-agentsub">
                         {deletedAgent ? (
-                          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600">
-                            Deleted
-                          </span>
+                          <span className="mcm-ses-gone">Deleted</span>
                         ) : session?.channel === 'call' ? (
                           'Receptionist'
                         ) : (
@@ -727,7 +693,7 @@ const AiBotSession = () => {
                   </div>
                   <div>
                     <span
-                      className={`inline-flex rounded-[9px] px-[9px] py-[3px] text-[11px] font-bold ${getOutcomeClass(outcome)}`}
+                      className={getOutcomeClass(outcome)}
                     >
                       {outcome}
                     </span>
@@ -747,7 +713,7 @@ const AiBotSession = () => {
               );
             })
           ) : (
-            <div className="flex min-h-[260px] items-center justify-center text-slate-500">
+            <div className="mcm-ses-blank">
               No sessions found.
             </div>
           )}

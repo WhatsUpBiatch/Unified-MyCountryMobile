@@ -16,6 +16,7 @@ import {
   findReport,
 } from './reports/catalog';
 import type { ReportTable } from './reports/builders';
+import { Picker } from '@/components/mcm/picker';
 
 type LinkedReport = {
   title: string;
@@ -237,38 +238,21 @@ const ReportsTab = ({ selectedRange }: { selectedRange: { from: string; to: stri
           All reports ({AVAILABLE_REPORT_COUNT} of {TOTAL_REPORT_COUNT})
         </button>
 
-        <select
+        <Picker
+          label="Report"
+          showLabel={false}
           value={selectedId}
-          onChange={(event) => setSelectedId(event.target.value)}
-          style={{
-            height: 30,
-            maxWidth: 250,
-            padding: '0 8px',
-            fontSize: 12.5,
-            fontWeight: 600,
-            borderRadius: 8,
-            border: '1px solid var(--line)',
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-            cursor: 'pointer',
-          }}
-        >
-          {REPORT_CATALOG.map((group) => (
-            <optgroup key={group.group} label={group.group}>
-              {group.reports.map((definition) => (
-                <option
-                  key={definition.id}
-                  value={definition.id}
-                  disabled={!definition.build}
-                  title={definition.unavailableReason}
-                >
-                  {definition.title}
-                  {definition.build ? '' : ' — no data source'}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          options={REPORT_CATALOG.flatMap((group) =>
+            group.reports.map((definition) => ({
+              label: `${definition.title}${definition.build ? '' : ' — no data source'}`,
+              value: definition.id,
+              group: group.group,
+              disabled: !definition.build,
+              note: definition.unavailableReason,
+            })),
+          )}
+          onChange={(option) => setSelectedId(option.value)}
+        />
 
         <span style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
           {selectedRange.from} <span style={{ color: 'var(--ink-4)' }}>→</span> {selectedRange.to}

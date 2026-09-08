@@ -1,4 +1,5 @@
 import { normalizeRegionalSettings } from '@/lib/regional-settings';
+import { Picker } from '@/components/mcm/picker';
 
 type AgentSiteSelectionProps = {
   sites: any[];
@@ -71,30 +72,25 @@ export default function AgentSiteSelection({
 
       <label className="mt-4 block">
         <span className="mb-1.5 block text-xs font-semibold text-slate-700">Site location *</span>
-        <select
-          value={selectedSiteId}
-          onChange={(event) => onChange(event.target.value)}
+        <Picker
+          label="Site location"
+          showLabel={false}
+          className={`mcm-field${error ? ' is-bad' : ''}`}
           disabled={disabled || isLoading || sites.length === 0}
-          aria-invalid={Boolean(error)}
-          className={`h-10 w-full rounded-md border bg-white px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-slate-500 ${
-            error ? 'border-red-400' : 'border-gray-300'
-          }`}
-        >
-          <option value="" disabled>
-            {isLoading ? 'Loading sites...' : sites.length ? 'Select a site' : 'No sites available'}
-          </option>
-          {sites.map((site) => {
-            const siteId = getAgentSiteId(site);
+          placeholder={
+            isLoading ? 'Loading sites…' : sites.length ? 'Select a site' : 'No sites available'
+          }
+          value={selectedSiteId}
+          options={sites.map((site) => {
             const isDefault =
               site?.is_default === '1' || site?.is_default === 1 || site?.is_default === true;
-            return (
-              <option key={siteId} value={siteId}>
-                {site?.name || 'Unnamed site'}
-                {isDefault ? ' (Main Site)' : ''}
-              </option>
-            );
+            return {
+              label: `${site?.name || 'Unnamed site'}${isDefault ? ' (Main Site)' : ''}`,
+              value: getAgentSiteId(site),
+            };
           })}
-        </select>
+          onChange={(option) => onChange(option.value)}
+        />
       </label>
 
       {error ? <p className="mt-2 text-xs font-medium text-red-500">{error}</p> : null}
