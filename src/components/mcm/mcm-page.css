@@ -14070,3 +14070,23 @@ textarea.mcm-field:focus-visible {
   cursor: not-allowed;
 }
 
+
+/* ---- the sidebar's collapse handle ---------------------------------------
+   Sits on the panel's edge and shows only while the sidebar is hovered - or
+   always, once collapsed, since it is then the only way back.
+
+   Styled here rather than with group-hover: utilities because
+   `.mcm-page .bg-white` is unlayered and outranks them, so the resting white
+   would have held straight through the hover.
+   -------------------------------------------------------------------------- */
+.mcm-sidebar-handle {
+  background: var(--surface, #fff);
+  border-color: var(--line, #dfe5f0);
+  color: var(--ink-3, #6b7891);
+}
+.group:hover > .mcm-sidebar-handle,
+.mcm-sidebar-handle:hover {
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+  color: #fff;
+}
