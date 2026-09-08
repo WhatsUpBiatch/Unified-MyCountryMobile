@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Icon } from '@/assets/icons/icon';
 import { useNavigate } from 'react-router-dom';
 import { useSocketEvents } from '@/hooks/use-socket-events';
-import { useCompanyFeatures } from '@/hooks/rbac';
 import { useMyPresence } from '@/hooks/use-my-presence';
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { presenceStatusArray, statusImageLookup } from '../constants';
@@ -27,7 +26,6 @@ const AvatarContent = ({ setProfileState }: any) => {
 
   const { socketEventsManager, disconnectSocket } = useSocketEvents();
   const navigate = useNavigate();
-  const { features } = useCompanyFeatures();
   // Resolved in one place so the header chip and this menu always agree.
   const { status: effectiveSocketStatus } = useMyPresence();
 
@@ -100,11 +98,6 @@ const AvatarContent = ({ setProfileState }: any) => {
     handleUserCallRules(status);
     mutateUserUpdateStatus({ socket_status: status });
     setShowPresence(false);
-    setProfileState(false);
-  };
-
-  const handleAddFunds = () => {
-    navigate('/admin-settings/billing/purchase');
     setProfileState(false);
   };
 
@@ -213,15 +206,6 @@ const AvatarContent = ({ setProfileState }: any) => {
         >
           Change Password
         </div>
-        {features?.plan_features?.billing?.action?.view && (
-          <div
-            className="text-sm text-gray-700 cursor-pointer hover:text-primary"
-            {...getRoutePrefetchHandlers('/admin-settings/billing/purchase')}
-            onClick={handleAddFunds}
-          >
-            Add Funds
-          </div>
-        )}
         <button
           onClick={() => {
             logoutDevice();

@@ -74,15 +74,20 @@ const IvrMenus: FC = () => {
       accessorKey: 'extension',
     },
     {
+      /* `site` arrives as a JSON string holding a { value, label } pair.
+         The catch here logged and then returned nothing at all — `undefined`
+         renders as an empty cell, so a menu with an unreadable site looked
+         identical to one still loading. It says which it is now. */
       header: 'Site',
       accessorKey: 'site',
       cell: ({ row }) => {
-        const data = row?.original;
+        const raw = row?.original?.site;
+        if (!raw) return <span className="mcm-numnone">Company-wide</span>;
         try {
-          const getSiteObj = JSON.parse(data?.site);
-          return getSiteObj?.label || '---';
-        } catch (error) {
-          console.error('ERROR ON SITE: ', error);
+          const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          return parsed?.label || <span className="mcm-numnone">Company-wide</span>;
+        } catch {
+          return <span className="mcm-numnone">Unreadable</span>;
         }
       },
     },
@@ -96,33 +101,35 @@ const IvrMenus: FC = () => {
             ivrActions?.edit && {
               icon: 'EditStrokIcon',
               onClick: () => openIvr(data),
-              className: 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white',
+              className: '',
               tooltipText: 'Edit',
             },
           hasIvrAccess &&
             ivrActions?.delete && {
               icon: 'TrashBin',
               onClick: () => setDeleteIVRMenu(data),
-              className: 'bg-red-100 text-red-500 hover:bg-red-500 hover:text-white',
+              className: 'is-risky',
               tooltipText: 'Delete',
             },
         ].filter(Boolean);
 
-        if (!actions?.length) return '---';
+        if (!actions?.length) return <span className="mcm-numnone">No actions</span>;
 
         return (
-          <div className="flex items-center gap-2">
-            {actions?.map((action, index) => (
-              <CustomTooltip text={action.tooltipText} side="top">
-                <div
-                  key={index}
-                  className={`cursor-pointer flex items-center justify-center rounded-full w-8 h-8  ${action.className}`}
-                  onClick={() => {
-                    action.onClick();
-                  }}
+          /* Buttons, not divs with a click handler — neither could be reached
+             from a keyboard — and the key on the element the map returns rather
+             than on a child of it. */
+          <div className="mcm-rowacts">
+            {actions?.map((action) => (
+              <CustomTooltip key={action.tooltipText} text={action.tooltipText} side="top">
+                <button
+                  type="button"
+                  aria-label={action.tooltipText}
+                  className={`mcm-rowact ${action.className}`}
+                  onClick={() => action.onClick()}
                 >
-                  <Icon name={action.icon as IconName} className="w-5 h-5" />
-                </div>
+                  <Icon name={action.icon as IconName} className="w-4 h-4" />
+                </button>
               </CustomTooltip>
             ))}
           </div>
@@ -158,12 +165,11 @@ const IvrMenus: FC = () => {
           />
         }
       >
+        {/* The paragraph that sat here restated the page description above it:
+            that a menu greets callers and can be assigned to a number. Two
+            explanations of one thing, the second styled as a notice — a shape
+            worth saving for something the reader does not already know. */}
         <div className="flex flex-col gap-2">
-          <p className="text-gray-900 text-sm">
-            Use this to build your automated menu. After creating your IVR here, you can assign it
-            to any Phone Number in your system to manage greetings, routing, and voicemail messages
-            automatically.
-          </p>
           <TableManager
             {...{
               columns,

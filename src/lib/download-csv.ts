@@ -1,3 +1,11 @@
+/* Turning a result set into a CSV the browser saves.
+ *
+ * Lived under admin-settings/billing/invoice, which is where invoices used it
+ * — but the call-history and SMS-log reports imported it from there too, and
+ * they have nothing to do with billing. Moved out when the Billing section was
+ * removed so the reports kept working.
+ */
+
 export const downloadCSVFile = (jsonData: any) => {
   const headers = [
     'Customer ID',

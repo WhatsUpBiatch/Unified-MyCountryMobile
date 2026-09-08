@@ -229,30 +229,6 @@ const routePrefetchers: RoutePrefetcher[] = [
     importers: withAdmin(() => import('@/pages/admin-settings/social-media-channels')),
   },
   {
-    prefix: '/admin-settings/billing/plan',
-    importers: withAdmin(() => import('@/pages/admin-settings/billing/plan')),
-  },
-  {
-    prefix: '/admin-settings/billing/purchase',
-    importers: withAdmin(() => import('@/pages/admin-settings/billing/purchase')),
-  },
-  {
-    prefix: '/admin-settings/billing/invoices',
-    importers: withAdmin(() => import('@/pages/admin-settings/billing/invoice')),
-  },
-  {
-    prefix: '/admin-settings/compliance/brands/campaigns',
-    importers: withAdmin(() => import('@/pages/admin-settings/compliance/10DLC-compaigns')),
-  },
-  {
-    prefix: '/admin-settings/compliance/brands/reseller',
-    importers: withAdmin(() => import('@/pages/admin-settings/compliance/reseller')),
-  },
-  {
-    prefix: '/admin-settings/compliance/brands',
-    importers: withAdmin(() => import('@/pages/admin-settings/compliance/10DLC-brands')),
-  },
-  {
     prefix: '/admin-settings/templates/user-settings',
     importers: withAdmin(() => import('@/pages/admin-settings/templates/user-settings')),
   },

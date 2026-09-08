@@ -5035,7 +5035,7 @@ export const SocketEventsProvider = ({ children }: { children: ReactNode }) => {
             <Button
               type="button"
               onClick={() => {
-                navigate('/admin-settings/billing/plan?tab=Storage');
+                /* Billing › Plan has been removed; nothing to navigate to. */
                 setIsStorageModalOpen(false);
               }}
               className="bg-primary hover:bg-primary/95 text-white shadow-lg shadow-primary/20 rounded-xl h-11 px-6 font-semibold transition-all hover:scale-[1.02] cursor-pointer"

@@ -1,6 +1,5 @@
 import MeetInitiateModal from '@/components/audio-video-call/components/meet-initiate-modal';
 import Header from '@/components/custom/header';
-import UpgradePlanWidget from '@/components/custom/plan-widget';
 import Sidebar from '@/components/custom/sidebar';
 import { useAreaNav } from '@/components/custom/use-area-nav';
 // import Dialer from '@/components/dialer';
@@ -133,7 +132,6 @@ const AuthLayout = () => {
       {/* <Dialer {...{ isDialerDrawerOpen, setIsDialerDrawerOpen, isDialerOpen, setIsDialerOpen }} /> */}
       <DialpadGlobalOverlay />
       {/* <PowerDialerCampaign /> */}
-      <UpgradePlanWidget />
       <GlobalCallbackReminder />
       {isStartCampaign && <AgentRunningCampignOuter />}
       {callingInProgress && !isInConference ? <MeetRinging /> : null}

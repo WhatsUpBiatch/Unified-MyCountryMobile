@@ -1,4 +1,5 @@
 import { CUSTOM_HOURS_SCHEDULE_OPTIONS } from '@/pages/admin-settings/numbers/set-number-forwarding/constants';
+import { getForwardTypePhrase } from '@/constants/forwarding-consts';
 
 /**
  * The standard every number and extension should meet.
@@ -110,7 +111,7 @@ export const evaluateNumber = (did: any): Coverage => {
       headline: 'No voicemail',
       detail: ringsAnExtension
         ? 'Calls ring the extension, but nothing catches them when nobody answers or the call is rejected — those callers get silence.'
-        : `Calls reach ${destination.toLowerCase()}, but nothing catches an unanswered call. Choose a mailbox for this number in Set Forwarding.`,
+        : `Calls reach ${getForwardTypePhrase(destination)}, but nothing catches an unanswered call. Choose a mailbox for this number in Set Forwarding.`,
       fixable: ringsAnExtension,
     };
   }

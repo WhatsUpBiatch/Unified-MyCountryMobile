@@ -29,7 +29,7 @@ import LogoIcon from '@/assets/images/LogoIcon.svg';
 import { useOrganization } from '@/hooks/use-organisation';
 import countryListJson from '@/lib/countries.json';
 import { useGetPlans } from '@/hooks/common';
-import { durationMap } from '../admin-settings/billing/constants';
+import { durationMap } from '@/lib/plan-constants';
 import CustomizePlanModal from '../pricing/modals/customize-plan-modal';
 const initialValues = {
   first_name: '',

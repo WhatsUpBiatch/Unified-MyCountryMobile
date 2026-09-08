@@ -15,7 +15,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { SettingCard, SettingRow } from '@/components/mcm/setting-card';
+import { SettingCard } from '@/components/mcm/setting-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AdminPage } from '@/pages/admin-settings/page-shell';
@@ -51,6 +51,24 @@ const STATE_TEXT: Record<Destination['state'], string> = {
 
 const Destinations = () => {
   const [rows, setRows] = useState<Destination[]>(() => buildDestinations(countryList as any));
+  /* A mirror of `rows` that is always current.
+
+     The batch loader needs to know which destinations are still unpriced at the
+     moment it picks the next batch, and it used to get that by passing an
+     updater to `setRows` that assigned to an outer variable and returned the
+     array unchanged. React treats an updater returning the same reference as a
+     no-op and bails out, and there is no promise about when — or how often —
+     an updater runs; in StrictMode it runs twice. In practice the walk stalled
+     partway: 193 of 250 destinations, with the button still offering to load
+     the remaining 57 and nothing saying it had stopped.
+
+     A ref is the honest way to read "what is true right now" outside a render.
+     `writeRows` keeps the two in step so there is one place to change. */
+  const rowsRef = useRef(rows);
+  const writeRows = useCallback((update: (all: Destination[]) => Destination[]) => {
+    rowsRef.current = update(rowsRef.current);
+    setRows(rowsRef.current);
+  }, []);
   const [search, setSearch] = useState('');
   const [loadingAll, setLoadingAll] = useState(false);
   /* Read inside the loop so pressing Stop takes effect on the next batch rather
@@ -60,17 +78,22 @@ const Destinations = () => {
   const shown = useMemo(() => rows.filter((r) => matchesSearch(r, search)), [rows, search]);
   const progress = useMemo(() => priceProgress(rows), [rows]);
 
-  const fetchOne = useCallback(async (destination: Destination) => {
-    setRows((all) => all.map((r) => (r.iso === destination.iso ? markLoading(r) : r)));
-    try {
-      const answer = await callingRatesList({
-        filter: { key: 'COUNTRY', value: destination.name },
-      });
-      setRows((all) => all.map((r) => (r.iso === destination.iso ? readRateAnswer(r, answer) : r)));
-    } catch {
-      setRows((all) => all.map((r) => (r.iso === destination.iso ? markFailed(r) : r)));
-    }
-  }, []);
+  const fetchOne = useCallback(
+    async (destination: Destination) => {
+      writeRows((all) => all.map((r) => (r.iso === destination.iso ? markLoading(r) : r)));
+      try {
+        const answer = await callingRatesList({
+          filter: { key: 'COUNTRY', value: destination.name },
+        });
+        writeRows((all) =>
+          all.map((r) => (r.iso === destination.iso ? readRateAnswer(r, answer) : r)),
+        );
+      } catch {
+        writeRows((all) => all.map((r) => (r.iso === destination.iso ? markFailed(r) : r)));
+      }
+    },
+    [writeRows],
+  );
 
   /* Walks the whole list in batches. The queue is recomputed from current state
      each round rather than captured up front, so a row somebody loaded by hand
@@ -81,12 +104,10 @@ const Destinations = () => {
     try {
       for (;;) {
         if (stopped.current) break;
-        let batch: Destination[] = [];
-        setRows((all) => {
-          batch = nextToPrice(all, BATCH);
-          return all;
-        });
-        await new Promise((r) => setTimeout(r, 0));
+        /* Read straight from the ref: the queue is whatever is still unpriced
+           right now, including anything the reader loaded by hand while this
+           was running, so nothing is fetched twice and nothing is skipped. */
+        const batch = nextToPrice(rowsRef.current, BATCH);
         if (batch.length === 0) break;
         await Promise.all(batch.map(fetchOne));
       }
@@ -107,114 +128,100 @@ const Destinations = () => {
 
   return (
     <AdminPage
-      title="Destinations and rates"
+      section="SMS/Calling rates"
+      title="Destinations"
       description="Everywhere you can call, with its dialling code and what a call there costs."
+      filters={
+        <>
+          {/* Finding a destination is what this screen is for, so the search
+              belongs in the page's own filter bar. It used to sit inside the
+              card as a labelled settings row — a whole row of form furniture
+              wrapped around one input. */}
+          <Input
+            placeholder="United Kingdom, 44, or +44 20 7183 8750"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {loadingAll ? (
+            <Button type="button" variant="outline" onClick={() => (stopped.current = true)}>
+              Stop
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadAll()}
+              disabled={progress.complete}
+            >
+              {progress.missing > 0 ? `Load ${progress.missing} remaining` : 'All loaded'}
+            </Button>
+          )}
+          <Button type="button" variant="outline" onClick={exportCsv}>
+            Export CSV
+          </Button>
+        </>
+      }
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
         <SettingCard
           title="The price list"
           description={
+            /* Two numbers, not one. This said "N priced so far" using a count
+               that included every destination checked and found to have no
+               price — so a run that priced six of two hundred and fifty
+               reported "176 priced". */
             progress.complete
-              ? `All ${progress.total} destinations have been priced.`
-              : `${progress.total} destinations. ${progress.known} priced so far — prices are fetched one country at a time, so the rest load as you go.`
-          }
-          aside={
-            <div className="flex flex-wrap items-center gap-2">
-              {loadingAll ? (
-                <Button type="button" variant="outline" onClick={() => (stopped.current = true)}>
-                  Stop
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void loadAll()}
-                  disabled={progress.complete}
-                >
-                  {progress.missing > 0
-                    ? `Load ${progress.missing} remaining prices`
-                    : 'All loaded'}
-                </Button>
-              )}
-              <Button type="button" variant="outline" onClick={exportCsv}>
-                Export CSV
-              </Button>
-            </div>
+              ? `All ${progress.total} destinations checked. ${progress.priced} have a published price; ${progress.unpriced} do not.`
+              : `${progress.total} destinations. ${progress.known} checked so far — ${progress.priced} with a price. Prices are fetched one country at a time, so the rest load as you go.`
           }
         >
-          <SettingRow
-            label="Find a destination"
-            description="By country, by dialling code, or by pasting a number you are about to call."
-            control={
-              <div className="w-full sm:w-72">
-                <Input
-                  placeholder="United Kingdom, 44, or +44 20 7183 8750"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            }
-          />
-
-          {/* Wide content scrolls inside its own box - the page itself must never
-              move sideways. */}
-          <div className="scroller overflow-x-auto py-2">
-            <table className="w-full min-w-[34rem] border-collapse text-sm">
+          {/* Wide content scrolls inside its own box — the page itself must
+              never move sideways. */}
+          <div className="tbl-wrap">
+            <table className="mcm-dest">
               <thead>
                 <tr>
-                  {['Destination', 'Code', 'Outbound', 'Inbound', 'SMS', ''].map((h, i) => (
-                    <th
-                      key={h || i}
-                      className={`border-b border-gray-200 pb-2 pr-4 text-[11px] font-semibold uppercase tracking-wide text-gray-500 last:pr-0 ${
-                        i === 0 || i === 1 ? 'text-left' : 'text-right'
-                      }`}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <th scope="col">Destination</th>
+                  <th scope="col">Code</th>
+                  <th scope="col" className="num">
+                    Outbound
+                  </th>
+                  <th scope="col" className="num">
+                    Inbound
+                  </th>
+                  <th scope="col" className="num">
+                    SMS
+                  </th>
+                  <th scope="col" className="num">
+                    <span className="sr-only">Price status</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((d) => (
                   <tr key={d.iso}>
-                    <td className="border-b border-gray-100 py-2.5 pr-4 font-medium text-gray-900">
-                      <span className="mr-2">{d.flag}</span>
+                    <th scope="row">
+                      <span aria-hidden="true">{d.flag}</span>
                       {d.name}
-                    </td>
-                    <td className="border-b border-gray-100 py-2.5 pr-4 tabular-nums text-gray-700">
-                      {d.dialCode}
-                    </td>
-                    <td className="border-b border-gray-100 py-2.5 pr-4 text-right tabular-nums text-gray-900">
-                      {d.state === 'priced' ? price(d.outbound) : '—'}
-                    </td>
-                    <td className="border-b border-gray-100 py-2.5 pr-4 text-right tabular-nums text-gray-700">
-                      {d.state === 'priced' ? price(d.inbound) : '—'}
-                    </td>
-                    <td className="border-b border-gray-100 py-2.5 pr-4 text-right tabular-nums text-gray-700">
-                      {d.state === 'priced' ? price(d.sms) : '—'}
-                    </td>
-                    {/* A dash on its own would read as "free". The state column is
-                        what stops a blank price being mistaken for a zero one. */}
-                    <td className="border-b border-gray-100 py-2.5 text-right text-xs">
+                    </th>
+                    <td className="num">{d.dialCode}</td>
+                    <td className="num strong">{d.state === 'priced' ? price(d.outbound) : '—'}</td>
+                    <td className="num">{d.state === 'priced' ? price(d.inbound) : '—'}</td>
+                    <td className="num">{d.state === 'priced' ? price(d.sms) : '—'}</td>
+                    {/* A dash on its own would read as "free". The state column
+                        is what stops a blank price being mistaken for a zero
+                        one. */}
+                    <td className="num">
                       {d.state === 'priced' ? null : d.state === 'unknown' ? (
                         <button
                           type="button"
-                          className="text-primary hover:underline"
+                          className="mcm-numlink"
                           onClick={() => void fetchOne(d)}
                         >
                           Load price
                         </button>
                       ) : (
-                        <span
-                          className={
-                            d.state === 'failed'
-                              ? 'text-red-700'
-                              : d.state === 'unpriced'
-                                ? 'text-gray-500'
-                                : 'text-gray-400'
-                          }
-                          title={d.note}
-                        >
+                        <span className={`mcm-dest-s is-${d.state}`} title={d.note}>
                           {STATE_TEXT[d.state]}
                         </span>
                       )}
@@ -223,8 +230,8 @@ const Destinations = () => {
                 ))}
                 {shown.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-4 text-center text-xs text-gray-600">
-                      Nothing matches “{search}”.
+                    <td colSpan={6} className="mcm-dest-none">
+                      Nothing matches &ldquo;{search}&rdquo;.
                     </td>
                   </tr>
                 ) : null}
@@ -234,8 +241,8 @@ const Destinations = () => {
 
           {!progress.complete ? (
             <p className="mcm-setrow-note is-info mt-2">
-              A price only appears once it has been fetched. “Not sold” means no price is published
-              for that destination — it is not the same as a price of nothing.
+              A price only appears once it has been fetched. &ldquo;Not sold&rdquo; means no price
+              is published for that destination &mdash; it is not the same as a price of nothing.
             </p>
           ) : null}
         </SettingCard>

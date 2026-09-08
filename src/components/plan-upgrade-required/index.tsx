@@ -1,17 +1,16 @@
 import { CircleFadingArrowUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
-import { useCompanyFeatures } from '@/hooks/rbac';
 
 interface UpgradeRequiredProps {
   featureKey?: string;
   embedded?: boolean;
 }
 
+/* Shown wherever a plan-gated route refuses. The Upgrade button used to send
+   people to Billing › Plan; with the Billing section gone there is nowhere in
+   the app to change a plan, so the button has been removed rather than left
+   pointing at a route that no longer exists. The copy says who to ask
+   instead. */
 const UpgradeRequired: React.FC<UpgradeRequiredProps> = ({ embedded = false }) => {
-  const navigate = useNavigate();
-  const { features } = useCompanyFeatures();
-  const hasBillingAccess = Boolean(features?.plan_features?.billing?.action?.view);
   return (
     <div
       className={`w-full flex flex-col items-center px-6 ${
@@ -27,18 +26,9 @@ const UpgradeRequired: React.FC<UpgradeRequiredProps> = ({ embedded = false }) =
         <h2 className="text-lg font-semibold mt-4 text-gray-900">Upgrade to unlock this feature</h2>
 
         <p className="text-gray-500 mt-1">
-          This feature is currently unavailable. Upgrade your plan to access it.
+          This feature is not part of your current plan. Speak to your account manager to have it
+          added.
         </p>
-
-        {hasBillingAccess && (
-          <Button
-            className="mt-6 w-full sm:w-auto"
-            variant={'outline'}
-            onClick={() => navigate('/admin-settings/billing/plan')}
-          >
-            Upgrade
-          </Button>
-        )}
       </div>
     </div>
   );

@@ -52,8 +52,8 @@ const MESSAGING_SCHEMA_VERSION = 1;
 /* Route paths for the registration screens that already exist in this product.
    Kept next to each other so a rename is a one-line fix, and taken from the
    admin sidebar (src/pages/admin-settings/sidebar/index.tsx) rather than guessed. */
-const TEN_DLC_BRANDS_PATH = '/admin-settings/compliance/brands';
-const TEN_DLC_CAMPAIGNS_PATH = '/admin-settings/compliance/brands/campaigns';
+const TEN_DLC_BRANDS_PATH = '';
+const TEN_DLC_CAMPAIGNS_PATH = '';
 
 /* A starting point, not a finished HELP reply. It carries the five things US
    carriers look for — who you are, what the messages are, how to reach a human,

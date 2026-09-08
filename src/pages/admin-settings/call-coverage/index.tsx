@@ -12,6 +12,7 @@ import { useOrganization } from '@/hooks/use-organisation';
 import { handleAlert } from '@/lib/utils';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import Loader from '@/components/custom/loader';
+import NumberWithFlag from '@/components/custom/number-with-flag';
 import SideDrawer from '@/components/custom/side-drawer';
 import UpdateForwarding from '@/pages/admin-settings/people/update-forwarding';
 import { Ic } from '@/components/mcm/icons';
@@ -334,42 +335,45 @@ const CallCoverage = () => {
               {visibleNumbers.length ? (
                 visibleNumbers.map(({ did, coverage }) => (
                   <tr key={did?.uuid || did?.did_number}>
-                    <td className="num">
-                      <span style={{ display: 'block', fontWeight: 700 }}>{did?.did_number}</span>
-                      {did?.did_name ? (
-                        <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{did.did_name}</span>
-                      ) : null}
+                    {/* Formatted, with its flag — the raw E.164 string was the
+                        only place in Numbers that printed one. */}
+                    <td>
+                      <span className="mcm-cov-num">
+                        <NumberWithFlag number={did?.did_number} />
+                        {did?.did_name ? <span>{did.did_name}</span> : null}
+                      </span>
                     </td>
                     <td>
                       {assignedNameOf(did) ? (
-                        <>
-                          <span style={{ display: 'block' }}>{assignedNameOf(did)}</span>
-                          <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>
-                            Ext {extensionOf(did) || '—'}
-                          </span>
-                        </>
+                        <span className="mcm-cov-who">
+                          <b>{assignedNameOf(did)}</b>
+                          {extensionOf(did) ? <span>Ext {extensionOf(did)}</span> : null}
+                        </span>
                       ) : (
-                        <span style={{ color: 'var(--ink-4)' }}>Not assigned</span>
+                        <span className="mcm-numnone">Not assigned</span>
                       )}
                     </td>
                     <td>
                       <span className={STATE_CLASS[coverage.state]}>{coverage.headline}</span>
                     </td>
-                    <td style={{ maxWidth: 380 }}>{coverage.detail}</td>
+                    <td className="mcm-cov-detail">{coverage.detail}</td>
                     <td>
                       {coverage.fixable ? (
                         <button
                           type="button"
-                          className="btn"
+                          className="btn primary"
                           onClick={() => setConfirming({ did, coverage })}
                           disabled={applying}
                         >
                           Apply standard
                         </button>
+                      ) : coverage.state === 'covered' ? (
+                        <span className="mcm-numnone">Nothing to do</span>
                       ) : (
-                        <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>
-                          {coverage.state === 'covered' ? '—' : 'Needs a decision'}
-                        </span>
+                        /* Not fixable from here is not the same as broken. The
+                           cell beside it already says what the decision is;
+                           this one only has to stop reading as a dead button. */
+                        <span className="mcm-cov-manual">Yours to choose</span>
                       )}
                     </td>
                   </tr>
@@ -410,9 +414,13 @@ const CallCoverage = () => {
                     <td>
                       <span className={STATE_CLASS[coverage.state]}>{coverage.headline}</span>
                     </td>
-                    <td style={{ maxWidth: 420 }}>{coverage.detail}</td>
+                    <td className="mcm-cov-detail">{coverage.detail}</td>
                     <td>
-                      <button type="button" className="btn" onClick={() => setEditingUser(user)}>
+                      <button
+                        type="button"
+                        className={coverage.state === 'covered' ? 'btn' : 'btn primary'}
+                        onClick={() => setEditingUser(user)}
+                      >
                         {coverage.state === 'covered' ? 'Call rules' : 'Set voicemail'}
                       </button>
                     </td>
@@ -466,14 +474,18 @@ const CallCoverage = () => {
                             <span className="tag warn">Just a tone</span>
                           )}
                         </td>
-                        <td style={{ maxWidth: 420, color: 'var(--ink-3)', fontSize: 12.5 }}>
+                        <td className="mcm-cov-detail">
                           {failure ||
                             voicemailScriptFor(personName(person), spokenCompany || undefined)}
                         </td>
                         <td>
+                          {/* Weighted like the other two tabs: the row that has
+                              no greeting yet is the one being acted on, so its
+                              button leads. Regenerating one that is already
+                              there is a second thought, not the point. */}
                           <button
                             type="button"
-                            className="btn"
+                            className={has ? 'btn' : 'btn primary'}
                             disabled={Boolean(generating)}
                             onClick={() => runGeneration([person])}
                           >

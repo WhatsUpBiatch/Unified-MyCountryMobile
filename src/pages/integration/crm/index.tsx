@@ -1,12 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Icon } from '@/assets/icons/icon';
-import { Switch } from '@/components/ui/switch';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronIcon } from '@/assets/icons';
 import { CRMDisconnect, crmGetToken, CRMIsConnected, hubspotCRM } from '@/services/api';
@@ -26,12 +18,19 @@ const CRMIntegration = () => {
   const [mondaySetupModal, setMondaySetupModal] = useState<boolean>(false);
   const queryClient: any = useQueryClient();
   const activeDeleteKey = Object?.keys(deleteAlertModal)?.find((key) => deleteAlertModal[key]);
-  console.log(activeDeleteKey, 'activeDeleteKey', deleteAlertModal);
 
   const { data: crmIsConnectedData = [] } = useQuery({
     queryKey: ['CRMIsConnected'],
     queryFn: () => CRMIsConnected(),
-    select: (data) => data?.data?.data?.result || [],
+    /* `|| []` only catches a missing result. Anything else truthy — an object,
+       a string, an error envelope — went straight through to `.find` below and
+       threw during render, so the entire CRM page became "Error Occurred" and
+       not one connector could be reached. A list is what this is; anything
+       that is not a list is no connections. */
+    select: (data) => {
+      const result = data?.data?.data?.result;
+      return Array.isArray(result) ? result : [];
+    },
   });
 
   const { mutateAsync: hubspotCRMMutation } = useMutation({
@@ -115,63 +114,67 @@ const CRMIntegration = () => {
       <div className="mcm-intgrid">
         {crmList?.map((crm) => {
           const isConnected = getConnectionStatus(crm.id);
-          console.log(isConnected, 'isConnectedisConnectedd');
 
           return (
-            <div key={crm?.name} className="mcm-intcard">
+            <div key={crm?.name} className={`mcm-intcard${isConnected ? ' is-on' : ''}`}>
               <div className="flex flex-col gap-5 w-full">
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-start w-full">
-                    <div className="flex shrink-0 items-center justify-center bg-gray-100 rounded-lg p-3 h-16 w-16">
-                      <img src={crm?.image} alt={crm?.alt} className="w-10 h-10 object-contain" />
-                    </div>
-                    {isConnected && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger>
-                          <Icon name="MenuDots" className="h-5 rotate-90 cursor-pointer" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setDrawerState(true);
-                              setDrawerData(crm);
-                            }}
-                          >
-                            <Icon name="EditStrokIcon" className="!w-4.5 !h-4.5" />
-                            Manage
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setDeleteAlertModal({ [crm?.id]: true })}
-                          >
-                            <Icon name="TrashBin" className="!w-4.5 !h-4.5" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                    <span className="mcm-intcard-mark">
+                      <img src={crm?.image} alt={crm?.alt} />
+                    </span>
+                    {/* The overflow menu that used to sit here held Manage and
+                        Delete. Both are in the card's footer now, named and
+                        visible, so keeping the menu would be two ways to reach
+                        the same two actions on the same card. */}
                   </div>
-                  <h4 className="text-start font-semibold text-primary">{crm.name}</h4>
-                  <p className="text-gray-700 text-sm whitespace-normal">{crm.description}</p>
+                  <div className="mcm-intcard-t">
+                    <h4>{crm.name}</h4>
+                    {/* Whether this account has it connected. The card said so
+                        only through the presence of a switch, at the very
+                        bottom, after the description — so a grid of eight read
+                        as eight identical offers. */}
+                    {isConnected ? <span className="mcm-intcard-on">Connected</span> : null}
+                  </div>
+                  <p className="mcm-intcard-d">{crm.description}</p>
                 </div>
               </div>
-              {!isConnected ? (
-                <div
-                  className="flex items-start justify-start text-primary hover:text-primary/90 cursor-pointer mt-auto"
-                  onClick={() => !crm?.comingSoon && handleConnect(crm)}
+              {/* Three states, three footers. "Coming soon" was a clickable-
+                  looking line that did nothing when clicked, and the connected
+                  footer carried a switch wired to nothing — no onCheckedChange,
+                  so it snapped back on every click — beside a tip explaining
+                  where the real controls were. The controls are here instead. */}
+              {crm?.comingSoon ? (
+                <span className="mcm-intcard-soon">Coming soon</span>
+              ) : !isConnected ? (
+                <button
+                  type="button"
+                  className="mcm-intcard-go"
+                  onClick={() => handleConnect(crm)}
                 >
-                  {crm?.comingSoon ? 'Coming Soon' : 'Connect'}
-                  {!crm?.comingSoon && <ChevronIcon className="-rotate-90 mt-1" />}
-                </div>
+                  Connect
+                  <ChevronIcon className="-rotate-90" />
+                </button>
               ) : (
-                <div className="flex w-full items-center justify-between mt-auto">
-                  <Switch className="cursor-pointer" checked={isConnected} />
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-gray-600 bg-primary/5 px-3 py-1.5 rounded-md border border-primary/10">
-                    <Icon name="InfoIcon" className="w-3.5 h-3.5 text-primary" />
-                    <span>
-                      <span className="font-semibold text-primary">Tip:</span> Manage settings from
-                      the menu
-                    </span>
-                  </div>
+                <div className="mcm-intcard-acts">
+                  <button
+                    type="button"
+                    className="mcm-intcard-go"
+                    onClick={() => {
+                      setDrawerState(true);
+                      setDrawerData(crm);
+                    }}
+                  >
+                    Manage
+                    <ChevronIcon className="-rotate-90" />
+                  </button>
+                  <button
+                    type="button"
+                    className="mcm-intcard-off"
+                    onClick={() => setDeleteAlertModal({ [crm?.id]: true })}
+                  >
+                    Disconnect
+                  </button>
                 </div>
               )}
             </div>

@@ -1,18 +1,17 @@
 import { useDialpad } from '@/hooks/use-dialpad';
 import { useUser } from '@/hooks/use-user';
 import { CircleDollarSign } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 const DialpadBalance = () => {
-  const navigate = useNavigate();
   const { closeDialpad } = useDialpad();
   const { user } = useUser();
 
   const balanceAmount = Number(user?.company_info?.amount ?? 0);
 
+  /* Adding credit lived in Billing › Purchase, which has been removed. The
+     balance is still worth showing; the button that went nowhere is not. */
   const handleAddCredit = () => {
     closeDialpad();
-    navigate('/admin-settings/billing/purchase');
   };
 
   return (

@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription } from '@/components/ui/dialog';
 import { CloseIcon } from '@/assets/icons';
-import { useNavigate } from 'react-router-dom';
 
 interface DLCVerificationPopupProps {
   open: boolean;
@@ -9,11 +8,11 @@ interface DLCVerificationPopupProps {
 }
 
 const DLCVerificationPopup = ({ open, setOpen }: DLCVerificationPopupProps) => {
-  const navigate = useNavigate();
 
+  /* Sent people to Compliance › Brands to register, which has been removed
+     along with the rest of the 10DLC section. */
   const handleRedirectToDLC = () => {
     setOpen(false);
-    navigate('/admin-settings/compliance/brands');
   };
 
   return (

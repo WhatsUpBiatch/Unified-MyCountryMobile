@@ -115,7 +115,6 @@ const Header = () => {
     role !== 'ADMIN' || !monitoringAccess?.view
       ? '/monitoring/department'
       : '/monitoring/all-calls';
-  const addFundsRoute = '/admin-settings/billing/purchase';
   // const { isCampaignCall, isStartCampaign, selectedCampaign, setIsStopCampaign, isStopCampaign } =
   //   useCampaign();
 
@@ -650,8 +649,9 @@ const Header = () => {
                 <div className="flex items-center">
                   <CustomTooltip text={'Add Funds'} side="bottom">
                     <div
-                      className="flex items-center gap-2 px-3 h-9 bg-gray-100 hover:bg-ucass-primary-200  rounded-lg cursor-pointer"
-                      {...getHeaderRouteHandlers(addFundsRoute)}
+                      className="flex items-center gap-2 px-3 h-9 bg-gray-100 rounded-lg"
+                      /* Was a link to Billing › Purchase. The balance is
+                         still worth showing; the route it led to is gone. */
                     >
                       <Wallet className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
                       <span className="text-[14px] text-primary font-medium">

@@ -1,49 +1,12 @@
 import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom';
-import {
-  ABSOLUTE,
-  BILLING_REDIRECTS,
-  BILLING_SECTIONS,
-} from '@/pages/admin-settings/billing/billing-sections';
 import { JitsiContextProvider } from '@/context/jitsi-context';
-import { lazy, type ReactElement } from 'react';
+import { lazy } from 'react';
 import ProtectedRoute from './protected-route';
 import { SocketEventsProvider } from '@/context/socket-events-context';
 import { QUEUE_TYPE } from '@/pages/monitoring/constants';
 import VideoSection from '@/pages/meetings/video-section';
 
-const PLAN_ROUTE_RELOAD_KEY = 'billing_plan_dynamic_import_reload_at';
-const DYNAMIC_IMPORT_ERROR_PATTERNS = [
-  'Failed to fetch dynamically imported module',
-  'Importing a module script failed',
-  'error loading dynamically imported module',
-  'Loading chunk',
-  'ChunkLoadError',
-];
 
-const loadBillingPlan = async () => {
-  try {
-    const module = await import('@/pages/admin-settings/billing/plan');
-    sessionStorage.removeItem(PLAN_ROUTE_RELOAD_KEY);
-    return module;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const isDynamicImportError = DYNAMIC_IMPORT_ERROR_PATTERNS.some((pattern) =>
-      message.toLowerCase().includes(pattern.toLowerCase()),
-    );
-    const now = Date.now();
-    const lastReloadAt = Number(sessionStorage.getItem(PLAN_ROUTE_RELOAD_KEY) || 0);
-
-    if (isDynamicImportError && now - lastReloadAt >= 10000) {
-      sessionStorage.setItem(PLAN_ROUTE_RELOAD_KEY, String(now));
-      window.location.reload();
-
-      // Keep the lazy component pending while the browser reloads.
-      return new Promise<never>(() => {});
-    }
-
-    throw error;
-  }
-};
 
 const AdminSettings = lazy(() => import('@/pages/admin-settings'));
 const CompanyInfo = lazy(() => import('@/pages/admin-settings/company'));
@@ -101,10 +64,6 @@ const MyRecording = lazy(() => import('@/pages/video-meetings/recordings/my-reco
 const CallQueues = lazy(() => import('@/pages/admin-settings/phone-systems/call-queue'));
 const GreetingDetailsPage = lazy(() => import('@/pages/greetings'));
 const GreetingContent = lazy(() => import('@/pages/greetings/greetings-content'));
-const Plan = lazy(loadBillingPlan);
-const Purchase = lazy(() => import('@/pages/admin-settings/billing/purchase'));
-const Invoice = lazy(() => import('@/pages/admin-settings/billing/invoice'));
-const AddOns = lazy(() => import('@/pages/admin-settings/billing/add-ons'));
 const BasicInfoSettings = lazy(() => import('@/pages/settings/basic-info'));
 const General = lazy(() =>
   import('@/pages/settings/general').then((module) => ({ default: module.General })),
@@ -195,39 +154,13 @@ const AIDomain = lazy(() => import('@/pages/admin-settings/knowledge-base/domain
 const AiReceptionist = lazy(
   () => import('@/pages/admin-settings/knowledge-base/ai-receptionist/new-ai-receptionist'),
 );
-const DLCCompaigns = lazy(() => import('@/pages/admin-settings/compliance/10DLC-compaigns'));
 const IdentitiesAndAddressesPageLayout = lazy(
   () => import('@/pages/admin-settings/numbers/identities-and-address-page-layout'),
 );
-const Reseller = lazy(() => import('@/pages/admin-settings/compliance/reseller'));
-const DLCBrands = lazy(() => import('@/pages/admin-settings/compliance/10DLC-brands'));
 const DNC = lazy(() => import('@/pages/auto-dialer/dnc'));
 const AdminHome = lazy(() => import('@/pages/admin-settings/admin-home'));
 const CallCoverage = lazy(() => import('@/pages/admin-settings/call-coverage'));
-const StatementOfAccount = lazy(() => import('@/pages/admin-settings/billing/statement'));
-const BillingSummary = lazy(() => import('@/pages/admin-settings/billing/summary'));
-const CostCentres = lazy(() => import('@/pages/admin-settings/billing/cost-centres'));
-const BillingUsage = lazy(() => import('@/pages/admin-settings/billing/usage'));
-const BillingResources = lazy(() => import('@/pages/admin-settings/billing/resources'));
-const BillingModules = lazy(() => import('@/pages/admin-settings/billing/modules'));
 
-/* Which page each billing section renders.
- *
- * Keyed by the section's path so the shared list and the pages stay tied
- * together: add a section without a page here and TypeScript stops the build,
- * which is a great deal better than shipping a menu item that opens nothing. */
-const BILLING_ELEMENTS: Record<string, ReactElement> = {
-  summary: <BillingSummary />,
-  usage: <BillingUsage />,
-  plan: <Plan />,
-  resources: <BillingResources />,
-  purchase: <Purchase />,
-  invoices: <Invoice />,
-  statement: <StatementOfAccount />,
-  modules: <BillingModules />,
-  'cost-centres': <CostCentres />,
-  'add-ons': <AddOns />,
-};
 /* Admin ▸ Users reuses the Directory screens rather than keeping a second,
    older implementation of the same lists. Same components, same actions. */
 const DirectoryPeople = lazy(() => import('@/pages/directory/people'));
@@ -1384,77 +1317,6 @@ export const router = createBrowserRouter([
                 }}
               />
             ),
-          },
-          {
-            /* Billing's children are generated from the one shared list, so a
-               screen cannot exist in the menu and be missing here, or the other
-               way round. Each section names the page it renders in
-               BILLING_ELEMENTS below; a section with no page is a build error
-               rather than a blank screen somebody finds in production.
-
-               Every one is admin-only. Billing used to sit behind the calling
-               module's feature flag, which asked whether the company had bought
-               phone features when the real question is whether this person is
-               allowed to see the company's money. */
-            path: 'billing',
-            id: 'billing',
-            children: [
-              { index: true, element: <BillingSummary /> },
-              ...BILLING_SECTIONS.map((section) => ({
-                path: section.path,
-                element: (
-                  <ProtectedRoute
-                    element={BILLING_ELEMENTS[section.path]}
-                    guard={{ adminOnly: true }}
-                  />
-                ),
-              })),
-              /* Addresses that used to work and are sitting in somebody's
-                 bookmarks or a finance ticket. They move rather than break. */
-              ...BILLING_REDIRECTS.map((moved) => ({
-                path: moved.from,
-                element: <Navigate to={ABSOLUTE(moved.to)} replace />,
-              })),
-            ],
-          },
-          {
-            path: 'compliance',
-            id: 'compliance',
-            children: [
-              {
-                path: 'brands',
-                id: 'brands',
-                element: (
-                  <ProtectedRoute
-                    element={<DLCBrands />}
-                    guard={{ adminOnly: true }}
-                    trialRestricted
-                  />
-                ),
-              },
-              {
-                path: 'brands/campaigns',
-                id: 'brands/campaigns',
-                element: (
-                  <ProtectedRoute
-                    element={<DLCCompaigns />}
-                    guard={{ adminOnly: true }}
-                    trialRestricted
-                  />
-                ),
-              },
-              {
-                path: 'brands/reseller',
-                id: 'brands/reseller',
-                element: (
-                  <ProtectedRoute
-                    element={<Reseller />}
-                    guard={{ adminOnly: true }}
-                    trialRestricted
-                  />
-                ),
-              },
-            ],
           },
           {
             path: 'templates',

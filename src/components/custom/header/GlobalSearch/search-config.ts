@@ -35,11 +35,7 @@ export const SEARCHABLE_PAGES: SearchablePage[] = [
   { label: 'Call Queue', path: '/admin-settings/phone/queues' },
   { label: 'Call Forwarding', path: '/admin-settings/phone/preferences' },
   { label: 'Shared Line', path: '/admin-settings/phone/shared-line' },
-  { label: 'Billing Plan', path: '/admin-settings/billing/plan' },
-  { label: 'Billing Purchase', path: '/admin-settings/billing/purchase' },
-  { label: 'Invoices', path: '/admin-settings/billing/invoices' },
   { label: 'Social Media Channels', path: '/admin-settings/social-media-channels' },
-  { label: 'Compliance Brands', path: '/admin-settings/compliance/brands' },
   { label: 'Templates', path: '/admin-settings/templates/user-settings' },
   { label: 'Outbound Rates', path: '/admin-settings/calling-rates/outbound-rates' },
   { label: 'Knowledge Base', path: '/admin-settings/knowledge/all-knowledge' },
@@ -93,10 +89,6 @@ export function resolveApiResultPath(item: any): string {
       return '/video';
     case 'user':
       return '/admin-settings/people';
-    case 'plan':
-      return '/admin-settings/billing/plan';
-    case 'card':
-      return '/admin-settings/billing/purchase';
     case 'lead':
       return '/campaign/leads';
     case 'page':

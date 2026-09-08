@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { Icon } from '@/assets/icons/icon';
+import { useEffect, useMemo, useState } from 'react';
 import { callRatesSearch } from '@/pages/messenger/constants';
 import CustomSelect from '@/components/custom/custom-select';
 import { LandlineOutlined, MobileOutlined } from '@/assets/icons';
@@ -13,210 +12,210 @@ import Loader from '@/components/custom/loader';
 import { Button } from '@/components/ui/button';
 import countryList from '@/lib/countries.json';
 import { Mail } from 'lucide-react';
+import { AdminPage } from '@/pages/admin-settings/page-shell';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * Admin ▸ SMS/Calling rates ▸ Rate details.
+ *
+ * What one destination costs, split by direction and line type.
+ *
+ * It was drawn as a grid of cards, three across, each one a 100px flag above a
+ * country name above a price. Every card on the screen is the *same* country —
+ * that is what looking up a destination means — so the flag and the name were
+ * repeated five times and the only thing that differed between cards, the line
+ * type and the price, was the smallest text on them. Worse, the cards were
+ * keyed `key={e?.countryName}`, which is identical for every one, so React was
+ * given five duplicate keys.
+ *
+ * Prices compared against each other belong in rows: the country is said once,
+ * at the top, and each row is a direction, a line type and a number.
+ */
+
+type Row = {
+  id: string;
+  rateType: 'Inbound' | 'Outbound' | 'SMS';
+  typeName: string;
+  icon: React.ReactNode;
+  rate: string;
+  dialprefix: string;
+  unit: string;
+};
 
 const OutboundRates = () => {
   const { user } = useUser();
-  const [search, setSearch]: any = useState({});
+  const [search, setSearch]: any = useState({ label: 'Country', value: 'COUNTRY' });
   const [selectedCountry, setSelectedCountry]: any = useState({ label: '', value: '' });
-  const [phn, setPhn]: any = useState();
+  const [phn, setPhn]: any = useState('');
   const [ratesData, setRatesData]: any = useState({});
+  const [hasSearched, setHasSearched] = useState(false);
+
   const { mutate: getRates, isPending } = useMutation({
     mutationKey: ['callingRatesList'],
     mutationFn: callingRatesList,
     onSuccess: (data) => {
-      setRatesData(data?.data?.data?.result);
+      setRatesData(data?.data?.data?.result || {});
+      setHasSearched(true);
     },
   });
+
   useEffect(() => {
-    setSearch({
-      label: 'Country',
-      value: 'COUNTRY',
-    });
+    if (!user?.countryInfo?.countryname) return;
     setSelectedCountry({
-      label: user?.countryInfo?.countryname,
-      value: user?.countryInfo?.countryname,
+      label: user.countryInfo.countryname,
+      value: user.countryInfo.countryname,
       icon: <ReactCountryFlag countryCode={user?.countryInfo?.alpha2code} svg />,
     });
-
-    if (user?.countryInfo?.countryname) {
-      const filter = {
-        key: 'COUNTRY',
-        value: user?.countryInfo?.countryname,
-      };
-      getRates({ filter });
-    }
+    getRates({ filter: { key: 'COUNTRY', value: user.countryInfo.countryname } });
   }, [user]);
 
-  // const smsMobileRate = ratesData?.sms_rates?.find((rate: any) => rate?.type === 'Mobile');
+  const rows: Row[] = useMemo(() => {
+    const build = (
+      list: any[],
+      rateType: Row['rateType'],
+      unit: string,
+      fallbackType?: string,
+    ): Row[] =>
+      (list ?? []).map((rate: any, index: number) => {
+        /* Read from the row, not assumed. Inbound rates were hard-coded to a
+           landline icon and the label "Toll-Free" whatever the row actually
+           said, so a local inbound rate was presented as toll-free. */
+        const typeName = rate?.type || fallbackType || '—';
+        const isMobile = String(typeName).toLowerCase().includes('mobile');
+        return {
+          /* The country repeats on every row, so it cannot be the key. */
+          id: `${rateType}-${typeName}-${rate?.dialprefix ?? index}`,
+          rateType,
+          typeName,
+          icon:
+            rateType === 'SMS' ? (
+              <Mail className="w-4 h-4" />
+            ) : isMobile ? (
+              <MobileOutlined className="w-4 h-4" />
+            ) : (
+              <LandlineOutlined className="w-4 h-4" />
+            ),
+          rate: rate?.rate,
+          dialprefix: rate?.dialprefix,
+          unit,
+        };
+      });
 
-  const ratesBlock = [
-    ...(ratesData?.inbound_call_rates ?? []).map((rate: any) => {
-      return {
-        number: rate?.dialprefix,
-        icon: ratesData?.country?.iso,
-        rate: rate?.rate,
-        countryName: ratesData?.country?.name || rate?.destination,
-        // type:
-        //   rate?.type === 'Mobile' ? (
-        //     <MobileOutlined className="w-4.5 h-4.5" />
-        //   ) : (
-        //     <LandlineOutlined className="w-4.5 h-4.5" />
-        //   ),
-        type: <LandlineOutlined className="w-4.5 h-4.5" />,
-        typeName: 'Toll-Free',
-        rateType: 'Inbound',
-      };
-    }),
-    ...(ratesData?.outbound_call_rates ?? []).map((rate: any) => {
-      return {
-        number: rate?.dialprefix,
-        icon: ratesData?.country?.iso,
-        rate: rate?.rate,
-        countryName: ratesData?.country?.name || rate?.destination,
-        type:
-          rate?.type === 'Mobile' ? (
-            <MobileOutlined className="w-4.5 h-4.5" />
-          ) : (
-            <LandlineOutlined className="w-4.5 h-4.5" />
-          ),
-        typeName: rate?.type,
-        rateType: 'Outbound',
-      };
-    }),
-    ...(ratesData?.sms_rates ?? []).map((rate: any) => {
-      return {
-        number: rate?.dialprefix,
-        icon: ratesData?.country?.iso,
-        rate: rate?.rate,
-        countryName: ratesData?.country?.name || rate?.destination,
-        type: <Mail className="w-4.5 h-4.5" />,
-        typeName: rate?.type || 'SMS',
-        rateType: 'SMS',
-      };
-    }),
-    // ...(smsMobileRate
-    //   ? [
-    //       {
-    //         number: smsMobileRate?.dialprefix,
-    //         icon: ratesData?.country?.iso,
-    //         rate: smsMobileRate?.rate,
-    //         countryName: ratesData?.country?.name || smsMobileRate?.destination,
-    //         type: <LetterLine className="w-5 h-5" />,
-    //         typeName: 'SMS',
-    //       },
-    //     ]
-    //   : []),
-  ];
+    return [
+      ...build(ratesData?.inbound_call_rates, 'Inbound', 'per minute'),
+      ...build(ratesData?.outbound_call_rates, 'Outbound', 'per minute'),
+      ...build(ratesData?.sms_rates, 'SMS', 'per message', 'SMS'),
+    ];
+  }, [ratesData]);
 
   const handleSubmit = () => {
-    if (!search?.value || phn === '') return;
-    const filter = {
-      key: search?.value,
-      value: search?.value === 'COUNTRY' ? selectedCountry?.value : phn,
-    };
-    getRates({ filter });
+    const value = search?.value === PHONE_KEY ? phn : selectedCountry?.value;
+    if (!search?.value || !value) return;
+    getRates({ filter: { key: search.value, value } });
   };
 
-  console.log('ratesBlock', ratesBlock);
+  const country = ratesData?.country;
+
   return (
-    <section className="w-full overflow-x-auto overflow-y-hidden">
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[65px] bg-white">
-        <div>
-          <p className="text-gray-900 font-semibold text-lg flex items-center gap-1">
-            SMS/Calling Rates
-            <div className="-rotate-90 text-gray-800">
-              <Icon name="ChevronIcon" className="w-5 h-5" />
-            </div>
-            <span className="text-primary text-md">Outbound Rates</span>
-          </p>
-          <p className="text-gray-500 text-xs">
-            What each destination costs to call or text, per minute or per message.
-          </p>
-        </div>
-      </div>
-      <div className="w-full flex justify-center gap-3 p-3">
-        <div className="md:w-2/3 w-full">
-          <div className="flex flex-col  border border-gray-200 rounded-lg bg-white p-5 w-full gap-3  h-[calc(100vh-10rem)] overflow-y-auto">
-            <div className="w-full ">
-              <p className="text-gray-900 font-semibold text-md mb-2">Search By</p>
-              <div className="w-full flex gap-3  flex-col sm:flex-row">
-                <CustomSelect
-                  className=""
-                  options={callRatesSearch}
-                  value={search}
-                  placeholder="Search By "
-                  handleChange={(e) => setSearch(e)}
-                />
-                {search?.value === PHONE_KEY ? (
-                  <div className="flex w-full">
-                    <PhoneInput
-                      country={user?.countryInfo?.alpha2code?.toLowerCase()}
-                      value={phn}
-                      onChange={setPhn}
-                    />
-                  </div>
-                ) : (
-                  <CustomSelect
-                    options={countryList?.map((country) => ({
-                      label: country?.name || '',
-                      value: country?.name || '',
-                      icon: <ReactCountryFlag countryCode={country?.isoCode} svg />,
-                    }))}
-                    handleChange={(value) => setSelectedCountry(value)}
-                    value={selectedCountry || ''}
-                    placeholder={'Select Country'}
-                  />
-                )}
-                <Button disabled={isPending} variant={'outline'} onClick={handleSubmit}>
-                  {isPending ? <Loader variant="blue" /> : 'Submit'}
-                </Button>
-              </div>
-            </div>
-            {isPending ? (
-              <div className="flex justify-center items-center h-[calc(100vh-16.5rem)] w-full">
-                <Loader variant="blue" />
-              </div>
-            ) : ratesData && Object.keys(ratesData)?.length > 0 ? (
-              <div className="w-full h-[calc(100vh-16.5rem)] overflow-y-auto">
-                <div className="w-full grid sm:grid-cols-3 gap-3">
-                  {ratesBlock?.map((e: any) => (
-                    <div
-                      key={e?.countryName}
-                      className="w-full rounded-lg bg-white border border-gray-200 px-4 py-8 h-full"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-2 w-full">
-                        <ReactCountryFlag
-                          countryCode={e?.icon}
-                          svg
-                          style={{ width: '100px', height: '100px' }}
-                          className="rounded-full border w-16 h-16 mb-2 object-cover"
-                        />
-                        <p className="flex items-center gap-2 text-sm text-gray-500">
-                          {e?.countryName}
-                        </p>
-                        <div className="flex items-center gap-1">
-                          <p className="flex items-center gap-2 text-gray-500">{e?.type}</p>
-                          <p className="text-sm">{e?.typeName}</p>
-                        </div>
-                        <p className="text-sm">
-                          Rates: <strong>${e?.rate}</strong>
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col justify-center items-center gap-1 py-5 h-full w-full">
-                <p className="text-sm text-gray-700">
-                  {'No matching records were found for the selected country or phone number.'}
-                </p>
-              </div>
-            )}
+    <AdminPage
+      section="SMS/Calling rates"
+      title="Rate details"
+      description="What one destination costs to call or text, split by direction and by the kind of line being reached."
+      filters={
+        <>
+          <CustomSelect
+            options={callRatesSearch}
+            value={search}
+            placeholder="Search by"
+            handleChange={(e) => setSearch(e)}
+          />
+          {search?.value === PHONE_KEY ? (
+            <PhoneInput
+              country={user?.countryInfo?.alpha2code?.toLowerCase()}
+              value={phn}
+              onChange={setPhn}
+            />
+          ) : (
+            <CustomSelect
+              options={countryList?.map((c) => ({
+                label: c?.name || '',
+                value: c?.name || '',
+                icon: <ReactCountryFlag countryCode={c?.isoCode} svg />,
+              }))}
+              handleChange={(value) => setSelectedCountry(value)}
+              value={selectedCountry || ''}
+              placeholder={'Select country'}
+            />
+          )}
+          <Button disabled={isPending} variant={'primary'} onClick={handleSubmit}>
+            {isPending ? <Loader variant="blue" /> : 'Look up'}
+          </Button>
+        </>
+      }
+    >
+      <div className="mcm-rates">
+        {isPending ? (
+          <div className="mcm-rates-blank">
+            <Loader variant="blue" />
           </div>
-        </div>
+        ) : rows.length ? (
+          <>
+            {/* The destination, said once. It was on every card. */}
+            <div className="mcm-rates-head">
+              <ReactCountryFlag countryCode={country?.iso} svg className="mcm-rates-flag" />
+              <div>
+                <b>{country?.name || 'This destination'}</b>
+                {rows[0]?.dialprefix ? <span>Dial prefix +{rows[0].dialprefix}</span> : null}
+              </div>
+            </div>
+
+            <div className="tbl-wrap">
+              <table className="mcm-rates-t">
+                <thead>
+                  <tr>
+                    <th scope="col">Direction</th>
+                    <th scope="col">Reaching</th>
+                    <th scope="col">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <span className={`mcm-rates-dir is-${row.rateType.toLowerCase()}`}>
+                          {row.rateType}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="mcm-rates-kind">
+                          {row.icon}
+                          {row.typeName}
+                        </span>
+                      </td>
+                      <td>
+                        {/* The unit matters as much as the number: a call is
+                            priced by the minute and a text by the message, and
+                            the card showed "Rates: $0.0132" for both. */}
+                        <span className="mcm-rates-price">
+                          <b>${row.rate}</b>
+                          <span>{row.unit}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="mcm-rates-blank">
+            {hasSearched
+              ? 'No rates are published for that country or number.'
+              : 'Choose a country or enter a number to see what it costs.'}
+          </div>
+        )}
       </div>
-    </section>
+    </AdminPage>
   );
 };
 

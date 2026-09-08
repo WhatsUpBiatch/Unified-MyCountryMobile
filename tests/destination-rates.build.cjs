@@ -15,6 +15,8 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/lib/destination-rates.ts
 var destination_rates_exports = {};
 __export(destination_rates_exports, {
   buildDestinations: () => buildDestinations,
@@ -28,26 +30,26 @@ __export(destination_rates_exports, {
   toCsv: () => toCsv
 });
 module.exports = __toCommonJS(destination_rates_exports);
-const cleanCode = (raw) => {
+var cleanCode = (raw) => {
   const digits = String(raw ?? "").replace(/[^\d]/g, "");
   return digits ? `+${digits}` : "";
 };
-const buildDestinations = (countries) => (countries ?? []).map((c) => ({
+var buildDestinations = (countries) => (countries ?? []).map((c) => ({
   iso: String(c?.isoCode ?? "").toUpperCase(),
   name: String(c?.name ?? "").trim(),
   flag: String(c?.flag ?? ""),
   dialCode: cleanCode(c?.phonecode),
   state: "unknown"
 })).filter((d) => d.iso && d.name && d.dialCode).sort((a, b) => a.name.localeCompare(b.name));
-const money = (value) => {
+var money = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : void 0;
 };
-const lowestRate = (rows) => {
+var lowestRate = (rows) => {
   const values = (rows ?? []).map((r) => money(r?.rate)).filter((n) => n !== void 0);
   return values.length ? Math.min(...values) : void 0;
 };
-const readRateAnswer = (destination, answer) => {
+var readRateAnswer = (destination, answer) => {
   const result = answer?.data?.data?.result ?? answer?.result ?? answer;
   if (!result) {
     return { ...destination, state: "failed", note: "The price could not be loaded. Try again." };
@@ -64,17 +66,17 @@ const readRateAnswer = (destination, answer) => {
   }
   return { ...destination, state: "priced", outbound, inbound, sms, note: void 0 };
 };
-const markLoading = (destination) => ({
+var markLoading = (destination) => ({
   ...destination,
   state: "loading",
   note: void 0
 });
-const markFailed = (destination) => ({
+var markFailed = (destination) => ({
   ...destination,
   state: "failed",
   note: "The price could not be loaded. Try again."
 });
-const matchesSearch = (destination, search) => {
+var matchesSearch = (destination, search) => {
   const term = String(search ?? "").trim().toLowerCase();
   if (!term) return true;
   if (destination.name.toLowerCase().includes(term)) return true;
@@ -84,18 +86,20 @@ const matchesSearch = (destination, search) => {
   const code = destination.dialCode.slice(1);
   return code.startsWith(digits) || digits.startsWith(code);
 };
-const priceProgress = (destinations) => {
+var priceProgress = (destinations) => {
   const total = destinations.length;
-  const known = destinations.filter((d) => d.state === "priced" || d.state === "unpriced").length;
-  return { total, known, missing: total - known, complete: total > 0 && known >= total };
+  const priced = destinations.filter((d) => d.state === "priced").length;
+  const unpriced = destinations.filter((d) => d.state === "unpriced").length;
+  const known = priced + unpriced;
+  return { total, known, priced, unpriced, missing: total - known, complete: total > 0 && known >= total };
 };
-const nextToPrice = (destinations, batch) => destinations.filter((d) => d.state === "unknown").slice(0, Math.max(0, batch));
-const csvCell = (value) => {
+var nextToPrice = (destinations, batch) => destinations.filter((d) => d.state === "unknown").slice(0, Math.max(0, batch));
+var csvCell = (value) => {
   const text = String(value ?? "");
   const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
   return `"${safe.replace(/"/g, '""')}"`;
 };
-const toCsv = (destinations) => {
+var toCsv = (destinations) => {
   const header = [
     "Destination",
     "Country code",
@@ -120,3 +124,15 @@ const toCsv = (destinations) => {
   );
   return [header.map(csvCell).join(","), ...rows].join("\n");
 };
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  buildDestinations,
+  lowestRate,
+  markFailed,
+  markLoading,
+  matchesSearch,
+  nextToPrice,
+  priceProgress,
+  readRateAnswer,
+  toCsv
+});

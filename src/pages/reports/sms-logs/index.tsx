@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { getSmsLogList } from '@/services/api';
 import NumberWithFlag from '@/components/custom/number-with-flag';
 import { convertDateFormateApis, handleAlert } from '@/lib/utils';
-import { downloadCSV } from '@/pages/admin-settings/billing/invoice/constants';
+import { downloadCSV } from '@/lib/download-csv';
 import { transFilterObject } from '@/components/custom/custom-filter';
 import DateDropdown from '@/components/custom/date-dropdown';
 import { dropdownCallInitialVal } from '@/components/custom/date-dropdown/constant';

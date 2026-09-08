@@ -18,7 +18,6 @@ import {
   COMPANY_ROOT,
   COMPANY_SECTIONS,
 } from '@/pages/admin-settings/company/company-sections';
-import { ABSOLUTE, BILLING_SECTIONS } from '@/pages/admin-settings/billing/billing-sections';
 
 export const canShowItem = (item: any, isAdmin: boolean) => {
   if ('visible' in item && item.visible !== true) return false;
@@ -386,58 +385,6 @@ export const adminSettingArr = (features: any, IS_ADMIN: boolean, IS_ACCOUNT_ADM
           title: 'Destinations',
           path: '/admin-settings/calling-rates/destinations',
           icon: 'CallOutgoing',
-        },
-      ].filter(Boolean),
-    },
-    {
-      /* Billing's pages come from one shared list, so this menu and the router
-         cannot drift apart. Admin-only, because who may look at the company's
-         money is a question about the person, not about which calling features
-         the company has bought. */
-      title: 'Billing',
-      type: 'accordion',
-      value: 'billing',
-      icon: 'Billing',
-      enabled: Boolean(IS_ADMIN),
-      visible: Boolean(IS_ADMIN),
-      children: BILLING_SECTIONS.map((section) => ({
-        title: section.label,
-        path: ABSOLUTE(section),
-        icon: section.icon,
-      })),
-    },
-    {
-      key: 'admin-settings.compliance',
-      id: 'compliance',
-      title: '10DLC Compliance',
-      icon: 'FileCheckIcon',
-      type: 'accordion',
-      value: 'compliance',
-      enabled: Boolean(IS_ADMIN),
-      visible: Boolean(IS_ADMIN),
-      children: [
-        {
-          key: 'admin-settings.compliance.10DLCBrands',
-          id: '10DLCBrands',
-          title: 'Brands',
-          path: '/admin-settings/compliance/brands',
-          icon: 'BoxBrandsIcon',
-        },
-        {
-          key: 'admin-settings.compliance.10DLCCompaigns',
-          id: '10DLCCompaigns',
-          /* SMS campaign registration, not the outbound dialer. Bare
-             "Campaigns" collided with the dialer entry above. */
-          title: 'SMS Campaigns',
-          path: '/admin-settings/compliance/brands/campaigns',
-          icon: 'DepartmentIcon',
-        },
-        {
-          key: 'admin-settings.compliance.reseller',
-          id: '10DLCReseller',
-          title: 'Reseller',
-          path: '/admin-settings/compliance/brands/reseller',
-          icon: 'DepartmentIcon',
         },
       ].filter(Boolean),
     },

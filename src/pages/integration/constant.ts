@@ -218,6 +218,20 @@ export const crmList: crmListProps[] = [
   },
 ];
 
+/* The prebuilt Zap templates offered per tool.
+ *
+ * `subtitle` is the direction the data flows and `icons` is that direction
+ * drawn — source first. In the first two templates of every group both
+ * disagreed with the template's own `label`: "Create contacts in UCaaS added
+ * to Google Contacts" creates the contact in UCaaS, so it flows Google
+ * Contacts → UCaaS, and the row said the opposite in both its arrow and its
+ * icons. Eight of the twelve rows were affected, in the same way each time.
+ *
+ * The labels are what has been trusted here, being the more specific of the
+ * two — "Create rows in Google Sheets for new contacts added to UCaaS" can
+ * only mean one thing. The Zapier templates behind the URLs have not been
+ * opened to confirm it; if any turns out to run the other way, correct the
+ * label and the arrow together rather than one of them. */
 export const crmZapData: Record<
   string,
   {
@@ -234,20 +248,20 @@ export const crmZapData: Record<
     title: 'Google Contacts',
     zaps: [
       {
-        label: 'Create contacts in Ucass added to Google Contacts',
-        subtitle: 'Ucaas → Google Contacts',
-        icons: [McmLogo, GoogleContact],
+        label: 'Create contacts in UCaaS added to Google Contacts',
+        subtitle: 'Google Contacts → UCaaS',
+        icons: [GoogleContact, McmLogo],
         url: 'https://zapier.com/editor/313251219/draft/313251220/setup',
       },
       {
-        label: 'Create new contacts in Google Contacts added to Ucaas',
-        subtitle: 'Google Contacts → Ucaas',
-        icons: [GoogleContact, McmLogo],
+        label: 'Create new contacts in Google Contacts added to UCaaS',
+        subtitle: 'UCaaS → Google Contacts',
+        icons: [McmLogo, GoogleContact],
         url: 'https://zapier.com/editor/313272431/draft/313272431/setup',
       },
       {
         label: 'Trigger SMS sending from new Google Contact',
-        subtitle: 'Google Contacts → Ucaas (Send SMS)',
+        subtitle: 'Google Contacts → UCaaS (Send SMS)',
         icons: [GoogleContact, McmLogo],
         url: 'https://zapier.com/editor/313251582/draft/313251583/setup',
       },
@@ -263,20 +277,20 @@ export const crmZapData: Record<
     title: 'Google Sheets',
     zaps: [
       {
-        label: 'Create new contacts in Ucass added to Google Sheets',
-        subtitle: 'Ucaas → Google Sheets',
-        icons: [McmLogo, GoogleSheet],
+        label: 'Create new contacts in UCaaS added to Google Sheets',
+        subtitle: 'Google Sheets → UCaaS',
+        icons: [GoogleSheet, McmLogo],
         url: 'https://zapier.com/editor/313251890/draft/313251891/setup',
       },
       {
-        label: 'Create rows in Google Sheets for new contacts added to Ucaas',
-        subtitle: 'Google Sheets → Ucaas',
-        icons: [GoogleSheet, McmLogo],
+        label: 'Create rows in Google Sheets for new contacts added to UCaaS',
+        subtitle: 'UCaaS → Google Sheets',
+        icons: [McmLogo, GoogleSheet],
         url: 'https://zapier.com/editor/313273038/draft/313273039/setup',
       },
       {
         label: 'Trigger SMS sending from new Google Sheet row',
-        subtitle: 'Google Sheets → Ucaas (Send SMS)',
+        subtitle: 'Google Sheets → UCaaS (Send SMS)',
         icons: [GoogleSheet, McmLogo],
         url: 'https://zapier.com/editor/313251934/draft/313251935/setup',
       },
@@ -292,15 +306,15 @@ export const crmZapData: Record<
     title: 'Pipedrive',
     zaps: [
       {
-        label: 'Create contacts in Ucass added to Pipedrive',
-        subtitle: 'Ucaas → Pipedrive',
-        icons: [McmLogo, Pipedrive],
+        label: 'Create contacts in UCaaS added to Pipedrive',
+        subtitle: 'Pipedrive → UCaaS',
+        icons: [Pipedrive, McmLogo],
         url: 'https://zapier.com/editor/313252061/draft/313252062/setup',
       },
       {
-        label: 'Create new contacts in Pipedrive added to Ucaas',
-        subtitle: 'Pipedrive → Ucaas',
-        icons: [Pipedrive, McmLogo],
+        label: 'Create new contacts in Pipedrive added to UCaaS',
+        subtitle: 'UCaaS → Pipedrive',
+        icons: [McmLogo, Pipedrive],
         url: 'https://zapier.com/editor/313273430/draft/313273431/setup',
       },
       {
@@ -321,15 +335,15 @@ export const crmZapData: Record<
     title: 'HubSpot',
     zaps: [
       {
-        label: 'Create contacts in Ucass added to HubSpot',
-        subtitle: 'Ucaas → HubSpot',
-        icons: [McmLogo, Hubspot],
+        label: 'Create contacts in UCaaS added to HubSpot',
+        subtitle: 'HubSpot → UCaaS',
+        icons: [Hubspot, McmLogo],
         url: 'https://zapier.com/editor/313252488/draft/313252489/setup',
       },
       {
-        label: 'Create new contacts in HubSpot added to Ucaas',
-        subtitle: 'HubSpot → Ucaas',
-        icons: [Hubspot, McmLogo],
+        label: 'Create new contacts in HubSpot added to UCaaS',
+        subtitle: 'UCaaS → HubSpot',
+        icons: [McmLogo, Hubspot],
         url: 'https://zapier.com/editor/313273732/draft/313273733/setup',
       },
       {
@@ -372,6 +386,37 @@ export const validationSchema = yup.object().shape({
     .required('Type is required'),
   path: yup.string().required('Path is required'),
 });
+/* Sample rows for the Manage Webhook table.
+ *
+ * Named SAMPLE, exported from here rather than fetched, and shown behind a
+ * notice on the screen itself, because there is no webhook API in this product
+ * — no route, no service function, and the table's own fetcher is commented
+ * out in the page. These exist so the table can be designed and reviewed
+ * against realistic content; they are not this account's webhooks and nothing
+ * posts to them.
+ *
+ * Delete this constant in the same change that adds the real endpoint. */
+export const SAMPLE_WEBHOOKS = [
+  {
+    uuid: 'sample-1',
+    type: 'HUBSPOT',
+    path: 'https://hooks.zapier.com/hooks/catch/1849201/b7k2n4x/',
+    created_at: '2026-08-14T09:12:00.000Z',
+  },
+  {
+    uuid: 'sample-2',
+    type: 'GOOGLE_SHEETS',
+    path: 'https://hooks.zapier.com/hooks/catch/1849201/m3p9q1c/',
+    created_at: '2026-07-30T16:45:00.000Z',
+  },
+  {
+    uuid: 'sample-3',
+    type: 'PIPEDRIVE',
+    path: 'https://hooks.zapier.com/hooks/catch/1849201/j5t8w6z/',
+    created_at: '2026-06-02T11:08:00.000Z',
+  },
+];
+
 export interface editForm {
   isEdit: boolean;
   formData: any;

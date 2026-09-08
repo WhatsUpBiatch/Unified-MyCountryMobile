@@ -5,7 +5,7 @@ import { Icon } from '@/assets/icons/icon';
 import { useNavigate } from 'react-router-dom';
 import { ReportsPageLayout } from '../../reports-content-layout';
 import { convertDateFormateApis, formatSecondsToMMSS, handleAlert, MEDIA_URL } from '@/lib/utils';
-import { downloadCSV } from '@/pages/admin-settings/billing/invoice/constants';
+import { downloadCSV } from '@/lib/download-csv';
 import { useUser } from '@/hooks/use-user';
 import { FilterIcon, SearchLine } from '@/assets/icons';
 import { Input } from '@/components/ui/input';

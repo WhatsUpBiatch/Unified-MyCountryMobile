@@ -147,10 +147,25 @@ export const matchesSearch = (destination: Destination, search: string): boolean
    whether what they are looking at is the whole picture. */
 export const priceProgress = (
   destinations: Destination[],
-): { total: number; known: number; missing: number; complete: boolean } => {
+): {
+  total: number;
+  known: number;
+  priced: number;
+  unpriced: number;
+  missing: number;
+  complete: boolean;
+} => {
   const total = destinations.length;
-  const known = destinations.filter((d) => d.state === 'priced' || d.state === 'unpriced').length;
-  return { total, known, missing: total - known, complete: total > 0 && known >= total };
+  const priced = destinations.filter((d) => d.state === 'priced').length;
+  const unpriced = destinations.filter((d) => d.state === 'unpriced').length;
+  /* `known` is how many have been *asked about*, priced or not — it is what
+     decides whether there is anything left to fetch. It is deliberately not
+     the same number as `priced`: the screen reported "176 priced so far" on a
+     run where six destinations had a price and the other hundred and seventy
+     had come back with none, which is a very different thing to tell somebody
+     looking at a price list. Both are returned so the copy can say both. */
+  const known = priced + unpriced;
+  return { total, known, priced, unpriced, missing: total - known, complete: total > 0 && known >= total };
 };
 
 /* The next destinations whose price should be fetched, oldest-first and capped.

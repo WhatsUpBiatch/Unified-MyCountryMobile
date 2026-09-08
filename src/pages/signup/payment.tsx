@@ -12,7 +12,7 @@ import PaymentFailedPopup from './payment-failed-popup';
 import PlanSummary from './plan-summary';
 import { getEnv, getObjectLength, handleAlert } from '@/lib/utils';
 import { useGetPlans } from '@/hooks/common';
-import { durationMap } from '../admin-settings/billing/constants';
+import { durationMap } from '@/lib/plan-constants';
 import Loader from '@/components/custom/loader';
 import { useOrganization } from '@/hooks/use-organisation';
 import { getPlanDidCountries } from '@/lib/did-countries';

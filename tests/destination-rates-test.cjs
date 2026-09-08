@@ -111,6 +111,11 @@ const mixed = [
 ];
 const progress = priceProgress(mixed);
 is('known counts both priced and not-sold', progress.known, 2);
+/* The two were one number, and the screen printed it as "N priced so far" —
+   which on a run where most destinations publish no price told the reader the
+   opposite of the truth. */
+is('priced counts only rows with a price', progress.priced, 1);
+is('unpriced is counted separately', progress.unpriced, 1);
 is('missing is what is left', progress.missing, 1);
 is('and it is not complete', progress.complete, false);
 is('an empty list is not "complete"', priceProgress([]).complete, false);

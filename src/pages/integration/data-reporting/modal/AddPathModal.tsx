@@ -2,11 +2,21 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CloseIcon } from '@/assets/icons';
-import { DialogDescription } from '@/components/ui/dialog';
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { crmTypes, initialState, validationSchema } from '../../constant';
 import { useEffect } from 'react';
 import CustomSelect from '@/components/custom/custom-select';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * The Add / Edit webhook form.
+ *
+ * Submit is disabled, and says why. Its handler was `return values` — no
+ * mutation, no request, and no close — so filling the form in and pressing
+ * Submit did nothing at all and gave no reason. There is no endpoint behind it
+ * to call: see the note at the top of the Manage Webhook page. A control that
+ * cannot do its job should refuse visibly rather than silently.
+ */
 
 const AddPathModal = ({
   handleClose,
@@ -23,7 +33,6 @@ const AddPathModal = ({
     mode: 'onSubmit',
   });
   const {
-    handleSubmit,
     register,
     reset,
     setValue,
@@ -31,42 +40,35 @@ const AddPathModal = ({
     formState: { errors },
   } = formInstance;
 
-  // const { mutateAsync: hubspotCRMMutation, isPending } = useMutation({
-  //   mutationKey: ['crmIntegration'],
-  //   mutationFn: hubspotCRM,
-  // });
   useEffect(() => {
-    if (isEdit) {
-      const { type, path } = formData || {};
-      reset(type, path);
-    }
-  }, [isEdit]);
-
-  const onSubmit = async (values: { path: string; type: string }) => {
-    return values;
-  };
+    if (!isEdit) return;
+    /* `reset(type, path)` — reset takes (values, options), so passing the two
+       fields as separate arguments handed it a string where it wanted an
+       object and the form opened empty on every edit. */
+    reset({ type: formData?.type ?? null, path: formData?.path ?? '' });
+  }, [isEdit, formData, reset]);
 
   return (
-    <form
-      className="h-full w-full flex flex-col gap-4 justify-between"
-      onSubmit={handleSubmit(onSubmit)}
-    >
-      <div className="flex flex-col gap-1.5  text-900/80 ">
-        <div className="font-semibold truncate text-md flex items-center justify-between">
-          Add Webhook path
-          <div
-            onClick={handleClose}
-            className="cursor-pointer text-gray-500 ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-          >
-            <CloseIcon className="w-3 h-3" />
+    <form className="h-full w-full flex flex-col gap-4 justify-between">
+      {/* The dialog's own close button is back; this heading used to carry a
+          div with a click handler in its place. */}
+      <DialogTitle className="text-base font-semibold">
+        {isEdit ? 'Edit webhook' : 'Add a webhook'}
+      </DialogTitle>
+
+      <DialogDescription asChild>
+        <div className="flex flex-col gap-4">
+          <div className="mcm-notsaved" role="status">
+            <strong>This cannot be saved yet.</strong>
+            <span>
+              There is no endpoint to store a webhook, so nothing you enter here is kept. The form
+              is left in place because the fields are the ones it will need.
+            </span>
           </div>
-        </div>
-      </div>
-      <DialogDescription>
-        <div className="flex flex-col gap-4 bg-white">
+
           <div className="w-full">
             <CustomSelect
-              label={'Type'}
+              label={'Sends to'}
               options={crmTypes}
               handleChange={(e) => setValue(`type`, e)}
               value={watch('type')}
@@ -75,21 +77,21 @@ const AddPathModal = ({
           </div>
           <div className="w-full">
             <Input
-              label="Path"
+              label="Posts to"
               {...register('path')}
-              placeholder="Enter webhook path"
+              placeholder="https://hooks.zapier.com/hooks/catch/..."
               error={errors?.path?.message}
             />
           </div>
         </div>
       </DialogDescription>
+
       <div className="flex justify-end gap-2 w-full">
         <Button variant={'transparent'} onClick={handleClose} type="button">
-          Cancel
+          Close
         </Button>
-        <Button variant={'primary'} type="submit">
-          {/* {isPending ? 'Loading...' : 'Submit'} */}
-          Submit
+        <Button variant={'primary'} type="button" disabled title="No endpoint to save this yet">
+          Save
         </Button>
       </div>
     </form>

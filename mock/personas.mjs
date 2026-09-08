@@ -29,12 +29,13 @@ const node = (over = {}) => ({
 
 const fullFeatures = () => ({
   ai: node(),
+  /* Booleans, like `video.access.RECORDING` next door. The router resolves the
+     route's `feature` path and compares it with `=== true`, and every screen
+     that reads these wraps them in Boolean() — so an object here meant all
+     three Phone System pages answered "Upgrade to unlock this feature" on a
+     plan that includes them. */
   phone_system_action: node({
-    access: {
-      DEPARTMENT: { IS_SHOW: true, action: { view: true, edit: true } },
-      IVR: { IS_SHOW: true, action: { view: true, edit: true } },
-      QUEUE: { IS_SHOW: true, action: { view: true, edit: true } },
-    },
+    access: { DEPARTMENT: true, IVR: true, QUEUE: true },
   }),
   campaign: node(),
   video: node({ access: { RECORDING: true } }),
@@ -51,7 +52,12 @@ const fullFeatures = () => ({
   }),
   reports: node({ action: { sms: true, call_recording_listen: true } }),
   chat: node(),
-  omni_channel: node(),
+  /* The social channel cards are gated one per network, and `node()` leaves
+     `access` empty — so three of the four never rendered and only Telegram
+     showed, because its gate had been commented out and replaced with `true`. */
+  omni_channel: node({
+    access: { FACEBOOK: true, INSTAGRAM: true, WHATSAPP: true, TELEGRAM: true },
+  }),
   billing: node(),
   /* The numbers screens gate on domain verbs, not on the generic CRUD set:
      buying a number, assigning it to an extension, setting and removing its
@@ -154,7 +160,18 @@ export const persona = (roleKey) => {
     device_token: 'sandbox-device',
     purchased_licenses: 25,
     assigned_did: [{ did_number: f.phone('did1'), did_name: 'Main line', type: 'P' }],
-    countryInfo: { name: 'United States', iso: 'US', code: '+1' },
+    /* `countryname` and `alpha2code` as well as the friendlier names: those
+       two spellings are what the app actually reads — 20 call sites between
+       them — so with only `name`/`iso` the calling-rates screen never learned
+       which country to look up and loaded nothing on open. */
+    countryInfo: {
+      name: 'United States',
+      countryname: 'United States',
+      iso: 'US',
+      alpha2code: 'US',
+      alpha3code: 'USA',
+      code: '+1',
+    },
 
     user_info: {
       uuid: f.uuid(`user-${role}`),

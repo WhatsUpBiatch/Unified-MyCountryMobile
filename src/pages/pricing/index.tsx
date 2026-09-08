@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import Loader from '@/components/custom/loader'; 
 import { useGetPlans } from '@/hooks/common';
-import { durationMap, PlanDurationMap, PRICE_FEATURES } from '../admin-settings/billing/constants';
+import { durationMap, PlanDurationMap, PRICE_FEATURES } from '@/lib/plan-constants';
 import { Check, InfoIcon } from '@/assets/icons';
 import { getEnv } from '@/lib/utils';
 import { useOrganization } from '@/hooks/use-organisation';

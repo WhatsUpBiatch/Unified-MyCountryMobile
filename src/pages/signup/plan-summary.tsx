@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { PlanDurationMap } from '../admin-settings/billing/constants';
+import { PlanDurationMap } from '@/lib/plan-constants';
 import { VerifiedCheck } from '@/assets/icons';
 import { useMutation } from '@tanstack/react-query';
 import { getTaxesAndFees } from '@/services/api';

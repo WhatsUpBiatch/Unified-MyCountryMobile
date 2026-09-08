@@ -81,7 +81,7 @@ const Groups = () => {
         <>
           <SearchChip value={search} onChange={setSearch} placeholder="Search groups" />
           <span className="fchip live" style={{ marginLeft: 'auto' }}>
-            <span className="num">{rows.length}</span> groups
+            <span className="num">{rows.length}</span> {rows.length === 1 ? 'group' : 'groups'}
           </span>
         </>
       }

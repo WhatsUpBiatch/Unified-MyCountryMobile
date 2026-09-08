@@ -15,7 +15,6 @@
  * telling them only in Billing means telling them only if they go looking.
  */
 
-import { Link } from 'react-router-dom';
 
 import { useUser } from '@/hooks/use-user';
 
@@ -74,11 +73,9 @@ const AccountStateBanner = () => {
         <strong>{trouble.title}</strong>
         <span>{trouble.detail}</span>
       </div>
-      {/* Straight to the page that fixes it. A banner that says something is
-          wrong and leaves you to find the remedy is half a message. */}
-      <Link to="/admin-settings/billing/summary" className="mcm-acctbanner-a">
-        {trouble.action}
-      </Link>
+      {/* The remedy used to be a link to Billing › Summary. That section has
+          been removed, and a banner whose only action leads nowhere is worse
+          than one that simply states the problem. */}
     </div>
   );
 };

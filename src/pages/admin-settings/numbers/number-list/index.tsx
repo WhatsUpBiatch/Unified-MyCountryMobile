@@ -408,7 +408,12 @@ const NumberList = () => {
                refused, which reads as "you may not" where the truth is "there
                is nothing to assign". */
             <span className="mcm-numnone">
-              {routed ? 'Follows forwarding' : 'Nobody'}
+              {/* An em-dash, not "Follows forwarding": the very next column
+                  says where it goes, and on the In-use view — where nothing
+                  is unrouted by definition — that phrase was eight rows of
+                  text whose only content was "look right". "Nobody" stays,
+                  because unassigned AND unrouted is a fact of its own. */}
+              {routed ? <>&mdash;</> : 'Nobody'}
             </span>
           );
         },
@@ -532,125 +537,76 @@ const NumberList = () => {
           cb: () => handleNumberState(data, stateAction),
         });
 
-        const neutral = 'bg-gray-100 text-gray-900/80 hover:bg-primary hover:text-white';
+        /* Whether the number is really routed, not whether the blob exists.
+           `forward_call_actions` also holds the label, so a number that had
+           only ever been named offered "Update forwarding" and "Remove
+           forwarding" for forwarding it does not have, and could never be
+           offered "Set forwarding" — while the Forwarded-to cell one column
+           left offered exactly that. Same fault as `canAssign` above, and it
+           has to be the same test or the two disagree again. */
+        const routed = isForwardingConfigured(
+          parseForwardActions(data?.forward_call_actions)?.call_handling?.business_hours?.type,
+        );
+        const owned = Boolean(data?.User);
+        const can = virtualNumberAccess?.action || {};
 
-        const assignNumberAction =
-          !data?.User && virtualNumberAccess?.action?.assign_number
-            ? [
-                createAction(
-                  2,
-                  'Assign Number',
-                  'AssignNumberIcon',
-                  'w-5 h-5',
-                  neutral,
-                  'assignDID',
-                ),
-              ]
-            : [];
+        /* One list in a fixed order rather than five groups concatenated by
+           whichever branch matched. The old build put "remove assignment"
+           first on an owned number and "update forwarding" first on a routed
+           one, so the same icon sat in a different position on every other
+           row and none of them could be learned. Order here is: name it,
+           route it, own it, give it up — narrowest change first, most
+           destructive last, and always last. */
+        const actions = [
+          canEditLabel(data).ok && can.update_forwarding
+            ? createAction(5, 'Edit label', 'EditStrokIcon', 'w-4 h-4', '', 'editLabel')
+            : null,
 
-        const setForwardingActions =
-          !data?.forward_call_actions && !data?.User
-            ? [
-                virtualNumberAccess?.action?.set_forwarding &&
-                  createAction(
-                    1,
-                    'Set Forwarding',
-                    'CallForward',
-                    'w-5.5 h-5.5',
-                    neutral,
-                    'updateForwarding',
-                  ),
-                ...assignNumberAction,
-              ].filter(Boolean)
-            : [];
+          !data?.is_fax_enabled && !owned && !routed && can.set_forwarding
+            ? createAction(1, 'Set forwarding', 'CallForward', 'w-4 h-4', '', 'updateForwarding')
+            : null,
+          !data?.is_fax_enabled && !owned && routed && can.update_forwarding
+            ? createAction(6, 'Update forwarding', 'EditStrokIcon', 'w-4 h-4', '', 'updateForwarding')
+            : null,
+          !data?.is_fax_enabled && !owned && routed && can.remove_forwarding
+            ? createAction(3, 'Remove forwarding', 'CallCancel', 'w-4 h-4', '', 'removeConfirmationAlert')
+            : null,
 
-        const updateForwardingActions =
-          !data?.User && data?.forward_call_actions
-            ? [
-                virtualNumberAccess?.action?.update_forwarding &&
-                  createAction(
-                    1,
-                    'Update Forwarding',
-                    'EditStrokIcon',
-                    'w-5 h-5',
-                    neutral,
-                    'updateForwarding',
-                  ),
-                virtualNumberAccess?.action?.remove_forwarding &&
-                  createAction(
-                    3,
-                    'Remove Forwarding',
-                    'CallCancel',
-                    'w-5.5 h-5.5',
-                    neutral,
-                    'removeConfirmationAlert',
-                  ),
-              ].filter(Boolean)
-            : [];
+          !owned && !routed && can.assign_number
+            ? createAction(2, 'Assign to a person', 'AssignNumberIcon', 'w-4 h-4', '', 'assignDID')
+            : null,
+          owned && can.assign_number
+            ? createAction(7, 'Remove assignment', 'RemoveAssignmentLine', 'w-4 h-4', '', 'deleteConfirmationAlert')
+            : null,
 
-        const removeAssignmentAction =
-          data?.User && virtualNumberAccess?.action?.assign_number
-            ? [
-                createAction(
-                  2,
-                  'Remove Assignment',
-                  'RemoveAssignmentLine',
-                  'w-5 h-5 ',
-                  neutral,
-                  'deleteConfirmationAlert',
-                ),
-              ]
-            : [];
+          /* Giving a number up is not offered on a fax line here, matching
+             what the old fax branch did. */
+          !data?.is_fax_enabled && can.release
+            ? createAction(4, 'Release number', 'ReleaseNumber', 'w-4 h-4', 'is-risky', 'releaseConfirmationAlert')
+            : null,
+        ].filter(Boolean) as any[];
 
-        /* Offered wherever a label can actually be kept, assigned or not. The
-           permission is the forwarding one because that is literally the write
-           this makes - there is no endpoint that changes a number's name on its
-           own. */
-        const editLabelAction =
-          canEditLabel(data).ok && virtualNumberAccess?.action?.update_forwarding
-            ? [createAction(5, 'Edit Label', 'EditStrokIcon', 'w-5 h-5', neutral, 'editLabel')]
-            : [];
-
-        const releaseNumberAction = virtualNumberAccess?.action?.release
-          ? [
-              createAction(
-                4,
-                'Release Number',
-                'ReleaseNumber',
-                'w-5 h-5',
-                'bg-red-100 text-red-500 hover:bg-red-500 hover:text-white',
-                'releaseConfirmationAlert',
-              ),
-            ]
-          : [];
-
-        const faxActions = [
-          ...(data?.User ? removeAssignmentAction : assignNumberAction),
-          ...editLabelAction,
-        ];
-
-        const actions = data?.is_fax_enabled
-          ? faxActions
-          : [
-              ...removeAssignmentAction,
-              ...setForwardingActions,
-              ...updateForwardingActions,
-              ...editLabelAction,
-              ...releaseNumberAction,
-            ];
-
-        if (actions?.length === 0) return '---';
+        /* Nothing can be done to this row, and now it says so rather than
+           printing three hyphens. */
+        if (actions.length === 0) {
+          return <span className="mcm-numnone">No actions</span>;
+        }
 
         return (
-          <div className="flex items-center justify-end w-full gap-2">
-            {actions?.map((action: any) => (
+          <div className="mcm-rowacts is-end">
+            {actions.map((action: any) => (
               <CustomTooltip key={action.id} text={action.tooltipText} side="top">
-                <div
-                  className={`cursor-pointer flex items-center justify-center rounded-full w-8 h-8 ${action.className}`}
+                {/* A button, not a div with a click handler: these are the only
+                    way to reach this screen's drawers and confirmations, and
+                    none of them could be reached from a keyboard. */}
+                <button
+                  type="button"
+                  aria-label={action.tooltipText}
+                  className={`mcm-rowact ${action.className}`}
                   onClick={action.cb}
                 >
                   <Icon name={action.icon as IconName} className={action.iconClass} />
-                </div>
+                </button>
               </CustomTooltip>
             ))}
           </div>

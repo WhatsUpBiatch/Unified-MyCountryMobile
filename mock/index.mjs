@@ -116,24 +116,57 @@ const call = (i) => ({
   date: f.minutesAgo(i * 17 + 4),
 });
 
-/* Queue membership is the platform's nearest thing to an ACD skill, and it is
-   what the roster's "ACD skills" column lists. Without `members` the column was
-   a dash on every row. */
-const queue = (i) => ({
-  uuid: f.uuid(`q${i}`),
-  members: f
-    .seq(f.number(`qm${i}`, 2, 6), (n) => n)
-    .map((n) => ({ user_uuid: f.uuid(`u${(i * 3 + n) % 24}`) })),
-  name: `${f.department(i)} Queue`,
-  extension: String(6000 + i),
-  strategy: f.choice(['ring-all', 'longest-idle', 'round-robin'], `str${i}`),
-  agents_count: f.number(`ac${i}`, 2, 12),
-  waiting: f.number(`wt${i}`, 0, 5),
-  answered: f.number(`an${i}`, 10, 300),
-  abandoned: f.number(`ab${i}`, 0, 25),
-  sla: f.number(`sla${i}`, 70, 99),
-  status: 'active',
-});
+/* A call queue as the queues screen reads one.
+
+   Queue membership is also the platform's nearest thing to an ACD skill, which
+   is what the People roster's "ACD skills" column lists — so `members` serves
+   both, and carries the member's name because the queue table draws an avatar
+   stack from it rather than a count.
+
+   Three fields the list cannot do without and the old row did not have:
+
+     `_id`  — what a number's forwarding points at. The Numbers column is that
+             relationship read backwards, so with no id every queue reads "No
+             number" however many are pointed at it.
+     `site_uuid` — an object with a name, not the uuid string its own key
+             suggests. That is what the endpoint sends and what the cell reads.
+     `settings` — the JSON blob holding how calls are shared and when the queue
+             is open. Both columns came back "---" and "Not set" without it.
+
+   Deliberately uneven: one queue is open only on weekdays, one has nobody in
+   it, and one has more members than the stack shows so the "+N" overflow can
+   be seen. */
+const RING_STRATEGIES = ['ring-all', 'longest-idle-agent', 'round-robin', 'top-down'];
+
+const queue = (i) => {
+  const memberCount = i === 3 ? 0 : i === 1 ? 8 : f.number(`qm${i}`, 2, 5);
+  return {
+    _id: `queue-${i}`,
+    uuid: f.uuid(`q${i}`),
+    members: f.seq(memberCount, (n) => n).map((n) => {
+      const who = (i * 3 + n) % 24;
+      return { user_uuid: f.uuid(`u${who}`), name: f.person(`u${who}`).name, imageUrl: '' };
+    }),
+    /* DEPT_NAMES, not `f.department` — that picks by hash, so six queues drew
+        "Onboarding Queue" three times and the list could not be scanned. */
+    name: `${DEPT_NAMES[i % DEPT_NAMES.length]} Queue`,
+    extension: String(6000 + i),
+    site_uuid: { uuid: SITE_UUIDS[i % 3], name: SITE_NAMES[i % 3] },
+    settings: JSON.stringify({
+      ring_strategy: { value: RING_STRATEGIES[i % RING_STRATEGIES.length] },
+      /* Every fourth queue keeps weekday hours; the rest never close. */
+      operational_hours: { type: i % 4 === 2 ? 'weekly' : '24_hours' },
+    }),
+    strategy: RING_STRATEGIES[i % RING_STRATEGIES.length],
+    agents_count: memberCount,
+    waiting: f.number(`wt${i}`, 0, 5),
+    answered: f.number(`an${i}`, 10, 300),
+    abandoned: f.number(`ab${i}`, 0, 25),
+    sla: f.number(`sla${i}`, 70, 99),
+    status: 'active',
+    created_at: f.daysAgo(i * 12 + 6),
+  };
+};
 
 /* A number as the numbers list actually returns one.
 
@@ -153,9 +186,11 @@ const FORWARD_TARGETS = [
   null,
   null,
   { type: 'EXTENSION', name: 'Zara Adeyemi', value: '1001' },
-  { type: 'DEPARTMENT', name: 'Support' },
-  { type: 'QUEUE', name: 'Billing Queue' },
-  { type: 'IVR', name: 'Main menu' },
+  { type: 'QUEUE', name: 'Retention Queue', value: 'queue-2' },
+  /* `value` as well as a name: the queues screen finds a queue's numbers by
+     matching this against the queue's own `_id`. */
+  { type: 'QUEUE', name: 'Billing Queue', value: 'queue-0' },
+  { type: 'IVR', name: 'Main menu', value: 'ivr-0' },
   { type: 'PHONE', name: '15125550143' },
   { type: 'VOICEMAIL', name: 'Sales voicemail', value: '7002' },
 ];
@@ -187,7 +222,18 @@ const numberRow = (i) => {
     did_name: `${f.city(i)} line`,
     did_type: f.choice(['L', 'N', 'T', 'M'], `dt${i}`),
     is_fax_enabled: isFax,
-    User: holder ? { uuid: f.uuid(`u${i}`), first_name: holder.first_name, last_name: holder.last_name } : null,
+    /* `extension` as well as the name. Call coverage branches on it: with no
+       extension it decided an owned number still needed assigning to one, and
+       told the admin to "assign the number to an extension first" on a row
+       whose own next column named the person holding it. */
+    User: holder
+      ? {
+          uuid: f.uuid(`u${i}`),
+          first_name: holder.first_name,
+          last_name: holder.last_name,
+          extension: String(1001 + i),
+        }
+      : null,
     forward_call_actions: actions,
     features: [
       'voice_in',
@@ -392,6 +438,16 @@ const department = (i) => {
     extension: String(7000 + i),
     members,
     members_count: members.length,
+    /* Most groups have somebody running them. The Manager column has copy for
+       one that does not, and a table where every row is filled never shows it. */
+    manager:
+      i % 3 === 1
+        ? null
+        : {
+            uuid: f.uuid(`mgu${i}`),
+            first_name: f.person(`mg${i}`).first_name,
+            last_name: f.person(`mg${i}`).last_name,
+          },
     site_name: f.city(i),
     status: 'active',
   };
@@ -444,12 +500,19 @@ const role = (i) => {
   };
 };
 
+/* An IVR menu. `site` is a JSON *string* holding a `{ value, label }` pair,
+   not a uuid and not an object — the cell JSON.parses it and reads `.label`,
+   so anything else lands in its catch and the column stays empty. */
+const IVR_NAMES = ['Main menu', 'After-hours menu', 'Holiday menu', 'Support menu', 'Sales menu'];
+
 const ivr = (i) => ({
   uuid: f.uuid(`iv${i}`),
-  name: `${f.choice(['Main', 'After hours', 'Holiday', 'Support'], `ivn${i}`)} menu`,
+  name: IVR_NAMES[i % IVR_NAMES.length],
   extension: String(8000 + i),
+  site: JSON.stringify({ value: SITE_UUIDS[i % 3], label: SITE_NAMES[i % 3] }),
   options_count: f.number(`oc${i}`, 2, 8),
   status: 'active',
+  created_at: f.daysAgo(i * 15 + 9),
 });
 
 /* Company locations. The screen reads `is_default === '1'` to find the main
@@ -747,7 +810,110 @@ const HANDLERS = [
       })),
       b,
     )],
-  ['/api/numbers/list', (b) => page(f.seq(18, numberRow), b)],
+  /* One endpoint, three views. "In use" and "Unused" are the same list with
+     `type` set, and ignoring it meant both showed every number the account
+     has — including, on the In-use tab, rows whose own cells said "Assign to
+     extension" and "Set forwarding". A number is in use when somebody holds it
+     or its calls are routed somewhere; unused is the complement, which is what
+     the Unused tab's own description says it is. */
+  ['/api/numbers/list', (b) => {
+    const rows = f.seq(18, numberRow);
+    const inUse = (r) =>
+      Boolean(r.User) ||
+      Boolean(JSON.parse(r.forward_call_actions || '{}')?.call_handling?.business_hours?.type);
+    const type = b?.type;
+    if (type === 'in_use') return page(rows.filter(inUse), b);
+    if (type === 'inventory') return page(rows.filter((r) => !inUse(r)), b);
+    return page(rows, b);
+  }],
+  /* Which CRMs this account has actually connected. The screen reads the
+     result as an array and calls .find on it, so the generic fallback's object
+     crashed the whole page rather than showing nothing connected.
+
+     Two connected, the rest not: the card has a whole second state — a switch,
+     a manage menu and a delete — that is only reachable on a connected one. */
+  /* The social channels connected to this workspace. Uneven on purpose: the
+     card has four states and a list where nothing is connected only ever shows
+     one of them. Facebook is live, Instagram is connected but switched off,
+     WhatsApp and Telegram are not set up. */
+  /* What a destination costs to call or text.
+
+     The screen sends { filter: { key: 'COUNTRY' | 'DIALPREFIX', value } } and
+     reads three separate lists off the result — inbound calls, outbound calls
+     and SMS — each with its own per-minute or per-message price. Rates differ
+     by line type, which is the whole reason the list is not one number, so
+     mobile and landline are priced apart here. */
+  ['/api/user/rates', (b) => {
+    const clause = b?.filter || {};
+    const wanted = String(clause?.value || '').trim();
+
+    const COUNTRIES = {
+      'United States': { iso: 'US', prefix: '1' },
+      'United Kingdom': { iso: 'GB', prefix: '44' },
+      Germany: { iso: 'DE', prefix: '49' },
+      India: { iso: 'IN', prefix: '91' },
+      Singapore: { iso: 'SG', prefix: '65' },
+      Australia: { iso: 'AU', prefix: '61' },
+    };
+
+    /* A dial prefix search finds the country that owns it. */
+    const byPrefix = Object.entries(COUNTRIES).find(([, meta]) =>
+      wanted.replace(/[^0-9]/g, '').startsWith(meta.prefix),
+    );
+    const name =
+      clause?.key === 'DIALPREFIX'
+        ? byPrefix?.[0]
+        : Object.keys(COUNTRIES).find((c) => c.toLowerCase() === wanted.toLowerCase());
+
+    /* An unknown destination is a real answer, and the screen has copy for it. */
+    if (!name) return ok({});
+
+    const meta = COUNTRIES[name];
+    const price = (seed, lo, hi) => (f.number(`${meta.iso}${seed}`, lo, hi) / 1000).toFixed(4);
+
+    return ok({
+      country: { iso: meta.iso, name },
+      inbound_call_rates: [
+        { dialprefix: meta.prefix, destination: name, type: 'Toll-Free', rate: price('in1', 6, 22) },
+        { dialprefix: meta.prefix, destination: name, type: 'Local', rate: price('in2', 2, 9) },
+      ],
+      outbound_call_rates: [
+        { dialprefix: meta.prefix, destination: name, type: 'Landline', rate: price('out1', 4, 18) },
+        { dialprefix: meta.prefix, destination: name, type: 'Mobile', rate: price('out2', 9, 46) },
+      ],
+      sms_rates: [
+        { dialprefix: meta.prefix, destination: name, type: 'Mobile', rate: price('sms1', 5, 30) },
+      ],
+    });
+  }],
+  ['/api/v1/sms/omni-channel-list', () =>
+    ok([
+      {
+        uuid: f.uuid('omni-fb'),
+        name: 'Sandbox Communications',
+        type: 'messenger',
+        status: 1,
+        created_at: f.daysAgo(64),
+      },
+      {
+        uuid: f.uuid('omni-ig'),
+        name: '@sandboxcomms',
+        type: 'instagram',
+        /* Connected, but paused. The switch is the only thing that says so, and
+           with nothing in this state it could never be seen off. */
+        status: 0,
+        created_at: f.daysAgo(31),
+      },
+    ])],
+  ['/api/crm/is-connected', () =>
+    ok([
+      { type: 'HUBSPOT', is_connected: true, app_url: '' },
+      { type: 'MONDAY', is_connected: true, app_url: 'https://monday.com/marketplace' },
+      { type: 'ZOHO', is_connected: false },
+      { type: 'PIPEDRIVE', is_connected: false },
+      { type: 'SALESFORCE', is_connected: false },
+      { type: 'MSTEAMS', is_connected: false },
+    ])],
   ['/api/identity/list', (b) => page(IDENTITIES(), b)],
   ['/api/identity/address/list', (b) => page(ADDRESSES(), b)],
   ['/api/identity/did/identity/verification/list', (b) => page(VERIFICATIONS(), b)],

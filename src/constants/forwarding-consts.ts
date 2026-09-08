@@ -12,6 +12,56 @@ export const FORWARD_TYPES = {
   HANGUP: 'HANGUP',
 };
 
+/**
+ * What each forwarding target is called.
+ *
+ * Two screens were spelling these out of the enum by rule — the numbers table
+ * through `capitalizeFirstLetter`, the coverage screen through
+ * `.toLowerCase()` — and both got the acronyms wrong: "Ivr", "Ai", "calls
+ * reach ivr". A name cannot be derived from its constant, so it is written
+ * down, once, beside the constant.
+ *
+ * `FORWARD_TYPE_LABEL` is the heading form, for a table cell that leads with
+ * it. `FORWARD_TYPE_PHRASE` is the same thing mid-sentence, where it needs an
+ * article — "Calls reach the IVR menu", not "Calls reach IVR menu".
+ */
+export const FORWARD_TYPE_LABEL: Record<string, string> = {
+  EXTENSION: 'Extension',
+  VOICEMAIL: 'Voicemail',
+  DEPARTMENT: 'Department',
+  QUEUE: 'Queue',
+  IVR: 'IVR menu',
+  GREETING: 'Greeting',
+  MESSAGE: 'Message',
+  HANGUP: 'Hang up',
+  DEVICE: 'Device',
+  AI: 'AI receptionist',
+  PHONE: 'Outside number',
+};
+
+export const FORWARD_TYPE_PHRASE: Record<string, string> = {
+  EXTENSION: 'the extension',
+  VOICEMAIL: 'voicemail',
+  DEPARTMENT: 'the department',
+  QUEUE: 'the queue',
+  IVR: 'the IVR menu',
+  GREETING: 'a greeting',
+  MESSAGE: 'a message',
+  HANGUP: 'a hang-up',
+  DEVICE: 'the device',
+  AI: 'the AI receptionist',
+  PHONE: 'an outside number',
+};
+
+const normaliseType = (forwardType?: string | null) =>
+  String(forwardType ?? '').trim().toUpperCase();
+
+export const getForwardTypeLabel = (forwardType?: string | null): string =>
+  FORWARD_TYPE_LABEL[normaliseType(forwardType)] ?? 'Forwarded';
+
+export const getForwardTypePhrase = (forwardType?: string | null): string =>
+  FORWARD_TYPE_PHRASE[normaliseType(forwardType)] ?? 'its destination';
+
 export const RING_TYPE_LABELS = {
   sequential: 'Ring in order',
   simultaneously: 'Ring all at once',

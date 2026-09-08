@@ -3990,6 +3990,17 @@
   max-width: 380px;
   width: 100%;
 }
+/* ...but it was written as `width: 100%` on every child, and the bar carries
+   more than a search box. A tab strip, a checkbox and a counter chip were each
+   forced to 380px, which left the chip's `margin-left: auto` 760px to push
+   through — so a one-line summary landed on a row of its own, right-aligned
+   against nothing. These size to their content. */
+.mcm-admin .mcm-adminpage-bar > .ptabstrip,
+.mcm-admin .mcm-adminpage-bar > .fchip,
+.mcm-admin .mcm-adminpage-bar > button {
+  width: auto;
+  max-width: none;
+}
 
 /* The billing/plan notice above some tables — a quiet strip, not body copy. */
 .mcm-admin .mcm-adminpage-body > .panel-card > .tbl-wrap > div > p:first-child {
@@ -12431,4 +12442,716 @@ textarea.mcm-field:focus-visible {
     background: var(--crit-wash, #fef2f2);
     color: var(--crit, #dc2626);
   }
+}
+
+/* Row actions pushed to the right edge of their cell, which is where the
+   Action column has always sat on the number tables. */
+.mcm-rowacts.is-end {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+/* ── Call coverage ─────────────────────────────────────────────────────────
+   Which numbers and extensions would drop a call. */
+.mcm-cov-num {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+}
+.mcm-cov-num > span:last-child {
+  color: var(--ink-4, #94a3b8);
+  font-size: 11px;
+}
+.mcm-cov-who {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+}
+.mcm-cov-who > b {
+  color: var(--ink, #0f172a);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mcm-cov-who > span {
+  color: var(--ink-4, #94a3b8);
+  font-size: 11px;
+}
+/* What a caller actually gets. The longest column on the screen and the one
+   worth reading, so it is given a width to wrap in rather than an inline
+   max-width per table. */
+.mcm-cov-detail {
+  max-width: 420px;
+  color: var(--ink-3, #64748b);
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* A gap this screen will not close on its own. Applying a default here would
+   overwrite a routing decision somebody made, so it says whose call it is
+   rather than offering a button that refuses. */
+.mcm-cov-manual {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--warn-wash, #fffbeb);
+  color: var(--warn, #b45309);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Integration cards ─────────────────────────────────────────────────────
+   One connector per card. A grid of these has to answer "which of these do we
+   already use" before it answers anything else. */
+.mcm-intcard-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 11px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+}
+.mcm-intcard-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.mcm-intcard.is-on {
+  border-color: var(--accent-edge, #bfdbfe);
+}
+.mcm-intcard-t {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mcm-intcard-t h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-intcard-on {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mcm-intcard-d {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3, #64748b);
+}
+.mcm-intcard-acts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: auto;
+}
+.mcm-intcard-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mcm-intcard-acts .mcm-intcard-go {
+  margin-top: 0;
+}
+@media (hover: hover) {
+  .mcm-intcard-go:hover {
+    text-decoration: underline;
+  }
+  .mcm-intcard-off:hover {
+    color: var(--crit, #dc2626);
+  }
+}
+.mcm-intcard-off {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-4, #94a3b8);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* Not built yet. It was styled exactly like Connect — same weight, same place
+   — so it read as a control, and clicking it did nothing. */
+.mcm-intcard-soon {
+  margin-top: auto;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-4, #94a3b8);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+/* ── A credential you may need to copy ─────────────────────────────────────
+   Masked until asked for, in a monospace face so a transcription error is
+   visible rather than plausible. */
+.mcm-cred {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-cred code {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-x: auto;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink, #0f172a);
+  white-space: nowrap;
+}
+.mcm-cred-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.mcm-cred-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 7px);
+  background: var(--surface, #fff);
+  color: var(--ink-2, #475569);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+@media (hover: hover) {
+  .mcm-cred-btn:hover {
+    border-color: var(--accent, #2563eb);
+    color: var(--accent, #2563eb);
+  }
+}
+
+/* ── Zapier templates ──────────────────────────────────────────────────────
+   How many templates a tool has, on its card. */
+.mcm-zap-n {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-3, #64748b);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mcm-zap-h {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-zap-h > span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3, #64748b);
+}
+.mcm-zaps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.mcm-zap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 10px);
+  background: var(--surface, #fff);
+}
+/* Source on the left, destination on the right — the same order the arrow in
+   the subtitle reads. */
+.mcm-zap-icons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+}
+.mcm-zap-icons img {
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 6px);
+  object-fit: contain;
+  background: var(--surface, #fff);
+}
+.mcm-zap-t {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mcm-zap-t > b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  line-height: 1.4;
+}
+.mcm-zap-t > span {
+  font-size: 11px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-zap-go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 7px);
+  background: var(--surface, #fff);
+  color: var(--ink-2, #475569);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+@media (hover: hover) {
+  .mcm-zap-go:hover {
+    border-color: var(--accent, #2563eb);
+    color: var(--accent, #2563eb);
+  }
+}
+
+/* A webhook's destination URL. Monospace and never wrapped mid-token: this is
+   the one value on the row somebody checks character by character. */
+.mcm-hook-path {
+  display: inline-block;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  padding: 2px 7px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-2, #f8fafc);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  color: var(--ink-2, #475569);
+}
+
+/* The scrolling body of an integration page that holds a table rather than a
+   grid of cards. Same job as `.mcm-intgrid`: the shell above it is a fixed
+   height with `overflow: hidden`, so whatever fills it has to scroll itself or
+   it is silently clipped. */
+.mcm-admin .mcm-intbody {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 22px 26px;
+}
+
+/* ── Social media channel cards ────────────────────────────────────────────
+   One network per card. The three states matter more than anything else on
+   the card, so the card itself carries the state rather than leaving it to a
+   switch in the far corner. */
+.mcm-chan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 12px);
+  background: var(--surface, #fff);
+}
+.mcm-chan.is-on {
+  border-color: var(--live-edge, #a7f3d0);
+}
+.mcm-chan.is-paused {
+  border-color: var(--warn-edge, #fde68a);
+}
+.mcm-chan-h {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.mcm-chan-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--surface-2, #f8fafc);
+  border: 1px solid var(--line, #e5e7eb);
+}
+.mcm-chan-id {
+  min-width: 0;
+}
+.mcm-chan-id h6 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+/* Which account is connected. The cards named the network and never the
+   account, so two workspaces looked identical. */
+.mcm-chan-id span {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--ink-3, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcm-chan-d {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-3, #64748b);
+}
+.mcm-chan-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 9px 11px;
+  border-radius: var(--r-sm, 8px);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--warn-wash, #fffbeb);
+  color: var(--warn, #b45309);
+}
+.mcm-chan-state.is-on {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+.mcm-chan-state.is-paused {
+  background: var(--surface-3, #f1f5f9);
+  color: var(--ink-3, #64748b);
+}
+.mcm-chan-state svg {
+  flex: none;
+}
+.mcm-chan-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.mcm-chan-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mcm-chan-go,
+.mcm-chan-del {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mcm-chan-go {
+  color: var(--accent, #2563eb);
+}
+.mcm-chan-del {
+  color: var(--ink-4, #94a3b8);
+  font-weight: 600;
+}
+@media (hover: hover) {
+  .mcm-chan-go:hover {
+    text-decoration: underline;
+  }
+  .mcm-chan-del:hover {
+    color: var(--crit, #dc2626);
+  }
+}
+.mcm-chan-sw {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.mcm-chan-sw > span {
+  font-size: 12px;
+  color: var(--ink-3, #64748b);
+}
+
+/* What has to be true before a connection will work. Stated before the button
+   rather than under it, because these are the reason a connect fails. */
+.mcm-chan-req {
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r-sm, 8px);
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-chan-req > p {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-chan-req ol {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mcm-chan-req li {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2, #475569);
+}
+.mcm-chan-req a {
+  color: var(--accent, #2563eb);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Rate details ──────────────────────────────────────────────────────────
+   What one destination costs. The country is the same on every row, so it is
+   said once above the table rather than repeated in each. */
+.mcm-rates {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 18px;
+}
+.mcm-rates-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: var(--r, 10px);
+  background: var(--surface-2, #f8fafc);
+}
+.mcm-rates-flag {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--line, #e5e7eb);
+}
+.mcm-rates-head b {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-rates-head span {
+  font-size: 11.5px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-rates-t {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mcm-rates-t th,
+.mcm-rates-t td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2, #eef1f6);
+}
+.mcm-rates-t thead th {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+  border-bottom-color: var(--line, #e5e7eb);
+}
+.mcm-rates-t tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Which way the call goes. Inbound and outbound are priced differently and
+   the old cards said so only in small grey text under the flag. */
+.mcm-rates-dir {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+.mcm-rates-dir.is-inbound {
+  background: var(--live-wash, #ecfdf5);
+  color: var(--live, #059669);
+}
+.mcm-rates-dir.is-outbound {
+  background: var(--accent-wash, #eff6ff);
+  color: var(--accent, #2563eb);
+}
+.mcm-rates-dir.is-sms {
+  background: var(--ai-wash, #f5f3ff);
+  color: var(--ai, #7c3aed);
+}
+.mcm-rates-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2, #475569);
+}
+.mcm-rates-kind svg {
+  flex: none;
+  opacity: 0.7;
+}
+/* The unit belongs with the number: a call is priced by the minute and a text
+   by the message, and both used to read "Rates: $0.0132". */
+.mcm-rates-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.mcm-rates-price b {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink, #0f172a);
+}
+.mcm-rates-price span {
+  font-size: 11px;
+  color: var(--ink-3, #64748b);
+}
+.mcm-rates-blank {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 24px;
+  font-size: 12.5px;
+  color: var(--ink-3, #64748b);
+  text-align: center;
+}
+
+/* ── The destinations price list ───────────────────────────────────────────
+   250 rows of country, code and three prices. */
+.mcm-dest {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.mcm-dest th,
+.mcm-dest td {
+  padding: 9px 14px 9px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line-2, #eef1f6);
+}
+.mcm-dest th:last-child,
+.mcm-dest td:last-child {
+  padding-right: 0;
+}
+.mcm-dest thead th {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3, #64748b);
+  border-bottom-color: var(--line, #e5e7eb);
+  white-space: nowrap;
+}
+/* The admin tables put every `th` in small caps. These are country names, not
+   column headings — "AFGHANISTAN" is a heading style applied to content. */
+.mcm-dest tbody th[scope='row'] {
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12.5px;
+}
+.mcm-dest tbody th[scope='row'] span {
+  margin-right: 8px;
+}
+/* Prices and codes line up digit under digit, so a column of them can be
+   compared down rather than read one at a time. */
+.mcm-dest .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2, #475569);
+  white-space: nowrap;
+}
+.mcm-dest thead .num {
+  text-align: right;
+}
+.mcm-dest td.num.strong {
+  color: var(--ink, #0f172a);
+  font-weight: 600;
+}
+.mcm-dest tbody th[scope='row'] + td.num {
+  text-align: left;
+}
+/* Why a row has no price. Three different reasons that must not read alike:
+   nothing published, still arriving, or the request failed. */
+.mcm-dest-s {
+  font-size: 11px;
+  font-weight: 600;
+}
+.mcm-dest-s.is-unpriced {
+  color: var(--ink-4, #94a3b8);
+}
+.mcm-dest-s.is-loading {
+  color: var(--accent, #2563eb);
+}
+.mcm-dest-s.is-failed {
+  color: var(--crit, #dc2626);
+}
+.mcm-dest-none {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--ink-3, #64748b);
+  font-size: 12px;
 }

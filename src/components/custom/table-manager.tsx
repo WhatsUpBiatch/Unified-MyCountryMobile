@@ -500,10 +500,16 @@ function TableManager({
                   </div>
                   <Label className="text-gray-900/80 sm:pr-3">per page</Label>
                 </div>
+                {/* Counted from the rows in hand when the table was given
+                    `staticData`: this read only the remote response, so every
+                    static table showed its rows above a footer insisting there
+                    were 0 record(s). */}
                 <Label className="text-gray-900/80 sm:pl-3">
-                  {tbldata?.data?.data?.result?.totalItems ||
-                    tbldata?.data?.data?.result?.total ||
-                    0}{' '}
+                  {(usesStaticData
+                    ? tableData.length
+                    : tbldata?.data?.data?.result?.totalItems ||
+                      tbldata?.data?.data?.result?.total ||
+                      0) || 0}{' '}
                   record(s)
                 </Label>
               </div>

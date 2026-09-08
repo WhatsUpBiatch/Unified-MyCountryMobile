@@ -208,6 +208,13 @@ const CallQueues: FC = () => {
         } catch (error) {
           console.error('Error parsing members JSON:', error);
         }
+        if (!members.length) {
+          /* An empty array is still an array, so the stack below drew nothing
+             at all and the cell read as missing data rather than as a queue
+             with nobody in it — which is the one state worth spotting here. */
+          return <span className="mcm-ident-gap">Nobody yet</span>;
+        }
+
         return Array.isArray(members) ? (
           <div className="flex -space-x-2">
             {members.slice(0, 5).map((item: any, index: number) => {
@@ -247,7 +254,7 @@ const CallQueues: FC = () => {
             )}
           </div>
         ) : (
-          <div>No members</div>
+          <span className="mcm-numnone">Nobody yet</span>
         );
       },
     },
@@ -342,6 +349,8 @@ const CallQueues: FC = () => {
             />
             <CustomSelect
               className="w-full min-w-36"
+              placeholder="All locations"
+              isClearable
               options={
                 dataSiteList?.map((site: { name: string; uuid: string }) => ({
                   label: site?.name,
@@ -356,12 +365,13 @@ const CallQueues: FC = () => {
           </>
         }
       >
+        {/* The paragraph that used to sit here said, at greater length, what
+            the page description above already says: that a queue holds callers
+            and can belong to the company or to one location. Two explanations
+            of the same thing, stacked, and the second one styled as a notice —
+            which is a shape that should be reserved for something a reader
+            does not already know. */}
         <div className="flex flex-col gap-2">
-          <p className="text-gray-900 text-sm">
-            Set up call queues at the Company level or for Individual Site locations. This allows
-            you to organize incoming traffic for specific branches, ensuring callers are held
-            professionally until a user from that site is ready to answer.
-          </p>
           <TableManager
             {...{
               columns,

@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useEffect, useRef, useState } from 'react';
 import moment from 'moment';
-import { RequestedPlanStatusMap } from '@/pages/admin-settings/billing/constants';
+import { RequestedPlanStatusMap } from '@/lib/plan-constants';
 import {
   handleAlert,
   PLAN_PENDING_COMPANY_UUID_KEY,

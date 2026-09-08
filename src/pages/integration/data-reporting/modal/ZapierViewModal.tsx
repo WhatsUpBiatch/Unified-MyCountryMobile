@@ -1,9 +1,16 @@
-import { CloseIcon } from '@/assets/icons';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { toTitleCase } from '@/lib/utils';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { crmZapData, McmLogo, getMcmLogoIcon } from '@/pages/integration/constant';
 import { useOrganization } from '@/hooks/use-organisation';
+import '@/components/mcm/mcm-page.css';
+
+/**
+ * The prebuilt Zap templates for one tool.
+ *
+ * Every row leaves for zapier.com, which the rows did not say — "Use this Zap"
+ * on a plain outline button reads as something that happens here. Each one is
+ * a real link now, so it can be middle-clicked, copied, and read out as a link
+ * by a screen reader, and it says where it goes.
+ */
 
 const ZapierViewModal = ({
   modalOpen,
@@ -15,57 +22,50 @@ const ZapierViewModal = ({
   setModalOpen: (val: string | null) => void;
 }) => {
   const { mainSiteInfo } = useOrganization();
-  const modalTitle = modalOpen ? toTitleCase(modalOpen) : '';
   const data = crmZapData[modalOpen];
 
   return (
     <Dialog open={!!modalOpen} onOpenChange={(val) => !val && setModalOpen(null)}>
-      <DialogContent
-        className="lg:w-1/2 p-3 max-h-[99%] w-full overflow-auto"
-        showCloseButton={false}
-      >
-        <div className="flex flex-col gap-1.5  text-900/80">
-          <div className="font-semibold truncate text-md flex items-center justify-between">
-            {modalTitle}
-            <div
-              onClick={handleClose}
-              className="cursor-pointer ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-            >
-              <CloseIcon className="w-3 h-3" />
-            </div>
-          </div>
-        </div>
+      {/* The close control was a div with a click handler, next to
+          `showCloseButton={false}` which had switched off the real one. The
+          dialog's own button is back: it is focusable, it is labelled, and
+          Escape already worked through it. */}
+      <DialogContent className="max-w-2xl p-4">
+        <DialogTitle className="mcm-zap-h">
+          {data?.title || 'Zaps'}
+          <span>Each one opens in Zapier, where you finish setting it up.</span>
+        </DialogTitle>
 
-        {data?.zaps?.map((zap, index) => (
-          <div
-            key={index}
-            className="sm:flex-row flex-col flex sm:items-center gap-4 justify-between border rounded-md border-gray-200 p-3 hover:shadow-sm transition"
-          >
-            <div className="flex sm:flex-row flex-col sm:items-center gap-4">
-              <div className="flex gap-1 mt-1">
+        <ul className="mcm-zaps">
+          {data?.zaps?.map((zap) => (
+            <li key={zap.url} className="mcm-zap">
+              <span className="mcm-zap-icons" aria-hidden="true">
                 {zap?.icons?.map((icon, i) => (
                   <img
                     key={i}
                     src={icon === McmLogo ? getMcmLogoIcon(mainSiteInfo) : icon}
-                    alt="icon"
-                    className="w-8 h-8 object-contain border rounded-sm p-1"
+                    alt=""
                   />
                 ))}
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium text-sm w-full sm:min-w-[375px] whitespace-normal">
-                  {zap.label}
-                </span>
-                <span className="text-xs text-gray-500">{zap.subtitle}</span>
-              </div>
-            </div>
-            <div className="flex">
-              <Button variant={'outline'} onClick={() => window?.open(zap?.url)}>
-                Use this Zap
-              </Button>
-            </div>
-          </div>
-        ))}
+              </span>
+              <span className="mcm-zap-t">
+                <b>{zap.label}</b>
+                {/* Which way the data moves. Source on the left, matching the
+                    icon order beside it. */}
+                <span>{zap.subtitle}</span>
+              </span>
+              <a
+                className="mcm-zap-go"
+                href={zap.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleClose}
+              >
+                Open in Zapier
+              </a>
+            </li>
+          ))}
+        </ul>
       </DialogContent>
     </Dialog>
   );
