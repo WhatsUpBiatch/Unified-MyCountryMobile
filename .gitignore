@@ -48,3 +48,6 @@ eslint-output.json
 
 # Sandbox role selection, per-developer
 mock/.role
+
+.vercel
+.env*
