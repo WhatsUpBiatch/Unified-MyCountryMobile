@@ -4,7 +4,8 @@
   "buildCommand": "npx vite build --mode mock",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/captain-api/(.*)", "destination": "/api/__captain/$1" },
-    { "source": "/((?!api/|captain-api/).*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api?path=$1" },
+    { "source": "/captain-api/(.*)", "destination": "/api?captain=$1" },
+    { "source": "/((?!api|captain-api).*)", "destination": "/index.html" }
   ]
 }
