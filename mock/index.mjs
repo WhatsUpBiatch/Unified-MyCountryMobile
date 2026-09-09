@@ -1313,7 +1313,12 @@ const genericResponse = (urlPath, body) => {
 };
 
 const readBody = (req) =>
-  new Promise((resolve) => {
+  /* Vercel's Node runtime parses the JSON body before the function runs, so the
+     stream is already drained and waiting on 'end' would never resolve. Vite's
+     connect server does not parse, and leaves req.body undefined. */
+  req.body != null
+    ? Promise.resolve(typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body)
+    : new Promise((resolve) => {
     let raw = '';
     req.on('data', (c) => {
       raw += c;
@@ -1769,144 +1774,152 @@ export const mockApiPlugin = () => ({
        Only the two routes the playground actually calls. The replies are
        canned and say so - this is here so the screen can be built and looked
        at without a Captain backend, not to imitate one. */
-    server.middlewares.use('/captain-api', async (req, res) => {
-      const [urlPath, rawQuery = ''] = String(req.url || '').split('?');
-      const query = new URLSearchParams(rawQuery);
-      const body = req.method === 'POST' ? await readBody(req) : {};
-      let payload;
-
-      if (urlPath.endsWith('/assistants') && req.method === 'GET') {
-        payload = { data: CAPTAIN_ASSISTANTS };
-      } else if (urlPath.includes('/composio-access')) {
-        /* The toolkits an assistant may reach. PUT just echoes success — the
-           screen already moved its own switch and only reverts on a failure. */
-        payload =
-          req.method === 'GET'
-            ? {
-                data: [
-                  { toolkit_slug: 'gmail', toolkit_name: 'Gmail', allowed: true },
-                  { toolkit_slug: 'hubspot', toolkit_name: 'HubSpot', allowed: true },
-                  { toolkit_slug: 'stripe', toolkit_name: 'Stripe', allowed: false },
-                ],
-              }
-            : { data: {} };
-      } else if (urlPath.includes('/generate-faqs')) {
-        payload = {
-          data: {
-            faqs: [
-              { question: 'Can I change my plan mid-month?', answer: 'Yes — it takes effect next period and is prorated.' },
-              { question: 'What happens to my numbers if I cancel?', answer: 'They stay active until the end of the period already paid for.' },
-              { question: 'When am I billed?', answer: 'Monthly, at the start of each billing period.' },
-            ],
-          },
-        };
-      } else if (urlPath.startsWith('/api/captain/documents/') && req.method === 'GET') {
-        /* The edit dialog asks for one document's extracted text. */
-        payload = { data: { content: CAPTAIN_DOC_BODY } };
-      } else if (urlPath.endsWith('/documents') && req.method === 'GET') {
-        payload = { data: CAPTAIN_DOCS };
-      } else if (urlPath.endsWith('/documents') && req.method === 'POST') {
-        /* The screen reads `documents.length` to say how many a crawl produced,
-           so the count has to follow max_pages rather than always being one. */
-        const made = Math.max(1, Math.min(Number(body.max_pages) || 1, 20));
-        payload = { data: { documents: Array.from({ length: made }, (_, i) => ({ id: `doc_new_${i}` })) } };
-      } else if (urlPath.endsWith('/faqs') && req.method === 'GET') {
-        /* The screen debounces a search term into the query string, so the mock
-           has to actually filter — a list that ignores `search` makes the box
-           look broken rather than empty. */
-        const term = String(query.get('search') || '').toLowerCase();
-        payload = {
-          data: term
-            ? CAPTAIN_FAQS.filter(
-                (f) =>
-                  f.question.toLowerCase().includes(term) || f.answer.toLowerCase().includes(term),
-              )
-            : CAPTAIN_FAQS,
-        };
-      } else if (urlPath.includes('/composio/connections') && req.method === 'GET') {
-        payload = { data: CAPTAIN_CONNECTIONS };
-      } else if (urlPath.includes('/composio/toolkits/') && urlPath.endsWith('/tools')) {
-        const slug = urlPath.split('/toolkits/')[1].split('/')[0];
-        /* `data.tools`, not `data`: this one route nests, and the screen reads
-           `json.data.tools`. Every other Captain route returns the array
-           directly. */
-        payload = { data: { tools: CAPTAIN_TOOLKIT_ACTIONS[slug] || CAPTAIN_TOOLKIT_ACTIONS.gmail } };
-      } else if (urlPath.endsWith('/composio/toolkits')) {
-        const term = String(query.get('search') || '').toLowerCase();
-        payload = {
-          data: term
-            ? CAPTAIN_TOOLKITS.filter((t) => t.name.toLowerCase().includes(term))
-            : CAPTAIN_TOOLKITS,
-        };
-      } else if (urlPath.endsWith('/custom-tools') && req.method === 'GET') {
-        payload = { data: CAPTAIN_CUSTOM_TOOLS };
-      } else if (urlPath.endsWith('/custom-tools/test')) {
-        payload = { data: { ok: true, status: 200, body: { status: 'shipped', eta: '2 days' } } };
-      } else if (urlPath.includes('/composio/connect')) {
-        /* No OAuth window in the sandbox. Returning no redirect leaves the
-           screen on the page rather than sending it somewhere that cannot
-           answer. */
-        payload = { data: { redirect_url: null, connection_id: 'conn_new' } };
-      } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/messages')) {
-        payload = { data: CAPTAIN_THREAD };
-      } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/reply')) {
-        payload = { data: { id: `m_${Date.now()}` } };
-      } else if (urlPath.endsWith('/widget-conversations')) {
-        payload = { data: CAPTAIN_CONVERSATIONS };
-      } else if (urlPath.includes('/inboxes/') && urlPath.endsWith('/conversations')) {
-        payload = { data: CAPTAIN_CONVERSATIONS };
-      } else if (urlPath.endsWith('/inboxes') && req.method === 'GET') {
-        payload = { data: CAPTAIN_INBOXES };
-      } else if (urlPath.endsWith('/inbox-channels')) {
-        payload = { data: [{ channel_type: 'website', enabled: true }] };
-      } else if (urlPath.includes('/playground')) {
-        const asked = String(body.message || '');
-        /* Enough shape to exercise every branch the screen draws: a plain
-           answer, the handoff badge, and cited sources. Keyed off the question
-           so each can be triggered on purpose rather than at random. */
-        const wantsHuman = /human|agent|person|refund/i.test(asked);
-        payload = {
-          data: {
-            reply: wantsHuman
-              ? 'That one needs a person. Passing you to an agent now.'
-              : `Sandbox reply. You asked: "${asked}"`,
-            handoff: wantsHuman,
-            sources: wantsHuman
-              ? []
-              : [
-                  { id: 'kb_1', question: 'What are your opening hours?', score: 0.91 },
-                  /* Deliberately under the 0.6 the screen calls weak, so both
-                     states of the similarity chip can be seen without having to
-                     find a badly-matched question by hand. */
-                  { id: 'kb_2', question: 'How do I change my plan?', score: 0.42 },
-                ],
-          },
-        };
-      } else {
-        /* Create, update and delete. Nothing is kept: the sandbox has no store,
-           and a screen that appears to save and then loses it on reload is
-           worse than one that plainly does not. The list re-fetches after a
-           save and comes back as it was. */
-        payload = { data: { id: 'asst_new', ...body } };
-      }
-
-      res.statusCode = req.method === 'DELETE' ? 204 : 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(payload));
-    });
-
-    server.middlewares.use('/api', async (req, res) => {
-      const urlPath = `/api${String(req.url || '').split('?')[0]}`;
-      const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readBody(req) : {};
-
-      const hit = HANDLERS.find(([p]) => urlPath === p || urlPath.startsWith(`${p}/`));
-      const payload = hit ? hit[1](body) : genericResponse(urlPath, body);
-
-      if (!hit) console.log(`[sandbox] generic response for ${req.method} ${urlPath}`);
-
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(payload));
-    });
+    server.middlewares.use('/captain-api', (req, res) => captainHandler(req, res, String(req.url || '')));
+    server.middlewares.use('/api', (req, res) => apiHandler(req, res, `/api${String(req.url || '')}`));
   },
 });
+
+/* Exported so the same answers can be served from somewhere that is not a Vite
+   dev server: the hosted sandbox runs them from a serverless function, which is
+   the only way a static build keeps a working backend. Both take the request
+   path explicitly, because connect strips the mount prefix and a serverless
+   runtime does not. */
+export const captainHandler = async (req, res, rawUrl) => {
+  const [urlPath, rawQuery = ''] = String(rawUrl || '').split('?');
+  const query = new URLSearchParams(rawQuery);
+  const body = req.method === 'POST' ? await readBody(req) : {};
+  let payload;
+
+  if (urlPath.endsWith('/assistants') && req.method === 'GET') {
+    payload = { data: CAPTAIN_ASSISTANTS };
+  } else if (urlPath.includes('/composio-access')) {
+    /* The toolkits an assistant may reach. PUT just echoes success — the
+       screen already moved its own switch and only reverts on a failure. */
+    payload =
+      req.method === 'GET'
+        ? {
+            data: [
+              { toolkit_slug: 'gmail', toolkit_name: 'Gmail', allowed: true },
+              { toolkit_slug: 'hubspot', toolkit_name: 'HubSpot', allowed: true },
+              { toolkit_slug: 'stripe', toolkit_name: 'Stripe', allowed: false },
+            ],
+          }
+        : { data: {} };
+  } else if (urlPath.includes('/generate-faqs')) {
+    payload = {
+      data: {
+        faqs: [
+          { question: 'Can I change my plan mid-month?', answer: 'Yes — it takes effect next period and is prorated.' },
+          { question: 'What happens to my numbers if I cancel?', answer: 'They stay active until the end of the period already paid for.' },
+          { question: 'When am I billed?', answer: 'Monthly, at the start of each billing period.' },
+        ],
+      },
+    };
+  } else if (urlPath.startsWith('/api/captain/documents/') && req.method === 'GET') {
+    /* The edit dialog asks for one document's extracted text. */
+    payload = { data: { content: CAPTAIN_DOC_BODY } };
+  } else if (urlPath.endsWith('/documents') && req.method === 'GET') {
+    payload = { data: CAPTAIN_DOCS };
+  } else if (urlPath.endsWith('/documents') && req.method === 'POST') {
+    /* The screen reads `documents.length` to say how many a crawl produced,
+       so the count has to follow max_pages rather than always being one. */
+    const made = Math.max(1, Math.min(Number(body.max_pages) || 1, 20));
+    payload = { data: { documents: Array.from({ length: made }, (_, i) => ({ id: `doc_new_${i}` })) } };
+  } else if (urlPath.endsWith('/faqs') && req.method === 'GET') {
+    /* The screen debounces a search term into the query string, so the mock
+       has to actually filter — a list that ignores `search` makes the box
+       look broken rather than empty. */
+    const term = String(query.get('search') || '').toLowerCase();
+    payload = {
+      data: term
+        ? CAPTAIN_FAQS.filter(
+            (f) =>
+              f.question.toLowerCase().includes(term) || f.answer.toLowerCase().includes(term),
+          )
+        : CAPTAIN_FAQS,
+    };
+  } else if (urlPath.includes('/composio/connections') && req.method === 'GET') {
+    payload = { data: CAPTAIN_CONNECTIONS };
+  } else if (urlPath.includes('/composio/toolkits/') && urlPath.endsWith('/tools')) {
+    const slug = urlPath.split('/toolkits/')[1].split('/')[0];
+    /* `data.tools`, not `data`: this one route nests, and the screen reads
+       `json.data.tools`. Every other Captain route returns the array
+       directly. */
+    payload = { data: { tools: CAPTAIN_TOOLKIT_ACTIONS[slug] || CAPTAIN_TOOLKIT_ACTIONS.gmail } };
+  } else if (urlPath.endsWith('/composio/toolkits')) {
+    const term = String(query.get('search') || '').toLowerCase();
+    payload = {
+      data: term
+        ? CAPTAIN_TOOLKITS.filter((t) => t.name.toLowerCase().includes(term))
+        : CAPTAIN_TOOLKITS,
+    };
+  } else if (urlPath.endsWith('/custom-tools') && req.method === 'GET') {
+    payload = { data: CAPTAIN_CUSTOM_TOOLS };
+  } else if (urlPath.endsWith('/custom-tools/test')) {
+    payload = { data: { ok: true, status: 200, body: { status: 'shipped', eta: '2 days' } } };
+  } else if (urlPath.includes('/composio/connect')) {
+    /* No OAuth window in the sandbox. Returning no redirect leaves the
+       screen on the page rather than sending it somewhere that cannot
+       answer. */
+    payload = { data: { redirect_url: null, connection_id: 'conn_new' } };
+  } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/messages')) {
+    payload = { data: CAPTAIN_THREAD };
+  } else if (urlPath.includes('/widget-conversations/') && urlPath.endsWith('/reply')) {
+    payload = { data: { id: `m_${Date.now()}` } };
+  } else if (urlPath.endsWith('/widget-conversations')) {
+    payload = { data: CAPTAIN_CONVERSATIONS };
+  } else if (urlPath.includes('/inboxes/') && urlPath.endsWith('/conversations')) {
+    payload = { data: CAPTAIN_CONVERSATIONS };
+  } else if (urlPath.endsWith('/inboxes') && req.method === 'GET') {
+    payload = { data: CAPTAIN_INBOXES };
+  } else if (urlPath.endsWith('/inbox-channels')) {
+    payload = { data: [{ channel_type: 'website', enabled: true }] };
+  } else if (urlPath.includes('/playground')) {
+    const asked = String(body.message || '');
+    /* Enough shape to exercise every branch the screen draws: a plain
+       answer, the handoff badge, and cited sources. Keyed off the question
+       so each can be triggered on purpose rather than at random. */
+    const wantsHuman = /human|agent|person|refund/i.test(asked);
+    payload = {
+      data: {
+        reply: wantsHuman
+          ? 'That one needs a person. Passing you to an agent now.'
+          : `Sandbox reply. You asked: "${asked}"`,
+        handoff: wantsHuman,
+        sources: wantsHuman
+          ? []
+          : [
+              { id: 'kb_1', question: 'What are your opening hours?', score: 0.91 },
+              /* Deliberately under the 0.6 the screen calls weak, so both
+                 states of the similarity chip can be seen without having to
+                 find a badly-matched question by hand. */
+              { id: 'kb_2', question: 'How do I change my plan?', score: 0.42 },
+            ],
+      },
+    };
+  } else {
+    /* Create, update and delete. Nothing is kept: the sandbox has no store,
+       and a screen that appears to save and then loses it on reload is
+       worse than one that plainly does not. The list re-fetches after a
+       save and comes back as it was. */
+    payload = { data: { id: 'asst_new', ...body } };
+  }
+
+  res.statusCode = req.method === 'DELETE' ? 204 : 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+};
+
+export const apiHandler = async (req, res, rawUrl) => {
+  const urlPath = String(rawUrl || '').split('?')[0];
+  const body = ['POST', 'PUT', 'PATCH'].includes(req.method) ? await readBody(req) : {};
+
+  const hit = HANDLERS.find(([p]) => urlPath === p || urlPath.startsWith(`${p}/`));
+  const payload = hit ? hit[1](body) : genericResponse(urlPath, body);
+
+  if (!hit) console.log(`[sandbox] generic response for ${req.method} ${urlPath}`);
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+};

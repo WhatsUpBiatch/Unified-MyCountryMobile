@@ -125,5 +125,9 @@ const baseConfig: UserConfig = {
    production build ignores them even if the mode were somehow set. */
 export default defineConfig(({ mode }) => ({
   ...baseConfig,
+  /* Mock mode never reads the external env dir. It holds real secrets and a
+     real API base URL, and a sandbox build that picked those up would ship a
+     demo pointed at production. */
+  envDir: mode !== 'mock' && fs.existsSync(EXTERNAL_ENV_DIR) ? EXTERNAL_ENV_DIR : __dirname,
   plugins: mode === 'mock' ? [mockApiPlugin(), autoLogin(), react(), tailwindcss()] : [react(), tailwindcss()],
 }));

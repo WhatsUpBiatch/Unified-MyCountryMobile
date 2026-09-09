@@ -1,7 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "npx vite build --mode mock",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/captain-api/(.*)", "destination": "/api/__captain/$1" },
+    { "source": "/((?!api/|captain-api/).*)", "destination": "/index.html" }
+  ]
 }
