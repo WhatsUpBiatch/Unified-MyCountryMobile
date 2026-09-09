@@ -1885,4 +1885,13 @@ export const router = createBrowserRouter([
     path: '*',
     element: <ErrorPage text="Page Not Found! 😔" />,
   },
-]);
+],
+  {
+    /* Vite rewrites BASE_URL to whatever `base` the build used: "/" for the
+       normal build, "/Unified-MyCountryMobile/" for a GitHub Pages one, which
+       serves a project site from a sub-path rather than the domain root.
+       Without this the router would look for "/dashboard" on a site whose
+       routes all live under "/Unified-MyCountryMobile/dashboard". */
+    basename: import.meta.env.BASE_URL,
+  },
+);

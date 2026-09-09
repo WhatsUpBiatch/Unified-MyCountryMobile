@@ -52,6 +52,11 @@ const EXTERNAL_ENV_DIR = '/etc/mycountrymobile-web';
 /* Typed, so `assetFileNames` still infers its parameter. Inline inside
    defineConfig it was contextually typed; a bare object literal is not. */
 const baseConfig: UserConfig = {
+  /* Where the app will be served from. Vercel and the dev server both serve it
+     at the domain root; GitHub Pages serves a project site under /<repo>/, so
+     the asset URLs have to carry that prefix or every script tag 404s. Set by
+     the Pages workflow only, so nothing else changes. */
+  base: process.env.PUBLIC_BASE_PATH || '/',
   envDir: fs.existsSync(EXTERNAL_ENV_DIR) ? EXTERNAL_ENV_DIR : __dirname,
   define: {
     global: 'globalThis',
