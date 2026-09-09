@@ -98,23 +98,101 @@ const user = (i) => {
   };
 };
 
-const call = (i) => ({
-  uuid: f.uuid(`c${i}`),
-  sipcall_id: f.uuid(`sip${i}`),
-  direction: f.choice(DIRECTIONS, `dir${i}`),
-  status: f.choice(CALL_STATUS, `cs${i}`),
-  from_number: f.phone(`from${i}`),
-  to_number: f.phone(`to${i}`),
-  caller_name: f.person(`cn${i}`).name,
-  agent_name: f.person(`u${i % 8}`).name,
-  duration: f.duration(i),
-  talk_time: f.duration(i),
-  wait_time: f.number(`w${i}`, 0, 90),
-  recording: null,
-  queue_name: f.choice(['Support', 'Sales', 'Billing'], `q${i}`),
-  created_at: f.minutesAgo(i * 17 + 4),
-  date: f.minutesAgo(i * 17 + 4),
-});
+/* When today's calls happened.
+
+   They used to be spaced evenly - one every eleven minutes, right back through
+   the night - so the activity chart drew a dead flat line and the panel headed
+   "call volume through the day" demonstrated nothing. A contact centre has a
+   shape: quiet overnight, a ramp from eight, a late-morning peak, the lunch
+   dip, a second afternoon rise, then a taper. WEIGHTS is that shape, one entry
+   per hour of the day.
+
+   Calls are dealt into the hours in proportion, then jittered inside the hour
+   so they do not stack on the hour mark. Only hours the day has actually
+   reached get any, or the chart would show tonight's traffic at lunchtime. */
+const WEIGHTS = [
+  1, 1, 1, 1, 1, 2, 4, 7, 14, 20, 24, 25, 22, 15, 19, 23, 21, 16, 10, 6, 4, 3, 2, 1,
+];
+
+const minutesAgoForCall = (i) => {
+  const now = new Date();
+  const hourNow = now.getHours();
+  const reached = WEIGHTS.slice(0, hourNow + 1);
+  const total = reached.reduce((sum, w) => sum + w, 0) || 1;
+
+  /* Walk the weights until this call's share lands in an hour. */
+  let cursor = ((i + 0.5) / 96) * total;
+  let hour = 0;
+  for (; hour < reached.length; hour++) {
+    if (cursor <= reached[hour]) break;
+    cursor -= reached[hour];
+  }
+  if (hour > hourNow) hour = hourNow;
+
+  const shareOfHour = reached[hour] ? cursor / reached[hour] : 0.5;
+  const minuteInHour = Math.min(59, Math.max(0, Math.round(shareOfHour * 59)));
+  const minutesSinceMidnight = hour * 60 + minuteInHour;
+  const nowSinceMidnight = hourNow * 60 + now.getMinutes();
+  /* Never in the future: the last bucket is capped at the current minute. */
+  return Math.max(0, nowSinceMidnight - minutesSinceMidnight);
+};
+
+/* A call as the reporting layer reads one.
+
+   `use-call-stats` scores a day off billsec, durationtotal and waitsec, and
+   calls a row missed when it is inbound with zero talk time. The old shape
+   carried duration/talk_time/wait_time instead — names nothing reads — so
+   every derived figure on Home and Performance came out as zero or a dash
+   however many rows were returned. The fields below are the ones the code
+   actually looks for.
+
+   Roughly one call in seven goes unanswered, which is what puts a real
+   abandon rate on the screen rather than 0%. */
+const call = (i) => {
+  const missed = i % 7 === 3;
+  const talkSecs = missed ? 0 : 45 + f.number(`tk${i}`, 0, 520);
+  const waitSecs = missed ? 20 + f.number(`wm${i}`, 0, 70) : f.number(`w${i}`, 0, 42);
+  const when = f.minutesAgo(minutesAgoForCall(i));
+  return {
+    uuid: f.uuid(`c${i}`),
+    sipcall_id: f.uuid(`sip${i}`),
+    /* Missed only counts against an inbound call, so the ones marked missed
+       have to be inbound or the rule never fires. */
+    direction: missed ? 'inbound' : f.choice(DIRECTIONS, `dir${i}`),
+    status: missed ? 'missed' : 'answered',
+    from_number: f.phone(`from${i}`),
+    to_number: f.phone(`to${i}`),
+    caller_name: f.person(`cn${i}`).name,
+    agent_name: f.person(`u${i % 8}`).name,
+    billsec: talkSecs,
+    billsectotal: talkSecs,
+    duration: talkSecs + waitSecs,
+    durationtotal: talkSecs + waitSecs,
+    waitsec: waitSecs,
+    talk_time: talkSecs,
+    wait_time: waitSecs,
+    is_voicemail: false,
+    recording: null,
+    queue_name: f.choice(['Support', 'Sales', 'Billing'], `q${i}`),
+    created_at: when,
+    date: when,
+  };
+};
+
+/* The day's summary, alongside the rows. `use-call-stats` takes total and
+   missed from here rather than counting the page it was given — a page is a
+   page, and the day is usually longer than one. Derived from the same rows so
+   the summary and the list cannot disagree. */
+const callSummary = (rows) => {
+  const missed = rows.filter((row) => row.status === 'missed').length;
+  return {
+    total_calls: rows.length,
+    missed_calls: missed,
+    inbound_calls: rows.filter((row) => row.direction === 'inbound').length,
+    outbound_calls: rows.filter((row) => row.direction === 'outbound').length,
+    voicemail: 0,
+  };
+};
 
 /* A call queue as the queues screen reads one.
 
@@ -992,7 +1070,21 @@ const HANDLERS = [
   ['/api/tenant/department/list', (b) => page(f.seq(6, department), b)],
   ['/api/tenant/department/role-based-list', (b) => page(f.seq(6, department), b)],
   ['/api/tenant/report/phone-call-list', (b) => page(f.seq(40, call), b)],
-  ['/api/tenant/report/call-list', (b) => page(f.seq(40, call), b)],
+  /* 96 rows at eleven-minute steps covers a working day, so the activity
+     chart has a shape to draw rather than a handful of points. */
+  [
+    '/api/tenant/report/call-list',
+    (b) => {
+      const rows = f.seq(96, call);
+      const res = page(rows, b);
+      /* `call_stats`, not `callStats` - the hook reads snake_case here even
+         though the rows beside it are camelCase. The app defines the shape;
+         guessing it cost a full pass with the summary present in the response
+         and every derived figure still reading zero. */
+      res.data.result.call_stats = callSummary(rows);
+      return res;
+    },
+  ],
   ['/api/tenant/report/agents', (b) =>
     page(
       f.seq(12, (i) => ({

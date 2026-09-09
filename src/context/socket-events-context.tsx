@@ -907,6 +907,34 @@ export const SocketEventsProvider = ({ children }: { children: ReactNode }) => {
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
   const [liveCalls, setLiveCalls] = useState<any[]>([]);
   const [liveQueueCalls, setLiveQueueCalls] = useState<any[]>([]);
+
+  /* The sandbox has no socket behind it, so waiting callers, live calls and
+     presence never arrived and every live figure in the app sat at zero with
+     the whole roster reading "Offline" - correct, and impossible to judge a
+     queue board or a status table against. In mock mode only, a plausible
+     floor is seeded in their place.
+
+     import.meta.env.MODE is replaced with a literal at build time, so this
+     branch and the module it imports are dropped from a production build. */
+  useEffect(() => {
+    if (import.meta.env.MODE !== 'mock') return;
+    let cancelled = false;
+    import('@/mock/live-floor')
+      .then(({ buildDemoFloor }) => buildDemoFloor())
+      .then((floor) => {
+        if (cancelled) return;
+        setLiveCalls(floor.liveCalls);
+        setUsersOnlineStatus(floor.presence);
+        setLiveQueueCalls(floor.queueStats);
+      })
+      .catch(() => {
+        /* A sandbox nicety; if it cannot be built the app still runs on the
+           empty floor it had before. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [activeCampaigns, setActiveCampaigns] = useState<any[]>([]);
   const [campaignCallFlowFunnel, setCampaignCallFlowFunnel] = useState<any>(null);
   const [campaignAgents, setCampaignAgents] = useState<any>(null);

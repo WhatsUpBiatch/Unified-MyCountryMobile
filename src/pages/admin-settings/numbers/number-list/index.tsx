@@ -34,7 +34,7 @@ import {
 } from '../utils';
 import { invalidateNumberLists } from '@/lib/number-list-cache';
 import { featuresLookUp, featuresObj } from '../all-numbers/constants';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { canEditLabel, labelOf } from '@/lib/number-labels';
 import EditNumberLabel from '../edit-label';
 import NumbersByLine from '../by-line';

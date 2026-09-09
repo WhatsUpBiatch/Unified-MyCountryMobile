@@ -1,0 +1,1055 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Home — contact-centre operations overview.
+
+   Built to be read, not admired. A supervisor opening this should be able to
+   answer six questions inside five seconds: how many callers are waiting, is
+   service level holding, which queues are overloaded, which agents need
+   attention, what is on the wire, and how today is trending.
+
+   The rules this sheet follows, and the reasons:
+
+   · Borders, not shadows. Every panel used to be a floating card on a lift
+     shadow, which reads as decoration and makes a dense screen feel like a
+     pile of loose paper. A 1px rule costs nothing and states the boundary
+     exactly. Shadows are kept for things that genuinely float — menus.
+
+   · Restrained radius. 8px on panels, 6px on controls. The 16px cards and
+     999px pills this replaces are the house style of marketing software.
+
+   · Colour is functional. Blue means "you can act on this" or "this is
+     selected". Green, amber and red mean healthy, warning, critical. Nothing
+     is tinted to look nice: the icon chips that coloured every panel head are
+     gone, because a colour that appears everywhere says nothing.
+
+   · Hierarchy from type, weight and space. Nothing here is bigger than it
+     needs to be to be read in the right order.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mcm-page.home-v3 {
+  --hair: var(--line);
+  --r-panel: 8px;
+  --r-ctl: 6px;
+  /* One shadow, for things that actually float. Panels do not use it. */
+  --pop: 0 8px 24px -12px rgba(13, 21, 38, 0.28);
+  background: var(--surface-2);
+}
+.dark .mcm-page.home-v3 {
+  --pop: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* The page itself does not scroll. Home is a monitor: the figures and whatever
+   is breaching have to stay on screen while you work, and the detail scrolls
+   inside its own pane instead. Five panels stacked down a page meant the last
+   of them was never on screen at the same time as the first. */
+.mcm-page.home-v3 .page {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.mcm-page.home-v3 .ops {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: 16px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Everything above the console holds its natural height; the console takes the
+   remainder. Without `min-height: 0` a flex child refuses to shrink below its
+   content and the pane pushes the page taller than the viewport. */
+.mcm-page.home-v3 .ophead,
+.mcm-page.home-v3 .kstrip,
+.mcm-page.home-v3 .band {
+  flex: none;
+}
+
+.mcm-page.home-v3 .dim {
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── page header ─────────────────────────────────────────────────────────
+   "Overview" and the date, not a greeting in display type. The name of the
+   screen is what orients you; who you are is already in the top bar. */
+.mcm-page.home-v3 .ophead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--hair);
+}
+.mcm-page.home-v3 .ophead h1 {
+  font-size: 25px;
+  line-height: 1.15;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .ophead-meta {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.mcm-page.home-v3 .ophead-meta b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.mcm-page.home-v3 .ophead-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── controls ────────────────────────────────────────────────────────────
+   One button, two weights. Primary carries the page's single blue fill; the
+   default is a bordered control. */
+.mcm-page.home-v3 .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.mcm-page.home-v3 .btn:hover {
+  background: var(--surface-3);
+  border-color: var(--ink-4);
+}
+.mcm-page.home-v3 .btn svg {
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .btn.is-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.mcm-page.home-v3 .btn.is-primary:hover {
+  filter: brightness(1.06);
+  border-color: var(--accent);
+}
+.mcm-page.home-v3 .btn.is-primary svg {
+  color: currentColor;
+}
+.mcm-page.home-v3 .btn.is-sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+/* The live indicator is a state, not a button. */
+.mcm-page.home-v3 .livetag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.mcm-page.home-v3 .livetag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live, #0d9488);
+}
+
+/* ── KPI strip ───────────────────────────────────────────────────────────
+   One bordered strip divided into cells, not seven cards floating apart. The
+   figures belong to one another — they describe the same floor at the same
+   second — and a shared frame says so. */
+.mcm-page.home-v3 .kstrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  overflow: hidden;
+}
+/* Cells rule between themselves; the strip's own frame draws the outer edge.
+   The negative margins pull the last column's and last row's rules under it
+   rather than doubling the line. */
+.mcm-page.home-v3 .kcell {
+  padding: 13px 16px 14px;
+  border-right: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  margin-right: -1px;
+  margin-bottom: -1px;
+  min-width: 0;
+}
+.mcm-page.home-v3 .kcell-k {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .kcell-v {
+  margin-top: 7px;
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .kcell-v.is-crit {
+  color: var(--crit);
+}
+.mcm-page.home-v3 .kcell-d {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+}
+.mcm-page.home-v3 .trend.is-up {
+  color: var(--live, #0d9488);
+}
+.mcm-page.home-v3 .trend.is-down {
+  color: var(--crit, #c8322f);
+}
+
+/* ── layout ──────────────────────────────────────────────────────────────── */
+.mcm-page.home-v3 .grid {
+  display: grid;
+  gap: 16px;
+}
+.mcm-page.home-v3 .grid-main {
+  grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+}
+.mcm-page.home-v3 .grid-2 {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+@media (max-width: 1024px) {
+  .mcm-page.home-v3 .grid-main,
+  .mcm-page.home-v3 .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mcm-page.home-v3 .ops {
+    padding: 16px 16px 28px;
+  }
+}
+
+.mcm-page.home-v3 .panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.mcm-page.home-v3 .panel-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+.mcm-page.home-v3 .panel-h h2 {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .panel-h .sub {
+  font-size: 12px;
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .panel-h .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcm-page.home-v3 .panel-b {
+  padding: 14px 16px;
+}
+.mcm-page.home-v3 .panel-b.is-flush {
+  padding: 0;
+}
+
+.mcm-page.home-v3 .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.mcm-page.home-v3 .link:hover {
+  text-decoration: underline;
+}
+
+/* ── range switch ────────────────────────────────────────────────────────── */
+.mcm-page.home-v3 .seg {
+  display: inline-flex;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+}
+.mcm-page.home-v3 .seg button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--hair);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.mcm-page.home-v3 .seg button:last-child {
+  border-right: 0;
+}
+.mcm-page.home-v3 .seg button:hover {
+  background: var(--surface-3);
+}
+.mcm-page.home-v3 .seg button[aria-pressed='true'] {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+/* ── today's figures, beside the chart ───────────────────────────────────── */
+.mcm-page.home-v3 .figs {
+  display: flex;
+  flex-direction: column;
+}
+.mcm-page.home-v3 .fig {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+.mcm-page.home-v3 .fig:last-child {
+  border-bottom: 0;
+}
+.mcm-page.home-v3 .fig-k {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.mcm-page.home-v3 .fig-v {
+  margin-top: 3px;
+  font-size: 19px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .fig-n {
+  margin-left: 7px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-4);
+}
+/* The one ring on the page, on the one figure with a target to be judged
+   against. Everything else is a number: a ring around a figure that has no
+   target is decoration.
+
+   Called `opsring` and not `ring`: `ring` is a Tailwind utility that sets
+   --tw-ring-shadow, so the plain name drew a 1px box round every ring. */
+.mcm-page.home-v3 .fig.is-lead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.mcm-page.home-v3 .fig.is-lead > div {
+  min-width: 0;
+}
+.mcm-page.home-v3 .opsring {
+  flex: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+}
+.mcm-page.home-v3 .opsring svg {
+  position: absolute;
+  inset: 0;
+}
+.mcm-page.home-v3 .opsring-t {
+  fill: none;
+  stroke: var(--surface-3);
+}
+.mcm-page.home-v3 .opsring-a {
+  fill: none;
+  stroke: var(--accent);
+  transition: stroke-dasharray 0.4s ease;
+}
+.mcm-page.home-v3 .opsring.is-ok .ring-a {
+  stroke: var(--live, #0d9488);
+}
+.mcm-page.home-v3 .opsring.is-warn .ring-a {
+  stroke: var(--warn, #d97706);
+}
+.mcm-page.home-v3 .opsring.is-bad .ring-a {
+  stroke: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .opsring-v {
+  position: relative;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── needs attention ─────────────────────────────────────────────────────
+   Rows in an operations panel, not coloured cards. Severity is a 3px rule on
+   the leading edge and a coloured label — enough to sort by at a glance, not
+   enough to shout over the data. */
+/* No cap and no scroller of its own. It used to be a panel body that had to
+   limit itself; inside the console it sits in .pane-scroll, and leaving the
+   old rule on put a second scrollbar inside the first. */
+.mcm-page.home-v3 .alerts {
+  display: flex;
+  flex-direction: column;
+}
+.mcm-page.home-v3 .alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 16px 11px 13px;
+  border-bottom: 1px solid var(--hair);
+  border-left: 3px solid transparent;
+}
+.mcm-page.home-v3 .alert:last-child {
+  border-bottom: 0;
+}
+.mcm-page.home-v3 .alert.is-crit {
+  border-left-color: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .alert.is-warn {
+  border-left-color: var(--warn, #d97706);
+}
+.mcm-page.home-v3 .alert-t {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-page.home-v3 .alert-k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mcm-page.home-v3 .alert.is-crit .alert-k {
+  color: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .alert.is-warn .alert-k {
+  color: var(--warn, #b45309);
+}
+.mcm-page.home-v3 .alert-n {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .alert-d {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.mcm-page.home-v3 .alert .btn {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ── tables ──────────────────────────────────────────────────────────────
+   One treatment for queue health, agents and interactions. Compact rows,
+   ruled between, no zebra: the rule is enough, and stripes fight the status
+   colours for the reader's attention. */
+.mcm-page.home-v3 .tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mcm-page.home-v3 .tbl th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface);
+}
+.mcm-page.home-v3 .tbl td {
+  padding: 9px 14px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--hair);
+  white-space: nowrap;
+}
+.mcm-page.home-v3 .tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+.mcm-page.home-v3 .tbl tbody tr:hover td {
+  background: var(--surface-2);
+}
+.mcm-page.home-v3 .tbl .n {
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .tbl .strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .tbl .ta-r {
+  text-align: right;
+}
+
+/* A table that shows a few rows and scrolls the rest. The header stays while
+   the rows move, and sticky goes on the cells rather than <thead>: under
+   `border-collapse: collapse` the row is not a positioning box. For the same
+   reason its bottom rule is an inset shadow — a collapsed border does not
+   travel with a stuck cell. */
+.mcm-page.home-v3 .tbl-scroll {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.mcm-page.home-v3 .tbl-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--hair);
+}
+.mcm-page.home-v3 .tbl-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.mcm-page.home-v3 .tbl-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+  background-color: var(--line);
+}
+
+/* ── status ──────────────────────────────────────────────────────────────
+   A dot and a word. The filled pills this replaces made every row shout its
+   state at the same volume, so a floor of twenty-four agents read as
+   twenty-four badges rather than as a floor. */
+.mcm-page.home-v3 .st {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.mcm-page.home-v3 .st::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.mcm-page.home-v3 .st.is-oncall::before {
+  background: var(--accent);
+}
+.mcm-page.home-v3 .st.is-free::before {
+  background: var(--live, #0d9488);
+}
+.mcm-page.home-v3 .st.is-acw::before,
+.mcm-page.home-v3 .st.is-ring::before {
+  background: var(--warn, #d97706);
+}
+.mcm-page.home-v3 .st.is-busy::before {
+  background: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .st.is-off {
+  color: var(--ink-4);
+}
+
+/* ── capacity bar ────────────────────────────────────────────────────────
+   Thin, functional, and the same width in every row so the column can be read
+   down its length rather than row by row. */
+.mcm-page.home-v3 .cap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mcm-page.home-v3 .cap-b {
+  width: 72px;
+  height: 4px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.mcm-page.home-v3 .cap-b i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.mcm-page.home-v3 .cap-b i.is-ok {
+  background: var(--live, #0d9488);
+}
+.mcm-page.home-v3 .cap-b i.is-warn {
+  background: var(--warn, #d97706);
+}
+.mcm-page.home-v3 .cap-b i.is-bad {
+  background: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .cap-n {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── quick dial ──────────────────────────────────────────────────────────── */
+.mcm-page.home-v3 .search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+}
+.mcm-page.home-v3 .search svg {
+  flex: none;
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font-size: 13px;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .search:focus-within {
+  border-color: var(--accent);
+}
+.mcm-page.home-v3 .dial {
+  display: flex;
+  flex-direction: column;
+  max-height: 268px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.mcm-page.home-v3 .dial::-webkit-scrollbar {
+  width: 8px;
+}
+.mcm-page.home-v3 .dial::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+  background-color: var(--line);
+}
+.mcm-page.home-v3 .dial-r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.mcm-page.home-v3 .dial-r:last-child {
+  border-bottom: 0;
+}
+.mcm-page.home-v3 .dial-r:hover {
+  background: var(--surface-2);
+}
+.mcm-page.home-v3 .av {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--hair);
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ink-3);
+}
+/* Presence on the avatar rather than as another word in the row: it is a
+   property of the person, and it keeps the row to two lines. */
+.mcm-page.home-v3 .av.is-on::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live, #0d9488);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.mcm-page.home-v3 .dial-t {
+  flex: 1;
+  min-width: 0;
+}
+.mcm-page.home-v3 .dial-n {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcm-page.home-v3 .dial-x {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .dial-go {
+  flex: none;
+  color: var(--ink-4);
+}
+.mcm-page.home-v3 .dial-r:hover .dial-go {
+  color: var(--accent);
+}
+
+/* ── agent cell ──────────────────────────────────────────────────────────── */
+.mcm-page.home-v3 .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.mcm-page.home-v3 .who-n {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+}
+.mcm-page.home-v3 .who-x {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .rowact {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--ink-4);
+  cursor: pointer;
+}
+.mcm-page.home-v3 .rowact:hover {
+  border-color: var(--hair);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+/* ── empty ───────────────────────────────────────────────────────────────── */
+.mcm-page.home-v3 .none {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 118px;
+  padding: 20px;
+  text-align: center;
+}
+.mcm-page.home-v3 .none svg {
+  color: var(--ink-4);
+  opacity: 0.6;
+}
+.mcm-page.home-v3 .none p {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-4);
+  max-width: 42ch;
+}
+
+/* ── the state-of-play band ──────────────────────────────────────────────
+   One line, always on screen. It names the worst thing open and offers the
+   way into it, so a supervisor working down the agent table still knows a
+   queue is breaching behind them. */
+.mcm-page.home-v3 .band {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.mcm-page.home-v3 .band svg {
+  flex: none;
+  color: var(--live, #0d9488);
+}
+.mcm-page.home-v3 .band b {
+  font-weight: 650;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* No leading rule. The warning mark and the count already say this is a
+   problem, and a coloured edge on a full-width strip reads as a page border
+   rather than as a severity. The alert rows inside the pane keep theirs -
+   there the rule is what sorts one row from the next. */
+.mcm-page.home-v3 .band.is-hot {
+  border-left: 1px solid var(--hair);
+}
+.mcm-page.home-v3 .band.is-hot svg {
+  color: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .band-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--hair);
+}
+.mcm-page.home-v3 .band-d {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+.mcm-page.home-v3 .band-a {
+  flex: none;
+}
+
+/* ── the console ─────────────────────────────────────────────────────────
+   One panel holding a tab strip, a pane that fills the remaining height, and
+   the day's score along the foot. */
+.mcm-page.home-v3 .console {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.mcm-page.home-v3 .tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: none;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface-2);
+}
+/* The selected tab is marked by a 2px rule under it and the ink going solid —
+   not by a filled pill. A pill on a tab strip reads as a button that has been
+   pressed rather than as where you are. */
+.mcm-page.home-v3 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mcm-page.home-v3 .tab:hover {
+  color: var(--ink);
+}
+.mcm-page.home-v3 .tab.is-on {
+  color: var(--ink);
+  font-weight: 650;
+  border-bottom-color: var(--accent);
+}
+.mcm-page.home-v3 .tab-n {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .tab.is-on .tab-n {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+/* A count that is a problem says so on the tab, so you do not have to be
+   looking at that tab to know. */
+.mcm-page.home-v3 .tab-n.is-hot {
+  background: var(--crit-wash, #fdeaea);
+  color: var(--crit, #c8322f);
+}
+.mcm-page.home-v3 .tabs-r {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.mcm-page.home-v3 .console-b {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mcm-page.home-v3 .pane-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.mcm-page.home-v3 .pane-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.mcm-page.home-v3 .pane-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+  background-color: var(--line);
+}
+/* The header stays while the rows move. Sticky goes on the cells, not on
+   <thead>: under `border-collapse: collapse` the row is not a positioning
+   box, and for the same reason the rule under it is an inset shadow. */
+.mcm-page.home-v3 .pane-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--hair);
+}
+.mcm-page.home-v3 .pane-top {
+  flex: none;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hair);
+}
+
+/* Quick dial has room to be a grid here rather than a single column. */
+.mcm-page.home-v3 .dialgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.mcm-page.home-v3 .dialgrid .dial-r {
+  border-right: 1px solid var(--hair);
+}
+
+/* ── the day's score, along the foot ─────────────────────────────────────
+   Read once at the start of a shift, not worked in — so it sits at the bottom
+   of the console rather than taking a column beside the live data. */
+.mcm-page.home-v3 .foot {
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--hair);
+  background: var(--surface-2);
+}
+.mcm-page.home-v3 .foot-f {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 16px;
+  border-right: 1px solid var(--hair);
+}
+.mcm-page.home-v3 .foot-f:last-child {
+  border-right: 0;
+}
+.mcm-page.home-v3 .foot-k {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.mcm-page.home-v3 .foot-v {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v3 .foot-n {
+  margin-left: 7px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-4);
+}
+@media (max-width: 1024px) {
+  .mcm-page.home-v3 .foot {
+    flex-wrap: wrap;
+  }
+  .mcm-page.home-v3 .foot-f {
+    flex: 1 1 50%;
+    border-bottom: 1px solid var(--hair);
+  }
+}
+
+/* A dot between the facts on the header's second line. Written as an element
+   rather than a "·" in the text so the three parts can be reordered or dropped
+   without leaving a stranded separator. */
+.mcm-page.home-v3 .ophead-sep {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 8px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  vertical-align: middle;
+}
+.mcm-page.home-v3 .ophead-meta b {
+  font-weight: 600;
+  color: var(--ink-2);
+}

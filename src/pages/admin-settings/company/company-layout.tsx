@@ -26,7 +26,7 @@
  */
 
 import { useMemo } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 
 import { Crumbs } from '@/components/mcm/crumbs';
 import { TabRail } from '@/components/mcm/tab-rail';

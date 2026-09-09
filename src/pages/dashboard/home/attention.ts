@@ -27,8 +27,10 @@ export type AttentionItem = {
 
 /** Service-level target the queue tables elsewhere in the app score against. */
 const SLA_TARGET = 80;
-/** Longest-wait threshold the Performance KPI band already calls "breaching". */
-const LONGEST_WAIT_BREACH_SECS = 120;
+/** Longest-wait threshold the Performance KPI band already calls "breaching".
+    Exported because the queue board draws its breach mark at the same number -
+    a second copy of it on Home would be a second definition of "late". */
+export const LONGEST_WAIT_BREACH_SECS = 120;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -40,6 +42,8 @@ export const buildAttentionItems = ({
   liveSlaByName,
   usersOnlineStatus,
   onlineAgentsCount,
+  voicemails,
+  missedCalls,
 }: {
   queues: LiveQueue[];
   activeQueueCalls: any[];
@@ -48,6 +52,8 @@ export const buildAttentionItems = ({
   liveSlaByName: Record<string, number>;
   usersOnlineStatus: any[];
   onlineAgentsCount: number;
+  voicemails: number;
+  missedCalls: number;
 }): AttentionItem[] => {
   const items: AttentionItem[] = [];
 
@@ -121,6 +127,30 @@ export const buildAttentionItems = ({
         'caller',
       )} ${waitingCalls.length === 1 ? 'is' : 'are'} waiting.`,
       action: { label: 'Check', to: '/performance' },
+    });
+  }
+
+  /* 5. The backlog. Everything above is the state of the floor this second,
+        which meant Home could say "all clear" over forty voicemails nobody had
+        listened to - people who did reach out and have not been called back.
+        A quiet queue is not the same as nothing to do, and Home's headline
+        claims the second one. Warn, not crit: it is work waiting, not a call
+        breaching right now. */
+  const backlog = Math.max(0, voicemails) + Math.max(0, missedCalls);
+  if (backlog > 0) {
+    items.push({
+      id: 'backlog',
+      level: 'warn',
+      icon: 'phone',
+      title: `${plural(backlog, 'caller')} to get back to`,
+      detail: [
+        voicemails > 0 ? plural(voicemails, 'voicemail') : '',
+        missedCalls > 0 ? `${plural(missedCalls, 'missed call')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' and ')
+        .concat(' today, still unanswered.'),
+      action: { label: 'Open the call log', to: '/phone' },
     });
   }
 

@@ -9,6 +9,7 @@ import { adminSettingArr, canShowItem } from '../sidebar';
 import { NavIcon } from '../sidebar/nav-icon';
 import { useAdminShortcuts } from '../use-admin-shortcuts';
 import '@/components/mcm/mcm-page.css';
+import './admin-home.css';
 
 /**
  * Admin — the landing page.
@@ -21,28 +22,8 @@ import '@/components/mcm/mcm-page.css';
  */
 
 type Entry = { title: string; path: string };
-type Group = { title: string; icon: string; tone: number; entries: Entry[] };
+type Group = { title: string; icon: string; entries: Entry[] };
 
-/* Eleven cards in one grey is what made the page read as a list rather than as
-   a place. Each section takes a hue from `.tone-1`…`.tone-8` in CSS; this only
-   picks which.
-
-   By position in the nav, not by a hash of the name. A hash is stable against
-   reordering, which sounds like the better property until you count: eight
-   buckets over eleven names collided into six hues, three sections sharing one
-   while two went unused - so the colour stopped telling cards apart, which was
-   its whole job. Position gives the first eight a distinct hue each and repeats
-   only after that, and never puts two neighbours on the same one.
-
-   What it costs is that inserting a section recolours the ones after it. That
-   is a developer editing `adminSettingArr`, not something that moves on its own
-   - and the tone is a landmark for finding a card again within a session, not
-   an identifier anyone memorises.
-
-   Fixed when the groups are built, not read off the rendered list: the rendered
-   list is the filtered one, so a tone taken from a card's place in it would
-   repaint every card on the page with each character typed into search. */
-const TONE_COUNT = 8;
 
 /* The matched run of characters, marked. Searching a list of fifty names and
    getting back a shorter list of fifty names asks you to find the match again
@@ -64,7 +45,6 @@ const AdminHome = () => {
   const { features, user_info } = useCompanyFeatures();
   const { loader } = useUser();
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState<'all' | 'recent'>('all');
   const { recent, clearRecent } = useAdminShortcuts();
 
   const IS_ADMIN = user_info?.role === 'ADMIN';
@@ -85,11 +65,7 @@ const AdminHome = () => {
             : [{ title: section.title, path: section.path }];
         return { title: section.title, icon: section.icon, entries: entries.filter((e) => e.path) };
       })
-      .filter((group: any) => group.entries.length > 0)
-      /* After the empty sections are dropped, so the hues run 1,2,3… down the
-         page the reader actually sees rather than skipping wherever a section
-         was filtered out by permissions. */
-      .map((group: any, index: number) => ({ ...group, tone: (index % TONE_COUNT) + 1 }));
+      .filter((group: any) => group.entries.length > 0);
   }, [features, IS_ADMIN, user_info]);
 
   const allEntries = useMemo(
@@ -100,19 +76,31 @@ const AdminHome = () => {
 
   const needle = search.trim().toLowerCase();
 
-  const visibleGroups = useMemo(() => {
-    if (!needle) return groups;
-    return groups
-      .map((group) => ({
-        ...group,
-        entries: group.entries.filter(
-          (entry) =>
-            entry.title.toLowerCase().includes(needle) ||
-            group.title.toLowerCase().includes(needle),
-        ),
-      }))
-      .filter((group) => group.entries.length > 0);
-  }, [groups, needle]);
+  /* Searching and browsing are different jobs, so they get different views.
+     Filtering the grid in place returned ten partly-filled cards and left you
+     hunting the same names again in a smaller haystack. With something typed
+     the page becomes one ranked list instead.
+
+     Ranked, not merely filtered: a screen whose name STARTS with what you
+     typed is almost always the one you meant, so "roles" puts Roles above
+     "Default permissions (Roles)". Area-name matches come last — typing
+     "numbers" should offer the Numbers screens, but under anything actually
+     called that. */
+  const results = useMemo(() => {
+    if (!needle) return [];
+    const rank = (entry: { title: string; group: string }) => {
+      const title = entry.title.toLowerCase();
+      if (title.startsWith(needle)) return 0;
+      if (title.includes(needle)) return 1;
+      if (entry.group.toLowerCase().includes(needle)) return 2;
+      return 3;
+    };
+    return allEntries
+      .map((entry) => ({ entry, score: rank(entry) }))
+      .filter((row) => row.score < 3)
+      .sort((a, b) => a.score - b.score || a.entry.title.localeCompare(b.entry.title))
+      .map((row) => row.entry);
+  }, [allEntries, needle]);
 
   /* Recent is a list of paths; resolving each through `allEntries` means a
      screen you lose access to quietly disappears.
@@ -146,9 +134,7 @@ const AdminHome = () => {
     return resolved.slice(0, 8);
   }, [recent, resolveEntry]);
 
-  /* The count comes from what actually resolves, so the tab never promises
-     more than it can show. */
-  const recentCount = recentEntries.length;
+
 
   /* "/" jumps to the search box, the way it does in every other directory a
      person uses all day. Guarded so it does not steal the character from
@@ -189,8 +175,7 @@ const AdminHome = () => {
       <McmIconSprite />
       <div className="mcm-adminhome-head">
         <div>
-          <div className="mcm-adminhome-eyebrow">Admin</div>
-          <h1>Everything you administer</h1>
+          <h1>Admin</h1>
           {/* The same two numbers the sentence carried, but countable at a
               glance rather than read - this line is looked at far more often
               than it is read. The caveat stays prose, because it is one. */}
@@ -229,90 +214,96 @@ const AdminHome = () => {
         </div>
       </div>
 
-      <div className="ptabstrip mcm-adminhome-tabs">
-        <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>
-          All
-        </button>
-        <button
-          type="button"
-          className={tab === 'recent' ? 'on' : ''}
-          onClick={() => setTab('recent')}
-        >
-          Recently used{recentCount ? ` (${recentCount})` : ''}
-        </button>
-        {tab === 'recent' && recentCount ? (
-          <button type="button" className="mcm-adminhome-clear" onClick={clearRecent}>
-            Clear
-          </button>
-        ) : null}
-      </div>
-
       <div className="mcm-adminhome-body">
-        {tab === 'all' ? (
-          visibleGroups.length ? (
-            <div className="mcm-admingrid">
-              {visibleGroups.map((group) => (
-                <div className={`mcm-admincard tone-${group.tone}`} key={group.title}>
-                  {/* The section's own nav icon, not a decoration chosen here:
-                      `group.icon` is the name the sidebar already renders for
-                      this section, so a section is the same mark in both
-                      places and this page reads as a map of the nav rather
-                      than as a second, unrelated list of the same screens. */}
-                  <div className="mcm-admincard-h">
-                    <span className="mcm-admincard-tile">
-                      <NavIcon name={group.icon} />
-                    </span>
-                    <span className="mcm-admincard-t">{group.title}</span>
-                    <span className="mcm-admincard-n">{group.entries.length}</span>
-                  </div>
-                  <ul>
-                    {group.entries.map((entry) => (
-                      <li key={entry.path}>
-                        <Link to={entry.path}>
-                          <span className="mcm-admincard-txt">
-                            <Marked text={entry.title} needle={needle} />
-                          </span>
-                          <ChevronRight className="mcm-admincard-go" size={15} aria-hidden="true" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mcm-adminhome-empty">Nothing matches “{search}”.</p>
-          )
-        ) : recentEntries.length ? (
-          <div className="mcm-admingrid is-single">
-            {/* One card, so it is laid out as one card. Left in the
-                multi-column grid it was a lone box beside two empty
-                columns. */}
-            <div className="mcm-admincard">
-              <div className="mcm-admincard-h">
-                <span className="mcm-admincard-tile">
-                  <History strokeWidth={1.75} aria-hidden="true" />
-                </span>
-                <span className="mcm-admincard-t">Recently used</span>
-                <span className="mcm-admincard-n">{recentEntries.length}</span>
-              </div>
+        {needle ? (
+          /* ── results ────────────────────────────────────────────────────
+              One ranked list. The area travels with each row, so you never
+              have to work out which card a result came from. */
+          results.length ? (
+            <div className="mcm-adminres">
+              <p className="mcm-adminres-c">
+                {results.length} {results.length === 1 ? 'screen' : 'screens'} matching “{search}”
+              </p>
               <ul>
-                {recentEntries.map((entry) => (
+                {results.map((entry) => (
                   <li key={entry.path}>
                     <Link to={entry.path}>
-                      <span className="mcm-admincard-txt">
-                        {entry.title}
-                        <span className="mcm-admincard-group">{entry.group}</span>
+                      <span className="mcm-adminres-t">
+                        <Marked text={entry.title} needle={needle} />
                       </span>
+                      <span className="mcm-adminres-g">{entry.group}</span>
                       <ChevronRight className="mcm-admincard-go" size={15} aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
             </div>
-          </div>
+          ) : (
+            <p className="mcm-adminhome-empty">Nothing matches “{search}”.</p>
+          )
         ) : (
-          <p className="mcm-adminhome-empty">Screens you open will show up here.</p>
+          <>
+            {/* ── recents ──────────────────────────────────────────────────
+                A strip, not a tab. These are the fastest route to the screen
+                somebody wants and they were behind a click, on a tab whose
+                label had to carry a count because you could not see what was
+                under it. */}
+            {recentEntries.length ? (
+              <div className="mcm-adminrecent">
+                <span className="mcm-adminrecent-k">
+                  <History size={13} strokeWidth={1.9} aria-hidden="true" />
+                  Recent
+                </span>
+                <div className="mcm-adminrecent-l">
+                  {recentEntries.map((entry) => (
+                    <Link key={entry.path} to={entry.path} className="mcm-adminchip">
+                      {entry.title}
+                      <span className="mcm-adminchip-g">{entry.group}</span>
+                    </Link>
+                  ))}
+                </div>
+                <button type="button" className="mcm-adminhome-clear" onClick={clearRecent}>
+                  Clear
+                </button>
+              </div>
+            ) : null}
+
+            {/* One panel holding the whole index, with the areas as sections
+                flowing inside it — not ten panels. Ten boxes gave the page ten
+                outlines, ten header fills and ten sets of row rules to say what
+                two levels of type say on their own, and none of those areas is
+                a thing you act on as a unit, so boxing them grouped nothing. */}
+            <div className="mcm-adminindex">
+              <div className="mcm-admingrid">
+              {groups.map((group) => (
+                  <div className="mcm-admincard" key={group.title}>
+                    {/* The section's own nav icon, not a decoration chosen here:
+                        `group.icon` is the name the sidebar already renders for
+                        this section, so a section is the same mark in both places
+                        and this page reads as a map of the nav rather than as a
+                        second, unrelated list of the same screens. */}
+                    <div className="mcm-admincard-h">
+                      <span className="mcm-admincard-tile">
+                        <NavIcon name={group.icon} />
+                      </span>
+                      <span className="mcm-admincard-t">{group.title}</span>
+                      <span className="mcm-admincard-n">{group.entries.length}</span>
+                    </div>
+                    <ul>
+                      {group.entries.map((entry) => (
+                        <li key={entry.path}>
+                          <Link to={entry.path}>
+                            <span className="mcm-admincard-txt">{entry.title}</span>
+                            <ChevronRight className="mcm-admincard-go" size={15} aria-hidden="true" />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </section>

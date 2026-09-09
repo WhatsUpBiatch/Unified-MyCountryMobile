@@ -476,3 +476,331 @@
 .mcm-page.home-v2 .rosterbar > span:only-child {
   border-radius: 99px;
 }
+
+/* ══ the figures, in two tiers ═══════════════════════════════════════════════
+   One auto-fit row of eight equal tiles fitted seven at most widths and put
+   the eighth on a line of its own beside a stretch of empty card. Splitting
+   them is not just a fix for that: "Waiting now" is the state of the floor
+   this second, "Answered today" is a total since midnight, and at the same
+   size the strip claimed they were the same kind of fact.
+
+   Three live figures, then five running totals. Both counts divide cleanly at
+   every breakpoint this page has, so nothing orphans.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* The live row: what you act on. Display size, and the only figures with room
+   to breathe. */
+/* Flex, not the grid above. `repeat(auto-fit, minmax(...))` is what produced
+   the orphan in the first place: it lays a fixed number of equal tracks, so an
+   item that does not fit the first line starts a new one at one track wide and
+   leaves the rest of that line as bare card. Flex items with a basis stretch to
+   fill whatever line they end up on, so a wrap divides the row instead of
+   stranding a tile in it - at any width, for any number of figures. */
+.mcm-page.home-v2 .kpis-live,
+.mcm-page.home-v2 .kpis-today {
+  display: flex;
+  flex-wrap: wrap;
+}
+.mcm-page.home-v2 .kpis-live .kpi,
+.mcm-page.home-v2 .kpis-today .kpi {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mcm-page.home-v2 .kpis-live {
+  margin-bottom: 14px;
+  padding: 6px 0;
+}
+.mcm-page.home-v2 .kpis-live .kpi {
+  flex-basis: 240px;
+}
+.mcm-page.home-v2 .kpis-today .kpi {
+  flex-basis: 172px;
+}
+.mcm-page.home-v2 .kpis-live .kpi {
+  padding: 22px 26px;
+}
+.mcm-page.home-v2 .kpis-live .kpi .v {
+  font-size: 38px;
+  letter-spacing: -0.035em;
+}
+
+/* Today's totals: the same figures, told at the weight of a reference table
+   rather than a headline. */
+.mcm-page.home-v2 .kpis-today .kpi {
+  padding: 16px 22px;
+}
+.mcm-page.home-v2 .kpis-today .kpi .v {
+  margin-top: 6px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.mcm-page.home-v2 .kpis-today .kpi .d {
+  margin-top: 3px;
+  font-size: 11.5px;
+}
+.mcm-page.home-v2 .kpis-today .kpi + .kpi::before {
+  top: 16px;
+  bottom: 16px;
+}
+
+/* ---- the state the page is in --------------------------------------------
+   Home exists to answer one question before you have read a word: is anything
+   wrong. That answer was the last clause of a paragraph. It is now the first
+   thing above the greeting, and it is derived from the same attention list the
+   panel below is built from - there is no second source of truth for it. */
+.mcm-page.home-v2 .hero-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 11px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.mcm-page.home-v2 .hero-state .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.mcm-page.home-v2 .hero-state.is-clear {
+  background: var(--live-wash, #e7f8ef);
+  color: var(--live, #12805c);
+}
+.mcm-page.home-v2 .hero-state.is-hot {
+  background: var(--crit-wash, #fdeaea);
+  color: var(--crit, #c8322f);
+}
+/* Something needing you is the one thing on this page allowed to move. */
+.mcm-page.home-v2 .hero-state.is-hot .dot {
+  animation: mcm-home-pulse 2s ease-in-out infinite;
+}
+@keyframes mcm-home-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcm-page.home-v2 .hero-state.is-hot .dot {
+    animation: none;
+  }
+}
+
+/* ══ the floor: queues as pressure, not as a table ═══════════════════════════
+   One lane per queue. The rail is the wait clock with the breach mark drawn
+   on it, so "how late is this" is a distance rather than a subtraction you do
+   in your head against a column of numerals.
+   ═════════════════════════════════════════════════════════════════════════ */
+.mcm-page.home-v2 .qboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}
+.mcm-page.home-v2 .qlane {
+  padding: 15px 16px 13px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+/* A queue with nobody waiting and nobody on a call is not a problem, and should
+   not hold the eye like one. */
+.mcm-page.home-v2 .qlane.is-idle {
+  opacity: 0.62;
+}
+.mcm-page.home-v2 .qlane:hover {
+  opacity: 1;
+  border-color: var(--accent-edge, var(--line));
+}
+/* Past the breach mark the whole lane says so, not just the rail. */
+.mcm-page.home-v2 .qlane.is-breached {
+  opacity: 1;
+  background: var(--crit-wash, #fdeaea);
+  border-color: var(--crit-edge, var(--crit));
+}
+
+.mcm-page.home-v2 .qlane-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mcm-page.home-v2 .qlane-n {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The two counts that say what is happening in the queue right now. */
+.mcm-page.home-v2 .qlane-fig {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+.mcm-page.home-v2 .qlane-big {
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v2 .qlane.is-breached .qlane-big {
+  color: var(--crit);
+}
+.mcm-page.home-v2 .qlane-cap {
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-page.home-v2 .qlane-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 8px;
+  background: var(--hair);
+}
+
+/* ---- the rails ---- */
+.mcm-page.home-v2 .qrail {
+  position: relative;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  /* Not `overflow: hidden`. The breach mark is drawn taller than the rail so
+     it crosses it - the whole point is that you see the fill approach a tick,
+     not a line buried inside a bar. Clipping happened on the fill's own radius
+     instead, which is all the rail needed it for. */
+}
+.mcm-page.home-v2 .qrail.thin {
+  height: 4px;
+  margin-top: 10px;
+}
+.mcm-page.home-v2 .qrail-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mcm-page.home-v2 .qrail-fill.is-staff {
+  background: var(--live, #12805c);
+}
+.mcm-page.home-v2 .qlane.is-breached .qrail-fill {
+  background: var(--crit);
+}
+/* The breach mark. Drawn on the rail rather than written beside it, because
+   the whole point is to see the gap close. `overflow: hidden` on the rail
+   would clip it, so it sits above rather than inside. */
+.mcm-page.home-v2 .qrail-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  border-radius: 99px;
+  background: var(--ink-3);
+  /* A hairline of the card's own colour either side, so the mark reads as a
+     tick on the rail rather than as a gap in the fill when the fill runs
+     under it. */
+  box-shadow: 0 0 0 1.5px var(--surface-2);
+}
+.mcm-page.home-v2 .qlane.is-breached .qrail-mark {
+  background: var(--crit);
+  box-shadow: 0 0 0 1.5px var(--crit-wash, #fdeaea);
+}
+
+.mcm-page.home-v2 .qlane-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.mcm-page.home-v2 .qlane-meta-r {
+  text-align: right;
+}
+.mcm-page.home-v2 .qlane-dim {
+  color: var(--ink-4);
+  opacity: 0.7;
+}
+
+/* ══ your own shift ═════════════════════════════════════════════════════════
+   Three figures with weight, then the detail. This was seven label/value rows
+   of identical size, so how many calls you took sat at the same weight as
+   which extension you are registered on.
+   ═════════════════════════════════════════════════════════════════════════ */
+.mcm-page.home-v2 .myday {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.mcm-page.home-v2 .myday-f {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
+}
+.mcm-page.home-v2 .myday-v {
+  display: block;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.mcm-page.home-v2 .myday-k {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+/* Which way the calls went, as one divided bar. Two counts side by side are
+   compared by reading; a split bar is compared by looking. */
+.mcm-page.home-v2 .myday-split {
+  display: flex;
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.mcm-page.home-v2 .myday-split .is-in {
+  background: var(--accent);
+}
+.mcm-page.home-v2 .myday-split .is-out {
+  background: var(--ai, #7c5cff);
+}
+.mcm-page.home-v2 .myday-legend {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 4px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-page.home-v2 .myday-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcm-page.home-v2 .myday-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+.mcm-page.home-v2 .myday-legend .is-in {
+  background: var(--accent);
+}
+.mcm-page.home-v2 .myday-legend .is-out {
+  background: var(--ai, #7c5cff);
+}

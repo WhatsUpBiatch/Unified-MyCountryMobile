@@ -1,0 +1,421 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Admin — the landing page, in the console's enterprise language.
+
+   Same rules as Home, for the same reasons:
+
+   · Borders, not shadows. The areas were cards floating on lift shadows,
+     which reads as a gallery of tiles rather than as an index of a system.
+
+   · No colour per area. Every section carried its own hue on an icon chip —
+     indigo, pink, orange, blue — so a page whose whole job is to be scanned
+     for one screen name presented eleven competing colours first. The icons
+     are one ink now; colour is left to mean something (the search hit, the
+     current selection).
+
+   · Restrained radius, 8px panels and 6px controls, and enough density that
+     forty-two screens fit without the page feeling like a poster.
+
+   Loaded by the page rather than from the shared sheet so it lands after
+   mcm-page.css and wins on order at equal specificity.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mcm-adminhome {
+  --hair: var(--line);
+  --r-panel: 8px;
+  --r-ctl: 6px;
+  background: var(--surface-2);
+}
+
+/* ── header ──────────────────────────────────────────────────────────────
+   "Admin" and the count, not a sentence in display type. The eyebrow above a
+   headline said "Admin" twice in three lines. */
+.mcm-adminhome .mcm-adminhome-head {
+  align-items: flex-start;
+  gap: 24px;
+  padding: 16px 24px 14px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface);
+}
+.mcm-adminhome .mcm-adminhome-eyebrow {
+  display: none;
+}
+.mcm-adminhome .mcm-adminhome-head h1 {
+  font-size: 22px;
+  line-height: 1.15;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.mcm-adminhome .mcm-adminhome-stats {
+  margin-top: 5px;
+  /* The shared sheet separates these with a dot drawn as a ::before on the
+     second stat, and spaces them with the flex gap. Zeroing the gap here ran
+     "42 screens· 10 areasOnly what your role can reach is listed" together —
+     the dot needs room on both sides and the note has no dot at all. */
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+/* The note is a sentence, not a third statistic, so it gets a rule before it
+   rather than another dot. */
+.mcm-adminhome .mcm-adminhome-note {
+  padding-left: 10px;
+  border-left: 1px solid var(--hair);
+}
+.mcm-adminhome .mcm-adminhome-stat b {
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.mcm-adminhome .mcm-adminhome-note {
+  color: var(--ink-4);
+}
+
+.mcm-adminhome .mcm-adminhome-search {
+  height: 32px;
+  min-width: 260px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  box-shadow: none;
+}
+.mcm-adminhome .mcm-adminhome-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.mcm-adminhome .mcm-adminhome-search input {
+  font-size: 13px;
+}
+.mcm-adminhome .mcm-adminhome-kbd {
+  border: 1px solid var(--hair);
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  color: var(--ink-4);
+  box-shadow: none;
+}
+
+.mcm-adminhome .mcm-adminhome-clear {
+  margin-left: 10px;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.mcm-adminhome .mcm-adminhome-clear:hover {
+  text-decoration: underline;
+}
+
+/* ── the index ───────────────────────────────────────────────────────────
+   One panel, with the areas as sections flowing through it in columns — the
+   way a printed index sets out. Ten separate cards gave the page ten outlines,
+   ten header fills and ten sets of row rules to say what two levels of type
+   say on their own; and since no area is a thing you act on as a unit, boxing
+   them grouped nothing.
+   ────────────────────────────────────────────────────────────────────────── */
+.mcm-adminhome .mcm-adminhome-body {
+  padding: 16px 24px 28px;
+  background: var(--surface-2);
+}
+.mcm-adminhome .mcm-adminindex {
+  max-width: 1600px;
+  margin-inline: auto;
+  padding: 6px 4px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+
+.mcm-adminhome .mcm-admingrid {
+  columns: 4;
+  column-gap: 0;
+  /* The rule between columns, the way a newspaper index separates them. It
+     costs one line where the old layout spent four borders per card. */
+  column-rule: 1px solid var(--hair);
+}
+@media (max-width: 1440px) {
+  .mcm-adminhome .mcm-admingrid {
+    columns: 3;
+  }
+}
+@media (max-width: 1080px) {
+  .mcm-adminhome .mcm-admingrid {
+    columns: 2;
+  }
+}
+@media (max-width: 720px) {
+  .mcm-adminhome .mcm-admingrid {
+    columns: 1;
+  }
+}
+/* Areas hold between two and eight screens. On a grid every row is as tall as
+   its tallest card, so Captain (eight) beside Company (two) left a hand's
+   width of empty page under Company on every row. Column flow packs by height;
+   break-inside keeps an area whole across the break. */
+.mcm-adminhome .mcm-admingrid > * {
+  break-inside: avoid;
+  padding: 10px 16px 16px;
+}
+
+/* ── an area ─────────────────────────────────────────────────────────────
+   A heading and a list. No border, no fill, no badge — the screens are
+   directly under their heading and you can count them. */
+.mcm-adminhome .mcm-admincard {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.mcm-adminhome .mcm-admincard::before,
+.mcm-adminhome .mcm-admincard::after {
+  content: none;
+}
+.mcm-adminhome .mcm-admincard-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 7px 2px;
+  border-bottom: 1px solid var(--hair);
+  background: none;
+}
+/* The section's own nav mark, at heading weight. It is there so a heading is
+   recognisable as the same thing the sidebar shows, not to decorate it. */
+.mcm-adminhome .mcm-admincard-tile {
+  display: grid;
+  place-items: center;
+  width: auto;
+  height: auto;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-4);
+}
+.mcm-adminhome .mcm-admincard-tile svg {
+  width: 14px;
+  height: 14px;
+}
+/* The mark does not react to the pointer. The shared sheet still carries the
+   original card's hover — it filled the tile with that area's hue — and the
+   hues are gone, so all it did here was flash a blue square behind an icon
+   nobody is pointing at. The row underneath is what responds to hover; a
+   heading is not a target. */
+.mcm-adminhome .mcm-admincard:hover .mcm-admincard-tile {
+  background: none;
+  border-color: transparent;
+  color: var(--ink-4);
+}
+.mcm-adminhome .mcm-admincard-t {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The count sits as plain figures, not a filled badge. Ten badges down a page
+   read as ten notifications. */
+.mcm-adminhome .mcm-admincard-n {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the screens ─────────────────────────────────────────────────────────
+   The one thing on this page anybody came for, so they carry the readable
+   weight and everything around them is quieter than they are. */
+.mcm-adminhome .mcm-admincard ul {
+  display: flex;
+  flex-direction: column;
+  margin-top: 3px;
+}
+.mcm-adminhome .mcm-admincard li + li {
+  border-top: 0;
+}
+.mcm-adminhome .mcm-admincard li a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition:
+    background 0.11s ease,
+    color 0.11s ease;
+}
+.mcm-adminhome .mcm-admincard li a:hover,
+.mcm-adminhome .mcm-admincard li a:focus-visible {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 550;
+}
+.mcm-adminhome .mcm-admincard-txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The chevron is the affordance, so it appears on the row you are pointing at
+   rather than forty-two times at once. */
+.mcm-adminhome .mcm-admincard-go {
+  flex: none;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.11s ease;
+}
+.mcm-adminhome .mcm-admincard li a:hover .mcm-admincard-go,
+.mcm-adminhome .mcm-admincard li a:focus-visible .mcm-admincard-go {
+  opacity: 1;
+}
+.mcm-adminhome .mcm-admincard-group {
+  margin-left: 7px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+
+/* The matched run. The one place on this page colour is spent, because it is
+   the one place it carries information. */
+.mcm-adminhome .mcm-admincard-hit {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+.mcm-adminhome .mcm-adminhome-empty {
+  padding: 28px 24px;
+  font-size: 13px;
+  color: var(--ink-4);
+}
+
+/* ── recents ─────────────────────────────────────────────────────────────
+   A strip across the top of the browse view rather than a tab of its own.
+   These are the fastest route to the screen somebody actually wants, and
+   they were behind a click — on a tab whose label had to carry a count
+   because you could not see what was under it. */
+.mcm-adminhome .mcm-adminrecent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 1600px;
+  margin: 0 auto 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.mcm-adminhome .mcm-adminrecent-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.mcm-adminhome .mcm-adminrecent-l {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.mcm-adminhome .mcm-adminchip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mcm-adminhome .mcm-adminchip:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+/* The area, so two screens with the same name in different areas are told
+   apart without opening either. */
+.mcm-adminhome .mcm-adminchip-g {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-4);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────
+   What a search returns: one ranked list, not the browse grid with rows
+   removed. Filtering the grid in place left ten partly-filled cards and made
+   you hunt the same names again in a smaller haystack. */
+.mcm-adminhome .mcm-adminres {
+  max-width: 780px;
+  margin-inline: auto;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  overflow: hidden;
+}
+.mcm-adminhome .mcm-adminres-c {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--ink-4);
+}
+.mcm-adminhome .mcm-adminres ul {
+  display: flex;
+  flex-direction: column;
+}
+.mcm-adminhome .mcm-adminres li + li {
+  border-top: 1px solid var(--hair);
+}
+.mcm-adminhome .mcm-adminres li a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.mcm-adminhome .mcm-adminres li a:hover {
+  background: var(--surface-2);
+}
+.mcm-adminhome .mcm-adminres-t {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The area travels with the row, so you never have to work out which card a
+   result would have come from. */
+.mcm-adminhome .mcm-adminres-g {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--ink-4);
+}

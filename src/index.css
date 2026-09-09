@@ -1,15 +1,21 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+
+/* The typeface pair — Plus Jakarta Sans for UI, IBM Plex Mono for anything
+   numeric — is loaded by <link> in index.html, not from here. It used to be
+   @imported below the mcm-page.css import as well, which PostCSS dropped and
+   warned about on every start: @import has to precede every other statement,
+   and both that sheet and Tailwind inline thousands of rules ahead of it.
+   Nothing was broken by the drop, because index.html was already loading the
+   same two faces — it was a duplicate request and a permanent build warning.
+   A <link> in the document is the right place for this anyway: an @import
+   inside a stylesheet cannot start downloading until that stylesheet has been
+   fetched and parsed. */
 /* Loaded once here rather than from each page. Every rule in it is scoped to
    an .mcm- class, so it changes nothing on pages that do not use them, and it
    means a shared class like .mcm-stickyfoot works wherever it is applied
    instead of only on the 31 files that happened to import the stylesheet. */
 @import './components/mcm/mcm-page.css';
-
-/* MCM Unified Console typeface pair. Plus Jakarta Sans for UI, IBM Plex
-   Mono for anything numeric — durations, counts, timestamps — so digits
-   stay tabular and stop jittering as they tick. */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @theme {
   --color-ucass-gray: oklch(0.9612 0 0);
