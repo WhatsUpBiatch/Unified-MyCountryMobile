@@ -70,9 +70,12 @@
   --shadow-sm: 0 1px 2px rgba(13, 21, 38, 0.06), 0 1px 1px rgba(13, 21, 38, 0.04);
   --shadow: 0 4px 14px rgba(13, 21, 38, 0.07), 0 1px 3px rgba(13, 21, 38, 0.05);
   --shadow-lg: 0 18px 44px rgba(13, 21, 38, 0.14), 0 3px 10px rgba(13, 21, 38, 0.07);
-  --r: 12px;
-  --r-sm: 8px;
-  --r-lg: 18px;
+  /* One corner for panels, cards and every container between them. The three
+     sizes were picked per component and read as three unrelated systems on a
+     page that showed all three at once. */
+  --r: 14px;
+  --r-sm: 14px;
+  --r-lg: 14px;
   /* 'Twemoji Country Flags' belongs in the MONO stack too, not only the sans
      one. Phone numbers are rendered in monospace (`.num`), and that is exactly
      where the country flags sit — so a stack without it fell back to the bare
@@ -116,6 +119,12 @@
   --accent-solid: #2563eb;
   --accent-ink: #1d4ed8;
   --accent-wash: #e8efff;
+  /* Needed out here as well as inside `.mcm-page`: dialogs are portalled to
+     the body, and the fields in them take the shared hover and focus edges. */
+  --accent-edge: #c3d6ff;
+  /* The colour a black brand mark takes, so GitHub and Notion do not vanish
+     into a dark tile. */
+  --brand-ink: #181717;
 }
 .dark {
   --surface: #111827;
@@ -130,6 +139,8 @@
   --accent-solid: #3b6fe0;
   --accent-ink: #87aaff;
   --accent-wash: #16223d;
+  --accent-edge: #2c3f68;
+  --brand-ink: #e8ecf3;
 }
 
 .dark .mcm-page,
@@ -299,7 +310,13 @@
   margin: 3px 0 0;
   font-size: 13px;
   color: var(--ink-3);
-  max-width: 64ch;
+  max-width: 64ch;  /* Balanced, so the description cannot end on an orphan. Left to wrap
+     naturally these paragraphs dropped a single word onto a line of their own
+     — "it." under two full lines — which reads as a mistake in the page rather
+     than as the end of a sentence. Balancing spreads the words evenly across
+     the lines it needs, so the last line carries its share. */
+  text-wrap: balance;
+
 }
 .mcm-page .page-head .btn {
   margin-left: auto;
@@ -521,7 +538,7 @@
   gap: 7px;
   height: 40px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -572,7 +589,7 @@
   height: 30px;
   padding: 0 11px;
   font-size: 12px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
 }
 .mcm-page .btn.sm .ic {
   width: 14px;
@@ -586,7 +603,7 @@
 .mcm-page .mini {
   height: 26px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11px;
   font-weight: 700;
   background: var(--surface);
@@ -621,7 +638,7 @@
   gap: 6px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 12px;
@@ -663,7 +680,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -702,7 +719,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -799,7 +816,7 @@
 .mcm-page .cs-crumbs a {
   color: var(--ink-3);
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
 }
 @media (hover: hover) {
   .mcm-page .cs-crumbs a:hover {
@@ -834,7 +851,13 @@
   margin: 2px 0 0;
   font-size: 13px;
   line-height: 20px;
-  color: var(--ink-3);
+  color: var(--ink-3);  /* Balanced, so the description cannot end on an orphan. Left to wrap
+     naturally these paragraphs dropped a single word onto a line of their own
+     — "it." under two full lines — which reads as a mistake in the page rather
+     than as the end of a sentence. Balancing spreads the words evenly across
+     the lines it needs, so the last line carries its share. */
+  text-wrap: balance;
+
 }
 /* The gap between the description and the tabs. Held here rather than on the
    tab bar so the bar stays a component that can open any header. */
@@ -879,7 +902,7 @@
   flex: none;
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash);
   color: var(--accent-ink);
   /* Nudged down so the icon's centre lines up with the title's x-height rather
@@ -1552,7 +1575,7 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
@@ -1652,7 +1675,7 @@
   gap: 6px;
   height: 30px;
   padding: 0 11px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface);
   font-size: 12px;
@@ -2052,7 +2075,7 @@
 .mcm-page .attn-ic {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -2106,7 +2129,7 @@
 .mcm-page .qd-av {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -2224,7 +2247,7 @@
 .mcm-page .rule-n {
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash);
   color: var(--accent-ink);
   display: grid;
@@ -2303,7 +2326,7 @@
 .mcm-page .fnode-ic {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   flex: none;
@@ -2376,7 +2399,7 @@
   );
   background-size: 200% 100%;
   animation: mcmp-shimmer 1.3s infinite linear;
-  border-radius: 6px;
+  border-radius: var(--r, 14px);
 }
 @keyframes mcmp-shimmer {
   from {
@@ -2466,7 +2489,7 @@
 .mcm-wall .wk {
   background: #111b2e;
   border: 1px solid #22304d;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   padding: 18px 20px;
 }
 .mcm-wall .wk .k {
@@ -2496,7 +2519,7 @@
 .mcm-wall .wtbl {
   background: #111b2e;
   border: 1px solid #22304d;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   overflow: hidden;
 }
 .mcm-wall table {
@@ -3169,7 +3192,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink-3);
@@ -3220,7 +3243,7 @@
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash);
   color: var(--accent-ink);
   font-size: 11px;
@@ -3486,7 +3509,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   border-bottom-width: 2px;
   background: var(--surface);
@@ -3509,7 +3532,7 @@
    was found in. */
 .mcm-admincard-hit {
   padding: 0 1px;
-  border-radius: 3px;
+  border-radius: var(--r, 14px);
   background: color-mix(in srgb, var(--tone) 22%, transparent);
   color: inherit;
   font-weight: 800;
@@ -3630,7 +3653,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   /* Tinted from rest, not only on hover: the colour is here to make the page
      scannable while nothing is being pointed at. Mixed against the card's own
      surface so one hue serves both themes. */
@@ -3977,7 +4000,13 @@
   margin: 4px 0 0;
   max-width: 68ch;
   font-size: 12.5px;
-  color: var(--ink-3);
+  color: var(--ink-3);  /* Balanced, so the description cannot end on an orphan. Left to wrap
+     naturally these paragraphs dropped a single word onto a line of their own
+     — "it." under two full lines — which reads as a mistake in the page rather
+     than as the end of a sentence. Balancing spreads the words evenly across
+     the lines it needs, so the last line carries its share. */
+  text-wrap: balance;
+
 }
 .mcm-admin .mcm-adminpage-actions {
   display: flex;
@@ -4131,7 +4160,7 @@
   min-height: 38px;
   padding-left: 10px;
   padding-right: 10px;
-  border-radius: var(--r-sm);
+  border-radius: var(--pill, 999px);
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
@@ -4241,7 +4270,7 @@
   gap: 9px;
   margin: 0 8px 8px;
   padding: 8px 10px;
-  border-radius: var(--r-sm);
+  border-radius: var(--pill, 999px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-2);
@@ -4307,7 +4336,13 @@
   margin: 4px 0 0;
   max-width: 68ch;
   font-size: 12.5px;
-  color: var(--ink-3);
+  color: var(--ink-3);  /* Balanced, so the description cannot end on an orphan. Left to wrap
+     naturally these paragraphs dropped a single word onto a line of their own
+     — "it." under two full lines — which reads as a mistake in the page rather
+     than as the end of a sentence. Balancing spreads the words evenly across
+     the lines it needs, so the last line carries its share. */
+  text-wrap: balance;
+
 }
 
 .mcm-admin .mcm-intgrid {
@@ -5267,7 +5302,13 @@ textarea.mcm-field:focus-visible {
   margin: 3px 0 0;
   font-size: 13px;
   color: var(--ink-3);
-  max-width: 64ch;
+  max-width: 64ch;  /* Balanced, so the description cannot end on an orphan. Left to wrap
+     naturally these paragraphs dropped a single word onto a line of their own
+     — "it." under two full lines — which reads as a mistake in the page rather
+     than as the end of a sentence. Balancing spreads the words evenly across
+     the lines it needs, so the last line carries its share. */
+  text-wrap: balance;
+
 }
 @media (max-width: 640px) {
   .mcm-page .contacts-page-head {
@@ -5934,12 +5975,15 @@ textarea.mcm-field:focus-visible {
    stacked in a tall column, and at 8px a run of them reads as a table. */
 .mcm-admin .mcm-adminnav .h-14,
 .mcm-admin .mcm-adminnav .min-h-14 {
-  border-radius: 10px;
+  border-radius: var(--pill, 999px);
   height: 40px;
   min-height: 40px;
 }
+/* Pill, like every other nav row. shadcn hands this trigger a `rounded-none`
+   class, which the global control-shape rule in index.css deliberately leaves
+   alone, so the shape has to be set here. */
 .mcm-admin .mcm-adminnav [data-slot='accordion-trigger'] {
-  border-radius: 10px;
+  border-radius: var(--pill, 999px);
 }
 .mcm-admin .mcm-adminnav svg {
   width: 18px;
@@ -6109,7 +6153,7 @@ textarea.mcm-field:focus-visible {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
-  border-radius: 9px;
+  border-radius: var(--pill, 999px);
 }
 .mcm-admin .mcm-adminnav .min-h-14:hover {
   background: color-mix(in srgb, var(--accent) 7%, transparent);
@@ -6157,7 +6201,7 @@ textarea.mcm-field:focus-visible {
   background: var(--surface-2);
   font-size: 12.5px;
   font-weight: 650;
-  border-radius: 9px;
+  border-radius: var(--pill, 999px);
 }
 .mcm-admin .mcm-adminnav-all.on {
   background: var(--accent);
@@ -6351,7 +6395,7 @@ textarea.mcm-field:focus-visible {
 .mcm-topbar button.h-9.w-9 {
   background: transparent;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   color: var(--ink-3);
   transition:
     background 0.14s ease,
@@ -6542,7 +6586,7 @@ textarea.mcm-field:focus-visible {
 .mcm-cpg-menu {
   min-width: 210px;
   padding: 5px;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
 }
 .mcm-cpg-menu [data-slot='dropdown-menu-radio-item'] {
   display: flex;
@@ -6553,7 +6597,7 @@ textarea.mcm-field:focus-visible {
      itself. The tick on the right says the same thing where the eye already is
      - at the end of the name it just read - so that gutter is given back. */
   padding: 7px 10px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -6664,7 +6708,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   background: var(--ai-wash);
   border: 1px solid var(--ai-edge);
   color: var(--ai);
@@ -6705,7 +6749,7 @@ textarea.mcm-field:focus-visible {
   height: 28px;
   /* Level with the bubble, not with the "ASSISTANT" line above it. */
   margin-top: 18px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -6739,7 +6783,7 @@ textarea.mcm-field:focus-visible {
 
 .mcm-admin .mcm-cpg-bubble {
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
   font-size: 13.5px;
   line-height: 20px;
   /* Replies arrive with their own line breaks and they mean something — a list
@@ -6918,7 +6962,7 @@ textarea.mcm-field:focus-visible {
   margin: 0 auto;
   padding: 6px 6px 6px 14px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2);
   transition:
     border-color 0.14s ease,
@@ -6996,7 +7040,7 @@ textarea.mcm-field:focus-visible {
   padding: 1px 5px;
   border: 1px solid var(--line);
   border-bottom-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   font-family: inherit;
   font-size: 10px;
@@ -7051,7 +7095,11 @@ textarea.mcm-field:focus-visible {
      each — a card the width of a table. auto-fill keeps the track size, so
      cards stay card-shaped and the row simply has room to its right. */
   grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-  align-items: start;
+  /* Stretch, not start. On `start` each card was only as tall as its own
+     contents, so the answer-style row, the chips and the buttons sat at a
+     different height in every card and the row read as three unrelated
+     panels. Equal heights are what lets the bands below line up. */
+  align-items: stretch;
 }
 
 .mcm-admin .mcm-asst-card {
@@ -7087,7 +7135,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai-ink);
@@ -7116,6 +7164,15 @@ textarea.mcm-field:focus-visible {
   font-size: 12.5px;
   line-height: 18px;
   color: var(--ink-3);
+  /* Two lines, whether or not there are two: an assistant described in four
+     words and one described in twenty must not start their quote blocks at
+     different heights. Clamped at the same two, so a long description cannot
+     push its card's bands down instead. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 36px;
 }
 /* An unfilled field says so in the field's own place, rather than leaving a gap
    that reads as a rendering fault. */
@@ -7156,6 +7213,9 @@ textarea.mcm-field:focus-visible {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Three clamped lines plus the padding, reserved whether the brief fills
+     them or not. */
+  min-height: 77px;
 }
 .mcm-admin .mcm-asst-brief.is-empty {
   border-left-color: var(--line);
@@ -7219,8 +7279,11 @@ textarea.mcm-field:focus-visible {
 .mcm-admin .mcm-asst-feats {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 5px;
-  margin-top: auto;
+  /* One row of chips held open, so a card with none does not pull its rule up
+     past the cards beside it. */
+  min-height: 24px;
 }
 .mcm-admin .mcm-asst-feat {
   display: inline-flex;
@@ -7243,10 +7306,13 @@ textarea.mcm-field:focus-visible {
   color: var(--ink-4);
 }
 
+/* The buttons sit on the floor of the card rather than under the last thing
+   that happened to be there, so they line up across the row. */
 .mcm-admin .mcm-asst-card-f {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--line-2);
 }
@@ -7312,7 +7378,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -7344,7 +7410,7 @@ textarea.mcm-field:focus-visible {
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
 }
 .mcm-asst-dlg-h {
   flex: none;
@@ -7402,6 +7468,10 @@ textarea.mcm-field:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  /* Start, so a field that grows cannot drag the one beside it down with it.
+     On the default stretch the two columns were tied to a shared height and
+     the shorter one was pushed to the bottom of it. */
+  align-items: start;
 }
 @media (max-width: 620px) {
   .mcm-asst-row {
@@ -7416,6 +7486,12 @@ textarea.mcm-field:focus-visible {
 .mcm-asst-f + .mcm-asst-f,
 .mcm-asst-row + .mcm-asst-f {
   margin-top: 12px;
+}
+/* Not inside the two-column row: the grid's own 12px gap already spaces those,
+   and the margin on top of it pushed the second column down by 12px, so its
+   label and its field sat below the ones beside them. */
+.mcm-asst-row > .mcm-asst-f + .mcm-asst-f {
+  margin-top: 0;
 }
 .mcm-asst-f-h {
   display: flex;
@@ -7442,7 +7518,7 @@ textarea.mcm-field:focus-visible {
   width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface, #fff);
   color: var(--ink, #0d1526);
   font-family: inherit;
@@ -7475,7 +7551,7 @@ textarea.mcm-field:focus-visible {
   align-items: flex-start;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -7492,7 +7568,7 @@ textarea.mcm-field:focus-visible {
   width: 26px;
   height: 26px;
   margin-top: -3px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge, #ddccff);
   background: var(--ai-wash, #f2ecff);
   color: var(--ai, #7c3aed);
@@ -7514,7 +7590,7 @@ textarea.mcm-field:focus-visible {
 .mcm-asst-hint {
   padding: 12px 14px;
   border: 1px dashed var(--line, #dfe5f0);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2, #f6f8fc);
   font-size: 12.5px;
   color: var(--ink-3, #6b7891);
@@ -7530,7 +7606,7 @@ textarea.mcm-field:focus-visible {
 
 .mcm-asst-tools {
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   overflow: hidden;
 }
 .mcm-asst-tool {
@@ -7553,7 +7629,7 @@ textarea.mcm-field:focus-visible {
 .mcm-asst-more {
   margin-top: 16px;
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 12px;
+  border-radius: var(--r, 14px);
   overflow: hidden;
 }
 .mcm-asst-more > summary {
@@ -7696,7 +7772,7 @@ textarea.mcm-field:focus-visible {
   width: 30px;
   height: 30px;
   margin-top: 1px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-3);
@@ -7812,7 +7888,7 @@ textarea.mcm-field:focus-visible {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   background: transparent;
   color: var(--ink-4);
   outline: none;
@@ -7878,7 +7954,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -7905,7 +7981,7 @@ textarea.mcm-field:focus-visible {
 .mcm-swi-menu {
   width: 264px;
   padding: 0;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
   overflow: hidden;
 }
 .mcm-swi-h {
@@ -7936,7 +8012,7 @@ textarea.mcm-field:focus-visible {
   width: 26px;
   height: 26px;
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   background: var(--surface, #fff);
   color: var(--ink-3, #6b7891);
 }
@@ -7958,7 +8034,7 @@ textarea.mcm-field:focus-visible {
   gap: 9px;
   padding: 7px 9px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   background: transparent;
   text-align: left;
   font-size: 13px;
@@ -7986,7 +8062,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge, #ddccff);
   background: var(--ai-wash, #f2ecff);
   color: var(--ai-ink, #6428d4);
@@ -8092,7 +8168,7 @@ textarea.mcm-field:focus-visible {
   width: 100%;
   padding: 8px 12px;
   border: 1px dashed var(--line, #dfe5f0);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2, #f6f8fc);
   font-size: 12.5px;
   color: var(--ink-3, #6b7891);
@@ -8117,7 +8193,7 @@ textarea.mcm-field:focus-visible {
   gap: 8px;
   padding: 9px 13px;
   border: 1px solid var(--accent-edge, #c3d6ff);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash, #e8efff);
   color: var(--accent-ink, #1d4ed8);
   font-size: 12.5px;
@@ -8136,7 +8212,7 @@ textarea.mcm-field:focus-visible {
   gap: 10px;
   padding: 13px;
   border: 1px solid var(--ai-edge, #ddccff);
-  border-radius: 12px;
+  border-radius: var(--r, 14px);
   background: color-mix(in srgb, var(--ai-wash, #f2ecff) 45%, transparent);
 }
 .mcm-doc-faqs-h {
@@ -8166,7 +8242,7 @@ textarea.mcm-field:focus-visible {
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface, #fff);
   cursor: pointer;
   transition:
@@ -8494,7 +8570,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -8666,6 +8742,10 @@ textarea.mcm-field:focus-visible {
   padding-top: 4px;
 }
 
+/* The tile a platform's mark sits on. Neutral, because the mark brings its own
+   colour now: on the tinted wash the tile was the coloured thing and eight
+   different brand colours sat on eight identical lilac squares. Initials still
+   get the accent ink, since a letter with no colour of its own needs it. */
 .mcm-admin .mcm-act-logo {
   display: flex;
   flex: none;
@@ -8673,14 +8753,19 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  border: 1px solid var(--ai-edge);
-  background: var(--ai-wash);
+  border-radius: var(--r, 14px);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
   color: var(--ai-ink);
   font-size: 11.5px;
   font-weight: 800;
   line-height: 1;
   overflow: hidden;
+}
+/* An SVG mark fills the tile the way the <img> does. */
+.mcm-admin .mcm-act-logo svg {
+  width: 18px;
+  height: 18px;
 }
 .mcm-admin .mcm-act-logo img {
   width: 20px;
@@ -8801,7 +8886,7 @@ textarea.mcm-field:focus-visible {
   gap: 10px;
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
 }
 /* An action that is switched on is one the assistant can actually call, which
@@ -8881,7 +8966,7 @@ textarea.mcm-field:focus-visible {
   width: 30px;
   height: 30px;
   margin-top: 1px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-3);
@@ -8933,7 +9018,7 @@ textarea.mcm-field:focus-visible {
 }
 .mcm-admin .mcm-act-meta code {
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2);
   font-weight: 700;
   color: var(--ink-3);
@@ -8954,6 +9039,23 @@ textarea.mcm-field:focus-visible {
   border-radius: 50%;
   background: var(--ink-4);
   opacity: 0.6;
+}
+
+/* ── row action clusters ─────────────────────────────────────────────────
+   Centred against the whole row, not pinned to its top. These rows align
+   their children to the start so a status pill lines up with the title rather
+   than with the middle of the description beneath it — but the buttons are
+   not part of that reading order, and on a two- or three-line row they were
+   left hanging at the top with empty space under them.
+
+   Matched by name rather than listed one by one: every one of these clusters
+   is `*-acts`, on Actions, Documents, FAQs, Inboxes, Locations and Sessions,
+   and a new row that follows the convention gets it for free. */
+.mcm-admin [class*='-acts'],
+/* Documents ends its row with a single menu button rather than a cluster, so
+   it is named here. */
+.mcm-admin .mcm-doc-more {
+  align-self: center;
 }
 
 .mcm-admin .mcm-act-acts {
@@ -9022,7 +9124,7 @@ textarea.mcm-field:focus-visible {
 .mcm-act-tiermenu {
   width: 268px;
   padding: 5px;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
 }
 .mcm-act-tiermenu-h {
   padding: 6px 9px 8px;
@@ -9037,7 +9139,7 @@ textarea.mcm-field:focus-visible {
   align-items: flex-start;
   gap: 9px;
   padding: 9px 10px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   cursor: pointer;
 }
 .mcm-act-tiermenu [data-slot='dropdown-menu-item'] > svg:first-child {
@@ -9099,7 +9201,7 @@ textarea.mcm-field:focus-visible {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   background: transparent;
   color: var(--ink-4);
   cursor: pointer;
@@ -9202,7 +9304,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -9277,7 +9379,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 42px;
   height: 42px;
-  border-radius: 13px;
+  border-radius: var(--r, 14px);
   /* Not the AI violet the built Captain screens use. Violet on this page would
      say "machine output" about a screen that has no output at all. */
   border: 1px solid var(--line);
@@ -9335,7 +9437,7 @@ textarea.mcm-field:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   color: var(--ink-2);
   text-decoration: none;
   transition:
@@ -9495,7 +9597,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -9604,7 +9706,7 @@ textarea.mcm-field:focus-visible {
   width: 30px;
   height: 30px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   color: var(--ink-3);
   cursor: pointer;
@@ -9641,7 +9743,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 15px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--ai-edge);
   background: var(--ai-wash);
   color: var(--ai);
@@ -9672,7 +9774,7 @@ textarea.mcm-field:focus-visible {
   max-height: 720px;
   gap: 0;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
 }
 
 .mcm-inb-dlg-side {
@@ -9715,7 +9817,7 @@ textarea.mcm-field:focus-visible {
   width: 100%;
   padding: 8px 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -9831,7 +9933,7 @@ textarea.mcm-field:focus-visible {
   width: 26px;
   height: 26px;
   margin-top: 16px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line, #dfe5f0);
   background: var(--surface, #fff);
   color: var(--ink-3, #6b7891);
@@ -9857,7 +9959,7 @@ textarea.mcm-field:focus-visible {
 }
 .mcm-inb-bubble {
   padding: 9px 13px;
-  border-radius: 13px;
+  border-radius: var(--r, 14px);
   font-size: 13px;
   line-height: 19px;
   white-space: pre-wrap;
@@ -9903,7 +10005,7 @@ textarea.mcm-field:focus-visible {
   max-width: none;
   padding: 6px 6px 6px 14px;
   border: 1px solid var(--line, #dfe5f0);
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2, #f6f8fc);
   transition:
     border-color 0.14s ease,
@@ -10143,7 +10245,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-3);
@@ -10186,7 +10288,7 @@ textarea.mcm-field:focus-visible {
 .mcm-admin .mcm-loc-name:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
 }
 .mcm-admin .mcm-loc-main {
   display: inline-flex;
@@ -10226,7 +10328,7 @@ textarea.mcm-field:focus-visible {
   width: 30px;
   height: 30px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   color: var(--ink-3);
   cursor: pointer;
@@ -10585,7 +10687,7 @@ textarea.mcm-field:focus-visible {
 .mcm-admin .mcm-dircard-drop:focus-visible {
   outline: 2px solid var(--crit);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--r, 14px);
 }
 
 /* ---- the form column --------------------------------------------------- */
@@ -10949,7 +11051,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
 }
@@ -11135,7 +11237,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--accent-edge);
   background: var(--accent-wash);
   color: var(--accent);
@@ -11246,7 +11348,7 @@ textarea.mcm-field:focus-visible {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-3);
@@ -11475,7 +11577,7 @@ textarea.mcm-field:focus-visible {
   max-height: 320px;
   overflow-y: auto;
   padding: 5px;
-  border-radius: 12px;
+  border-radius: var(--r, 14px);
 }
 .mcm-fchip-menu [data-slot='dropdown-menu-radio-item'] {
   display: flex;
@@ -11483,7 +11585,7 @@ textarea.mcm-field:focus-visible {
   justify-content: space-between;
   gap: 10px;
   padding: 7px 10px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -11620,7 +11722,7 @@ textarea.mcm-field:focus-visible {
   top: 40px;
   bottom: -12px;
   width: 2px;
-  border-radius: 2px;
+  border-radius: var(--r, 14px);
   background: var(--line, #e5e7eb);
 }
 .mcm-amap-n {
@@ -13583,7 +13685,7 @@ textarea.mcm-field:focus-visible {
   min-height: 28px;
   padding: 0 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r, 14px);
   background: transparent;
   color: var(--ink-3, #64748b);
   font-size: 11.5px;

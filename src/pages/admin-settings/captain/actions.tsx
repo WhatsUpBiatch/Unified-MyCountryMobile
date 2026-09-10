@@ -32,6 +32,7 @@ import {
 import { AssistantSwitcher, useSelectedAssistant } from './assistant-switcher';
 import '@/components/mcm/mcm-page.css';
 import { Picker } from '@/components/mcm/picker';
+import { BrandMark, hasBrandMark } from '@/components/mcm/brand-mark';
 
 /**
  * Captain — Actions.
@@ -124,6 +125,24 @@ const CONN_STATE: Record<string, { label: string; tone: string }> = {
    Captain — a catalogue whose logos have not loaded should not be a column of
    identical plug icons. */
 const initials = (name: string) => (name.trim().slice(0, 2) || '?').toUpperCase();
+
+/* Which mark a tile draws, in order of how current it is: the logo the API
+   sent, then one of the marks this app ships, then the initials that were
+   there before. A backend that knows the toolkit's logo outranks anything
+   compiled in; a platform nobody has a mark for still renders. */
+const AppLogo = ({
+  slug,
+  name,
+  logo,
+}: {
+  slug?: string;
+  name?: string;
+  logo?: string | null;
+}) => {
+  if (logo) return <img src={logo} alt="" />;
+  if (hasBrandMark(slug || '', name)) return <BrandMark slug={slug || ''} name={name} />;
+  return <>{initials(name || '')}</>;
+};
 
 /* The security tier control, once. Built on the menu primitive rather than a
    hand-rolled popover with a full-screen backdrop div: that version could only
@@ -731,13 +750,11 @@ const CaptainActions = () => {
                       >
                         <header>
                           <span className="mcm-act-logo" aria-hidden="true">
-                            {tk?.logo ? (
-                              <img src={tk.logo} alt="" />
-                            ) : (
-                              /* The app's initials, so three unconfigured
-                                 logos are not three identical plugs. */
-                              initials(conn.toolkit_name)
-                            )}
+                            <AppLogo
+                              slug={conn.toolkit_slug}
+                              name={conn.toolkit_name}
+                              logo={tk?.logo}
+                            />
                           </span>
                           <div>
                             <h3>{conn.toolkit_name}</h3>
@@ -1054,7 +1071,7 @@ const CaptainActions = () => {
                     <article className="mcm-act-app" key={tk.slug}>
                       <header>
                         <span className="mcm-act-logo" aria-hidden="true">
-                          {tk.logo ? <img src={tk.logo} alt="" /> : initials(tk.name)}
+                          <AppLogo slug={tk.slug} name={tk.name} logo={tk.logo} />
                         </span>
                         <div>
                           <h3>{tk.name}</h3>

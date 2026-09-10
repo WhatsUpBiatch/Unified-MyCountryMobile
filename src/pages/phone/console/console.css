@@ -53,9 +53,10 @@
   --shadow-sm: 0 1px 2px rgba(13, 21, 38, 0.06), 0 1px 1px rgba(13, 21, 38, 0.04);
   --shadow: 0 4px 14px rgba(13, 21, 38, 0.07), 0 1px 3px rgba(13, 21, 38, 0.05);
   --shadow-lg: 0 18px 44px rgba(13, 21, 38, 0.14), 0 3px 10px rgba(13, 21, 38, 0.07);
-  --r: 12px;
-  --r-sm: 8px;
-  --r-lg: 18px;
+  /* One corner, shared with the rest of the console. */
+  --r: 14px;
+  --r-sm: 14px;
+  --r-lg: 14px;
   /* 'Twemoji Country Flags' belongs in the MONO stack too, not only the sans
      one. Phone numbers are rendered in monospace (`.num`), and that is exactly
      where the country flags sit — so a stack without it fell back to the bare
@@ -221,7 +222,7 @@
 .mcm-console .brand-mark {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   background: linear-gradient(145deg, var(--accent), var(--ai));
@@ -249,7 +250,7 @@
 .mcm-console .omni input {
   width: 100%;
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 12px 0 34px;
@@ -276,7 +277,7 @@
   gap: 6px;
   height: 30px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   font-size: 12px;
@@ -346,7 +347,7 @@
 .mcm-console .rail-btn {
   width: 70px;
   padding: 8px 2px 6px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -459,7 +460,7 @@
 .mcm-console .rail.list .rl-search input {
   width: 100%;
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 10px;
@@ -483,7 +484,7 @@
   width: 100%;
   text-align: left;
   padding: 6px 10px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 12.5px;
   font-weight: 500;
   color: var(--ink-2);
@@ -551,12 +552,12 @@
   gap: 2px;
   background: var(--surface-3);
   padding: 2px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
 }
 .mcm-console .seg button {
   flex: 1;
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11.5px;
   font-weight: 700;
   color: var(--ink-3);
@@ -573,7 +574,7 @@
 .mcm-console .search-mini input {
   width: 100%;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 10px 0 30px;
@@ -619,7 +620,7 @@
 .mcm-console .cr-av {
   width: 34px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -699,7 +700,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -758,7 +759,7 @@
 .mcm-console .caller-av {
   width: 56px;
   height: 56px;
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -916,7 +917,7 @@
   gap: 7px;
   height: 40px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -966,7 +967,7 @@
   height: 30px;
   padding: 0 11px;
   font-size: 12px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
 }
 .mcm-console .btn.sm svg {
   width: 14px;
@@ -1168,7 +1169,7 @@
 .mcm-console .turn-av {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -1214,7 +1215,7 @@
 }
 .mcm-console .turn.hl .turn-text {
   background: var(--warn-wash);
-  border-radius: 6px;
+  border-radius: var(--r, 14px);
   padding: 2px 6px;
   margin: -2px -6px;
 }
@@ -1228,14 +1229,14 @@
 .mcm-console mark {
   background: var(--warn-wash);
   color: inherit;
-  border-radius: 3px;
+  border-radius: var(--r, 14px);
   padding: 0 2px;
   font-weight: 600;
 }
 .mcm-console .redacted {
   background: var(--surface-3);
   color: var(--ink-4);
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
   padding: 0 5px;
   font-size: 11px;
   font-weight: 700;
@@ -1297,7 +1298,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   border: 1px solid var(--line);
   font-size: 10px;
@@ -1317,7 +1318,7 @@
 .mcm-console .mini {
   height: 26px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11px;
   font-weight: 700;
   background: var(--surface);
@@ -1355,7 +1356,7 @@
 .mcm-console .thumb {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   color: var(--ink-4);
@@ -1420,7 +1421,7 @@
 .mcm-console .askrow textarea {
   flex: 1;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   padding: 9px 11px;
   font-size: 12.5px;
@@ -1437,7 +1438,7 @@
 .mcm-console .sendbtn {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--ai);
   color: #fff;
   display: grid;
@@ -1455,7 +1456,7 @@
 }
 .mcm-console .sugg {
   padding: 4px 9px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11px;
   font-weight: 600;
   text-align: left;
@@ -1725,7 +1726,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1844,7 +1845,7 @@
   display: flex;
   gap: 4px;
   align-items: center;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   width: 100%;
 }
 .mcm-console .dres-row:hover {
@@ -1857,7 +1858,7 @@
   flex: 1;
   min-width: 0;
   padding: 8px 4px 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   text-align: left;
   cursor: pointer;
 }
@@ -1866,7 +1867,7 @@
   height: 30px;
   flex: none;
   margin-right: 6px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   border: 1px solid var(--ok);
@@ -1888,7 +1889,7 @@
 .mcm-console .dres-av {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -1945,7 +1946,7 @@
 }
 .mcm-console .brow {
   background: var(--surface);
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   padding: 9px 11px;
 }
 .mcm-console .brow .bk {
@@ -2148,7 +2149,7 @@
 .mcm-console .rule-n {
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash);
   color: var(--accent-ink);
   display: grid;
@@ -2225,7 +2226,7 @@
 .mcm-console .fnode-ic {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   flex: none;
@@ -2368,7 +2369,7 @@
   background: var(--ink);
   color: var(--ground);
   padding: 9px 15px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   font-size: 12.5px;
   font-weight: 700;
   box-shadow: var(--shadow-lg);
@@ -2426,7 +2427,7 @@
     flex-wrap: wrap;
     justify-content: center;
     max-width: 94vw;
-    border-radius: 16px;
+    border-radius: var(--r, 14px);
   }
 }
 .mcm-console .ptabstrip {
@@ -2468,7 +2469,7 @@
   gap: 6px;
   height: 30px;
   padding: 0 11px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface);
   font-size: 12px;
@@ -2680,7 +2681,7 @@
 .mcm-console #wall .wk {
   background: #111b2e;
   border: 1px solid #22304d;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   padding: 18px 20px;
 }
 .mcm-console #wall .wk .k {
@@ -2721,7 +2722,7 @@
 .mcm-console #wall .wtbl {
   background: #111b2e;
   border: 1px solid #22304d;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   overflow: hidden;
 }
 .mcm-console #wall .btn.ghost {
@@ -2791,7 +2792,7 @@
 .mcm-console .attn-ic {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -2844,7 +2845,7 @@
 .mcm-console .qd-av {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -3033,7 +3034,7 @@
   align-items: center;
   gap: 4px;
   padding: 0;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font: inherit;
   color: inherit;
   text-align: left;
@@ -3075,7 +3076,7 @@
 .mcm-console .record-av {
   width: 42px;
   height: 42px;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
   font-size: 14px;
 }
 .mcm-console .record-name {
@@ -3172,7 +3173,7 @@
   --legbtn-wash: var(--surface-2);
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   flex: none;
@@ -3338,7 +3339,7 @@
 .mcm-console .col-title .console-datefilter .custom-react-select__control {
   min-height: 30px !important;
   height: 30px !important;
-  border-radius: 8px !important;
+  border-radius: var(--r, 14px) !important;
   padding-left: 8px !important;
   padding-right: 6px !important;
   font-size: 12.5px !important;
@@ -3382,7 +3383,7 @@
 .mcm-console .contact-av {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: var(--r, 14px);
   font-size: 15px;
 }
 .mcm-console .contact-name {
@@ -3454,7 +3455,7 @@
 .mcm-console .action-box {
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   border: 1.5px solid var(--ai);
   flex: none;
 }
@@ -3463,7 +3464,7 @@
 .mcm-console .note-av {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -3570,7 +3571,7 @@
   color: var(--ink-2);
   height: 30px;
   padding: 0 11px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   font-size: 12px;
   font-weight: 700;
   justify-content: center;

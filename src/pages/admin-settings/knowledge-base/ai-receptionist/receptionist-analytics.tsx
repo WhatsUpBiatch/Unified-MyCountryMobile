@@ -176,7 +176,7 @@ function AnalyticsPanel({
 }) {
   return (
     <div
-      className={`relative rounded-[10px] border border-gray-200 bg-white p-4 shadow-sm ${className}`}
+      className={`relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${className}`}
     >
       {isLoading && <CardLoader dark={dark} />}
       <div className="flex items-start justify-between gap-3">
@@ -213,7 +213,7 @@ function KpiCard({
   isLoading?: boolean;
 }) {
   return (
-    <div className="relative min-h-[86px] rounded-[10px] border border-gray-200 bg-white px-4 py-3 shadow-sm">
+    <div className="relative min-h-[86px] rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
       {isLoading && <CardLoader />}
       <div className="text-[12px] font-medium leading-4 text-slate-500">{label}</div>
       <div className="mt-2 text-[25px] font-black leading-8 text-gray-950">{value}</div>
@@ -881,7 +881,7 @@ export default function ReceptionistAnalytics({
         ref={analyticsContentRef}
         className="w-full flex-1 space-y-3.5 overflow-y-auto px-7 py-6"
       >
-        <div className="flex items-center gap-3 rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700">
           <Info className="h-4 w-4 shrink-0" />
           <span>
             <strong>{periodLabel}</strong> · {periodCompare}. Voice-specific KPIs below — sentiment,

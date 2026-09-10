@@ -3791,7 +3791,7 @@ function CreateChatbotAgent() {
       if (knowledgeWebsiteMode === 'picker') {
         return (
           <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-4 rounded-[14px] bg-gradient-to-r from-[#2947c9] to-[#2f7df2] px-6 py-5 text-white shadow-sm">
+            <div className="flex items-center justify-between gap-4 rounded-xl bg-gradient-to-r from-[#2947c9] to-[#2f7df2] px-6 py-5 text-white shadow-sm">
               <div className="flex min-w-0 items-center gap-4">
                 <div className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-xl bg-white/15">
                   <FileText className="h-7 w-7" />
@@ -3837,7 +3837,7 @@ function CreateChatbotAgent() {
               <span className="h-px flex-1 bg-gray-200" />
             </div>
 
-            <div className="overflow-hidden rounded-[14px] border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <div className="px-5 py-4">
                 <h3 className="text-lg font-bold text-gray-950">Pick a knowledge base</h3>
                 <p className="mt-1 text-sm text-slate-500">
@@ -3930,7 +3930,7 @@ function CreateChatbotAgent() {
 
       return (
         <div className="flex flex-col gap-4">
-          <div className="mx-auto mt-2 w-full max-w-[540px] rounded-[14px] border border-gray-200 bg-white px-7 py-9 text-center shadow-sm">
+          <div className="mx-auto mt-2 w-full max-w-[540px] rounded-xl border border-gray-200 bg-white px-7 py-9 text-center shadow-sm">
             <div className="mx-auto mb-3 grid h-[52px] w-[52px] place-items-center rounded-xl bg-primary/10 text-primary">
               <Globe2 className="h-[26px] w-[26px]" />
             </div>
@@ -4046,12 +4046,12 @@ function CreateChatbotAgent() {
             {pickPageCategories.map((category, index) => (
               <div
                 key={category.id}
-                className="overflow-hidden rounded-[10px] border border-gray-200 bg-white"
+                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
               >
                 <div className="flex items-center gap-2.5 border-b border-gray-200 bg-slate-50 px-3.5 py-3">
                   <div
                     className={cx(
-                      'grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[7px]',
+                      'grid h-[30px] w-[30px] shrink-0 place-items-center rounded-xl',
                       getPickPageCategoryIconClassName(index),
                     )}
                   >
@@ -4105,7 +4105,7 @@ function CreateChatbotAgent() {
 
         <div className="flex flex-col gap-4">
           {discoveredLinks.length > 0 && (
-            <div className="rounded-[10px] border border-dashed border-slate-300 bg-white p-3.5">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3.5">
               <p className="text-sm font-bold text-gray-950">Add another URL</p>
               <p className="mt-1 text-xs text-slate-500">Paste any page not auto-detected.</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -4245,7 +4245,7 @@ function CreateChatbotAgent() {
                 handlePendingFilesSelected(event.dataTransfer.files);
               }}
               disabled={isReadOnly || pendingFiles.length >= 5}
-              className="flex min-h-[96px] w-full cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed border-slate-300 bg-white px-5 py-5 text-center transition-colors hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex min-h-[96px] w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-5 py-5 text-center transition-colors hover:border-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="inline-flex items-center gap-2 text-sm font-bold text-gray-950">
                 <UploadCloud className="h-5 w-5 text-slate-500" />
@@ -4323,7 +4323,7 @@ function CreateChatbotAgent() {
             event.stopPropagation();
             setOpenReviewKnowledgeMenu(isOpen ? '' : menuKey);
           }}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-[5px] text-lg leading-none text-slate-500 transition-colors hover:bg-slate-100 hover:text-gray-950"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-xl text-lg leading-none text-slate-500 transition-colors hover:bg-slate-100 hover:text-gray-950"
           aria-label="Knowledge card actions"
         >
           ⋮
@@ -4597,7 +4597,7 @@ function CreateChatbotAgent() {
                     <button
                       type="button"
                       onClick={() => reviewKnowledgeFileInputRef.current?.click()}
-                      className="w-full rounded-[10px] border-2 border-dashed border-gray-200 px-7 py-7 text-center text-sm text-slate-600 transition-colors hover:border-primary hover:bg-primary/5"
+                      className="w-full rounded-xl border-2 border-dashed border-gray-200 px-7 py-7 text-center text-sm text-slate-600 transition-colors hover:border-primary hover:bg-primary/5"
                     >
                       <UploadCloud className="mx-auto mb-2 h-8 w-8 text-slate-500" />
                       <b className="text-gray-950">Choose a file</b>
@@ -4689,7 +4689,7 @@ function CreateChatbotAgent() {
           </p>
         </div>
 
-        <div className="rounded-[14px] border border-[#BFDBFE] bg-gradient-to-br from-blue-50 to-emerald-50 px-[22px] py-[22px] text-center">
+        <div className="rounded-xl border border-[#BFDBFE] bg-gradient-to-br from-blue-50 to-emerald-50 px-[22px] py-[22px] text-center">
           <div className="mx-auto mb-2.5 grid h-12 w-12 place-items-center rounded-full bg-emerald-500 text-white">
             <Check className="h-[26px] w-[26px] stroke-[3]" />
           </div>
@@ -4709,7 +4709,7 @@ function CreateChatbotAgent() {
             { label: 'FAQs', value: validFaqCount },
             { label: 'Training', value: '~3 min', valueClassName: 'text-sm' },
           ].map((item) => (
-            <div key={item.label} className="rounded-[10px] border border-gray-200 bg-white p-3">
+            <div key={item.label} className="rounded-xl border border-gray-200 bg-white p-3">
               <p className="text-[11px] font-medium leading-4 text-slate-500">{item.label}</p>
               <p
                 className={cx(
@@ -4800,7 +4800,7 @@ function CreateChatbotAgent() {
         {isDocumentsTab ? (
           <div className="flex flex-col gap-2.5">
             {isSummarizingKnowledgeBase ? (
-              <div className="flex items-center justify-center gap-2 rounded-[10px] border border-gray-200 bg-white px-4 py-8 text-sm font-semibold text-primary">
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-8 text-sm font-semibold text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Generating summary...
               </div>
@@ -4817,7 +4817,7 @@ function CreateChatbotAgent() {
                     return (
                       <div
                         key={document.id}
-                        className="rounded-[10px] border border-gray-200 bg-white px-[22px] py-[18px] shadow-sm transition-colors hover:border-gray-300 hover:shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+                        className="rounded-xl border border-gray-200 bg-white px-[22px] py-[18px] shadow-sm transition-colors hover:border-gray-300 hover:shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
                       >
                         <div className="flex items-start justify-between gap-2.5">
                           <h3 className="min-w-0 flex-1 break-words text-[15px] font-bold leading-5 text-gray-950">
@@ -4840,7 +4840,7 @@ function CreateChatbotAgent() {
                     );
                   })
                 ) : (
-                  <div className="rounded-[10px] border border-gray-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                  <div className="rounded-xl border border-gray-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
                     No documents found.
                   </div>
                 )}
@@ -4850,7 +4850,7 @@ function CreateChatbotAgent() {
         ) : (
           <div className="flex flex-col gap-2.5">
             {isGeneratingKnowledgeFaqs ? (
-              <div className="flex items-center justify-center gap-2 rounded-[10px] border border-gray-200 bg-white px-4 py-8 text-sm font-semibold text-primary">
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-8 text-sm font-semibold text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Generating FAQs...
               </div>
@@ -4865,7 +4865,7 @@ function CreateChatbotAgent() {
                   filteredFaqs.map((faq) => (
                     <div
                       key={faq.id}
-                      className="rounded-[10px] border border-gray-200 bg-white px-[22px] py-[18px] shadow-sm transition-colors hover:border-gray-300 hover:shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
+                      className="rounded-xl border border-gray-200 bg-white px-[22px] py-[18px] shadow-sm transition-colors hover:border-gray-300 hover:shadow-[0_2px_6px_rgba(0,0,0,0.04)]"
                     >
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <h3 className="min-w-0 flex-1 break-words text-[15px] font-bold leading-5 text-gray-950">
@@ -4885,7 +4885,7 @@ function CreateChatbotAgent() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-[10px] border border-gray-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                  <div className="rounded-xl border border-gray-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
                     No FAQs found. Add a custom FAQ to create knowledge manually.
                   </div>
                 )}

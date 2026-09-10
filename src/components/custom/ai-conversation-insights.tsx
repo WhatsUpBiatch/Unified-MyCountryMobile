@@ -194,7 +194,7 @@ const AiConversationInsights = ({
             {/* Gradient border marks this as the box that triggers another AI
                 call, matching the same cue used in AI Writing's refine box. */}
             <div className="rounded-xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 p-[1.5px]">
-              <div className="flex items-center gap-1.5 rounded-[10px] bg-white px-2 py-1">
+              <div className="flex items-center gap-1.5 rounded-xl bg-white px-2 py-1">
                 <Input
                   placeholder="Ask a question about this conversation..."
                   value={question}

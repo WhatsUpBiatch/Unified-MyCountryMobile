@@ -1,5 +1,5 @@
 .btn {
-  border-radius: 25px;
+  border-radius: var(--r, 14px);
   border-color: #ddd;
 }
 
@@ -44,7 +44,7 @@
   background-clip: padding-box;
   border: 1px solid #ccc;
   border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
   -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
 }
@@ -69,7 +69,7 @@
 .dropdown-menu {
   top: 25px;
   padding: 3px 0;
-  border-radius: 2px;
+  border-radius: var(--r, 14px);
   border: 1px solid #bbb;
 }
 
@@ -126,7 +126,7 @@
   background-color: #ff6618;
   color: #ffffff;
   border: 0;
-  border-radius: 25px;
+  border-radius: var(--r, 14px);
   padding: 10px 20px;
   font-weight: bold;
 }
@@ -137,7 +137,7 @@
   background-color: #e55b15;
   color: #ffffff;
   border: 0;
-  border-radius: 25px;
+  border-radius: var(--r, 14px);
   padding: 10px 20px;
   font-weight: bold;
 }
@@ -161,7 +161,7 @@
   user-select: none;
   background-image: none;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
 }
 
 .btn:focus,
@@ -198,7 +198,7 @@
   padding: 5px 10px;
   font-size: 12px;
   line-height: 1.5;
-  border-radius: 50px;
+  border-radius: var(--r, 14px);
 }
 
 .btn-block {
@@ -212,7 +212,7 @@
   background-color: #d95614;
   color: #ffffff;
   border: 0;
-  border-radius: 25px;
+  border-radius: var(--r, 14px);
   padding: 10px 20px;
   font-weight: bold;
 }

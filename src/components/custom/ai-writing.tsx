@@ -272,7 +272,7 @@ const AiWriting = ({ draftText, onInsert, disabled = false, className }: AiWriti
                 border is deliberate: it is the one visual cue that this box
                 triggers another AI call, not a plain text field. */}
             <div className="rounded-xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 p-[1.5px]">
-              <div className="flex items-center gap-1.5 rounded-[10px] bg-white px-2 py-1">
+              <div className="flex items-center gap-1.5 rounded-xl bg-white px-2 py-1">
                 <Input
                   placeholder="Refine this copy..."
                   value={refinement}

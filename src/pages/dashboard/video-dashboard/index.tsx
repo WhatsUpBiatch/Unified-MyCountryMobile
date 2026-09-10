@@ -559,7 +559,7 @@ const VideoDashboard = () => {
               type="button"
               onClick={tile.onClick}
               disabled={tile.disabled}
-              className="group flex min-h-[100px] flex-col justify-between rounded-[18px] border border-gray-200 bg-white p-2.5 text-left transition-all hover:border-primary/30 hover:shadow-[0_6px_20px_rgba(15,23,42,0.06)] disabled:cursor-not-allowed disabled:opacity-70 sm:min-h-[126px] sm:rounded-[24px] sm:p-4 gap-2"
+              className="group flex min-h-[100px] flex-col justify-between rounded-xl border border-gray-200 bg-white p-2.5 text-left transition-all hover:border-primary/30 hover:shadow-[0_6px_20px_rgba(15,23,42,0.06)] disabled:cursor-not-allowed disabled:opacity-70 sm:min-h-[126px] sm:rounded-xl sm:p-4 gap-2"
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ucass-active-bg text-primary sm:h-10 sm:w-10 sm:rounded-xl">
                 <Icon name={tile.icon} className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -580,7 +580,7 @@ const VideoDashboard = () => {
         </div>
 
         <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[1fr_30rem] ">
-          <div className="rounded-[24px] border border-gray-200 bg-white p-4 sm:p-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Meeting volume summary</h2>

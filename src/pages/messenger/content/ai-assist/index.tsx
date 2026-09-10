@@ -255,12 +255,12 @@ const AiAssist = ({
       className={
         isEmbedded
           ? 'h-full min-h-0 w-full max-w-none bg-white border-l border-ucass-active-bg overflow-hidden flex flex-col'
-          : 'rounded-[22px] bg-white shadow-[0_10px_35px_rgba(2,37,92,0.16)] border border-ucass-active-bg overflow-hidden fixed bottom-16 right-5 w-full max-w-[360px] z-[60]'
+          : 'rounded-xl bg-white shadow-[0_10px_35px_rgba(2,37,92,0.16)] border border-ucass-active-bg overflow-hidden fixed bottom-16 right-5 w-full max-w-[360px] z-[60]'
       }
     >
       {/* Chat Head */}
       <div
-        className={`${isEmbedded ? '' : 'rounded-t-[22px]'} px-4 py-3 bg-ucass-active flex items-center justify-between gap-2`}
+        className={`${isEmbedded ? '' : 'rounded-t-xl'} px-4 py-3 bg-ucass-active flex items-center justify-between gap-2`}
       >
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/35">

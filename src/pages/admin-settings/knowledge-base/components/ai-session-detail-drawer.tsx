@@ -428,7 +428,7 @@ const AiSessionDetailDrawer = ({
                     label="Outcome"
                     value={
                       <span
-                        className={`inline-flex rounded-[9px] px-[9px] py-[3px] text-[11px] font-bold ${getOutcomeClass(
+                        className={`inline-flex rounded-xl px-[9px] py-[3px] text-[11px] font-bold ${getOutcomeClass(
                           getOutcome(session),
                         )}`}
                       >
@@ -566,7 +566,7 @@ const AiSessionDetailDrawer = ({
                       transcriptText,
                     )
                   }
-                  className="inline-flex h-[34px] items-center gap-1.5 rounded-[7px] border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Download
@@ -574,7 +574,7 @@ const AiSessionDetailDrawer = ({
                 <button
                   type="button"
                   onClick={() => copyText(transcriptText)}
-                  className="inline-flex h-[34px] items-center gap-1.5 rounded-[7px] border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
+                  className="inline-flex h-[34px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   Copy

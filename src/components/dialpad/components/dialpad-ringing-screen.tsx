@@ -11,7 +11,7 @@ type DialpadRingingScreenProps = {
 const DialpadRingingScreen = ({ session, onAccept, onReject }: DialpadRingingScreenProps) => {
   return (
     <div className="flex h-full flex-col items-center justify-center px-2.5 py-2.5 text-center max-[380px]:px-2 max-[380px]:py-2 sm:px-4 sm:py-4 w-full">
-      <div className="w-full rounded-[24px] border border-ucass-active-bg bg-ucass-active-bg px-3 py-4  max-[380px]:px-2.5 max-[380px]:py-3 sm:rounded-[28px] sm:px-4 sm:py-5 md:px-5 md:py-6">
+      <div className="w-full rounded-xl border border-ucass-active-bg bg-ucass-active-bg px-3 py-4  max-[380px]:px-2.5 max-[380px]:py-3 sm:rounded-xl sm:px-4 sm:py-5 md:px-5 md:py-6">
         <div className="mx-auto mb-3 max-w-[420px] text-left sm:mb-4">
           <DialpadSessionSummaryCard
             session={session}

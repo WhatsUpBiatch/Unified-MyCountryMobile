@@ -1,3 +1,9 @@
+/* Declared before the imports so it is the FIRST cascade layer. Important
+   declarations reverse layer order — the earliest layer wins, and an unlayered
+   important rule loses to every layered one — so the control-shape overrides at
+   the bottom of this file have to live in a layer that is declared up here.
+   Tailwind's own layers (theme, base, components, utilities) follow. */
+@layer mcm-shape;
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -88,10 +94,19 @@
   --font-sans: var(--mcm-sans);
   --font-mono: var(--mcm-mono);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* One radius for every panel. Tailwind's scale ran xs through 3xl and the
+     pages picked from all of it, so a card, the dialog over it and the panel
+     beside it each had a different corner. They are all `--radius` now, and
+     `rounded-lg` or `rounded-2xl` in the markup is a note about intent rather
+     than a size. Controls are unaffected: they are pinned to a pill in the
+     mcm-shape layer at the foot of this file. */
+  --radius-xs: var(--radius);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -163,9 +178,9 @@
   --mcm-shadow: 0 4px 14px rgba(13, 21, 38, 0.07), 0 1px 3px rgba(13, 21, 38, 0.05);
   --mcm-shadow-lg: 0 18px 44px rgba(13, 21, 38, 0.14), 0 3px 10px rgba(13, 21, 38, 0.07);
 
-  --mcm-r: 12px;
-  --mcm-r-sm: 8px;
-  --mcm-r-lg: 18px;
+  --mcm-r: 14px;
+  --mcm-r-sm: 14px;
+  --mcm-r-lg: 14px;
 
   --mcm-sans:
     'Plus Jakarta Sans', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system,
@@ -180,7 +195,8 @@
      those codepoints, so listing it first cannot affect the digits. */
   --mcm-mono: 'Twemoji Country Flags', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --radius: 0.625rem;
+  /* 14px — the corner every card and panel in the console takes. */
+  --radius: 0.875rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -357,7 +373,7 @@
     padding-right: 0.75rem !important;
     justify-content: space-between !important;
     align-items: center !important;
-    border-radius: 9px !important;
+    border-radius: var(--r, 14px) !important;
     border-width: 1px !important;
     width: 100% !important;
     font-size: 0.875rem !important;
@@ -377,18 +393,18 @@
 
   .filters .custom-react-select__control {
     height: 36px !important;
-    border-radius: 10px !important;
+    border-radius: var(--r, 14px) !important;
   }
 
   .filters .react-datepicker-wrapper input {
     min-height: 36px !important;
-    border-radius: 10px !important;
+    border-radius: var(--r, 14px) !important;
   }
 
   .filters .selectBox .custom-react-select__control {
     min-height: 36px !important;
     height: 36px !important;
-    border-radius: 10px !important;
+    border-radius: var(--r, 14px) !important;
     overflow: hidden !important;
   }
 
@@ -445,7 +461,7 @@
     padding-right: 0.75rem !important;
     justify-content: space-between !important;
     align-items: center !important;
-    border-radius: 9px !important;
+    border-radius: var(--r, 14px) !important;
     border-width: 1px !important;
     width: 100% !important;
     font-size: 0.875rem !important;
@@ -504,7 +520,7 @@
     position: absolute !important;
     z-index: 9999 !important;
     margin-top: 0.25rem !important;
-    border-radius: 12px !important;
+    border-radius: var(--r, 14px) !important;
     border-width: 1px !important;
     width: 100% !important;
     background-color: var(--surface, #fff) !important;
@@ -527,7 +543,7 @@
     line-height: 1.25rem !important;
     color: var(--ink, #0d1526) !important;
     cursor: pointer !important;
-    border-radius: 0.5rem !important;
+    border-radius: var(--r, 14px) !important;
   }
 
   .select-group__option:hover,
@@ -556,7 +572,7 @@
   .select-group__multi-value {
     background-color: var(--surface-3, #eaeef7) !important;
     margin: 0 !important;
-    border-radius: 0.5rem !important;
+    border-radius: var(--r, 14px) !important;
     max-width: 100% !important;
   }
 
@@ -618,7 +634,7 @@
     position: absolute !important;
     z-index: 9999 !important;
     margin-top: 0.25rem !important;
-    border-radius: 12px !important;
+    border-radius: var(--r, 14px) !important;
     border-width: 1px !important;
     width: 100% !important;
     background-color: var(--surface, #fff) !important;
@@ -637,7 +653,7 @@
     line-height: 1.25rem !important;
     color: var(--ink, #0d1526) !important;
     cursor: pointer !important;
-    border-radius: 8px !important;
+    border-radius: var(--r, 14px) !important;
   }
 
   .custom-react-select__option:hover,
@@ -675,7 +691,7 @@
   .custom-react-select__multi-value {
     background-color: var(--surface-3, #eaeef7) !important;
     margin: 0 !important;
-    border-radius: 0.5rem !important;
+    border-radius: var(--r, 14px) !important;
   }
 
   .custom-react-select__multi-value__remove {
@@ -714,7 +730,7 @@
 
   .react-tel-input .form-control {
     border-color: var(--line, #dfe5f0) !important;
-    border-radius: 0.8rem !important;
+    border-radius: var(--r, 14px) !important;
     min-height: 2rem !important;
     height: 2.5rem !important;
     width: 100% !important;
@@ -754,7 +770,7 @@
     background-color: var(--surface, #fff) !important;
     color: var(--ink, #0d1526) !important;
     border: 1px solid var(--line, #dfe5f0) !important;
-    border-radius: 0.6rem !important;
+    border-radius: var(--r, 14px) !important;
     box-shadow:
       0 8px 24px rgb(0 0 0 / 0.12),
       0 2px 6px rgb(0 0 0 / 0.08) !important;
@@ -771,7 +787,7 @@
   .epr-search-container input {
     border: 1px solid var(--color-gray-300) !important;
     background-color: var(--color-white) !important;
-    border-radius: 0.5rem !important;
+    border-radius: var(--r, 14px) !important;
     color: var(--color-gray-900) !important;
     font-size: 14px !important;
     padding-left: 2.5rem !important;
@@ -945,7 +961,7 @@
        no CSS reaches it. color-scheme is the one lever there is: it tells the
        OS to draw the list dark when the page is dark. */
     color-scheme: light dark;
-    border-radius: 6px !important;
+    border-radius: var(--r, 14px) !important;
     width: 100% !important;
   }
 
@@ -1151,7 +1167,7 @@
   color: #64748b;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   padding: 3px 6px;
   white-space: nowrap;
 }
@@ -1167,7 +1183,7 @@
   font-size: 11px;
   color: #94a3b8;
   border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
   padding: 0 4px;
   height: 22px;
   background: transparent;
@@ -1190,7 +1206,7 @@
   min-width: 280px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   box-shadow:
     0 10px 15px -3px rgb(0 0 0 / 0.1),
     0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -1324,7 +1340,7 @@
   animation: highlightMessage 0.5s ease-in-out;
   background-color: #f0f9ff !important;
   border: 2px solid #009fc9 !important;
-  border-radius: 0.5rem;
+  border-radius: var(--r, 14px);
   padding: 0.5rem;
   margin: 0.25rem 0;
 }
@@ -1437,7 +1453,7 @@
     gap: 0.75rem;
     padding: 0.75rem;
     border: 1px solid var(--color-gray-100);
-    border-radius: 0.75rem;
+    border-radius: var(--r, 14px);
   }
 
   .call-handling-template-form .template-forwarding-hours-label {
@@ -1727,7 +1743,7 @@
 .mcm-brand-mark {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -1779,7 +1795,7 @@
 .mcm-presence-admin {
   padding: 3px 8px;
   border: 1px solid #dfe5f0;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   background: #fff;
   color: #3d4a63;
   font-size: 12px;
@@ -1840,7 +1856,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   background: #e8efff;
   color: #1d4ed8;
   font-size: 15px;
@@ -1871,7 +1887,7 @@
   padding: 12px 14px;
   border: 1px solid #f0c088;
   border-left: 3px solid #c2670a;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: #fdf5e9;
   color: #7a4406;
   font-size: 13px;
@@ -2002,7 +2018,7 @@
   align-self: center;
   padding: 6px 12px;
   border: 1px solid #d5dae5;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   font-size: 12.5px;
   font-weight: 600;
   color: #1d4ed8;
@@ -2066,4 +2082,308 @@
   --mcm-accent-ink: #ffc98a;
   --mcm-accent-wash: #2b1f12;
   --mcm-accent-edge: #4a341c;
+}
+
+@layer mcm-shape {
+  /* ── One radius for every control ──────────────────────────────────────────
+     Controls are pills, the shape the topbar's section buttons already had.
+     The app had collected eight radii — 0, 6, 8, 9, 10, 12, 14, 16px and full —
+     from Tailwind utilities, shadcn's --radius and hand-written CSS, so no two
+     screens agreed on what a button looks like.
+
+     One rule set rather than the ~2,700 rounded-* utilities in the pages. It
+     sits in the first cascade layer and is marked important, which is what it
+     takes to outrank Tailwind's utilities, the higher-specificity rules in
+     mcm-page.css, and the vendor overrides further up this file that are
+     already important themselves.
+
+     `rounded-none` still wins, by name: it is the utility that means "this
+     control is joined to its neighbour", and squaring an edge on purpose has to
+     keep working. Toggles keep their own shapes too — a checkbox is a square and
+     a radio is a circle whatever the buttons are doing.
+
+     Containers are deliberately untouched. Cards, tables, dialogs and menus keep
+     their own radius: a pill is a control shape, not a panel shape. */
+  :root {
+    --pill: 999px;
+  }
+
+  /* `.mcm-act-app` is excluded here rather than overridden below: the card
+     rule further down names one class and this one names four, so it lost on
+     specificity and the card kept the pill. A control shape has to be denied
+     at the point it is granted. */
+  button:not(.rounded-none):not(.mcm-act-app):not([role='checkbox']):not([role='radio']):not([role='switch']),
+  [role='tab']:not(.rounded-none),
+  input:not([type='checkbox']):not([type='radio']):not(.rounded-none),
+  select:not(.rounded-none),
+  /* Nav items are controls too: the sidebar rail's tiles carry the same hover
+     and selected wash as the topbar's section buttons, so they take the same
+     shape. */
+  .rail-scroll a:not(.rounded-none),
+  /* Status tags, filter chips and the search bar's shortcut hint. Small labels
+     sitting inside or beside the controls above; at 5px they read as a different
+     family from everything around them. */
+  .tag,
+  .fchip,
+  kbd,
+  .global-search-cmd-k,
+  /* react-select renders divs, so none of the element selectors above reach it —
+     and it is the dropdown on most of the app's filter bars and forms. Its own
+     skins set 8, 9, 10 and 12px between them. */
+  .custom-react-select__control,
+  .select-group__control,
+  .custom-react-select__multi-value,
+  .select-group__multi-value,
+  /* Divs the console styles as controls: read-only fields. */
+  .mcm-page .chip,
+  .mcm-readfield {
+    border-radius: var(--pill) !important;
+  }
+
+  /* ---- the focused field ------------------------------------------------
+     One line changing colour is the least a field can do, and on a pill it
+     reads as an outline drawn round the control rather than as the control
+     coming forward. Two shadows do the work instead: a tight ring in a
+     washed-out accent, which is the part that says "your keystrokes land
+     here", and a wider, softer one below it in a stronger accent, which is
+     what makes the field sit above the form rather than on it.
+
+     Held in a token so the ring is one value everywhere, and so a field that
+     already carries a shadow can compose with it. Both are drawn outside the
+     border box and cost no layout, so nothing shifts when a field is focused.
+
+     Keyed to `--accent-solid`, not `--accent`. A custom property is resolved
+     where it is declared, so a var() nested inside this one is substituted
+     here at :root — where `--accent` still belongs to shadcn and is a neutral
+     grey. The ring came out charcoal. `--accent-solid` is the console's blue
+     under a name nothing else claims, and it is defined at :root for exactly
+     this. */
+  :root {
+    --focus-ring:
+      0 0 0 3px color-mix(in srgb, var(--accent-solid, #2563eb) 18%, transparent),
+      0 6px 16px -8px color-mix(in srgb, var(--accent-solid, #2563eb) 55%, transparent);
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not(:disabled):focus,
+  textarea:not(:disabled):focus,
+  select:not(:disabled):focus {
+    border-color: var(--accent-solid, #2563eb) !important;
+    /* The browser's own outline would sit outside the ring and draw a second,
+       square-cornered edge around the pill. */
+    outline: none !important;
+    box-shadow: var(--focus-ring) !important;
+  }
+
+  /* ---- form fields: a hover state, not only a focus state --------------
+     A field that reacts for the first time when you click it gives no sign
+     beforehand that it is a field at all. The edge picks up the accent under
+     the pointer, the same tint the rows, chips and cards take. Focus keeps the
+     stronger solid accent, so "you are pointing at this" and "you are typing
+     in this" stay different things — which is why hover bows out on a focused
+     field rather than fighting it. */
+  input:not([type='checkbox']):not([type='radio']):not(:disabled):hover:not(:focus),
+  textarea:not(:disabled):hover:not(:focus),
+  select:not(:disabled):hover:not(:focus),
+  .custom-react-select__control:hover:not(.custom-react-select__control--is-focused),
+  .select-group__control:hover:not(.select-group__control--is-focused) {
+    border-color: var(--accent-edge, #c7d7fe) !important;
+  }
+
+  /* Multi-line fields take the panel radius, not the pill.
+     A pill is a single-line shape: the curve is half the height, so on a
+     40px input it is a neat capsule and on a 140px instructions box it is a
+     pair of 70px arcs that bow inward and cut the corner off the first and
+     last words. Both radii stay exactly as they are; a box of text is simply
+     a container rather than a control, and takes the corner every other
+     container in the console takes. */
+  textarea:not(.rounded-none),
+  .mcm-cpg-field,
+  /* A card that happens to be a button. "Your own API" is a whole card people
+     click, not a control on one, and at pill radius it drew as a lozenge in a
+     row of square-shouldered cards. Same reasoning as the textarea: what it is
+     made of does not decide its shape, what it is does. */
+  .mcm-act-app {
+    border-radius: var(--r, 14px) !important;
+  }
+
+  /* Menu rows are the exception, and stay at 8px. A dropdown row is not a
+     control sitting on the page, it is a line inside a panel, and the Picker's
+     menu is the shape the rest of the app's dropdowns are being matched to. */
+  [data-slot='dropdown-menu-item'],
+  [data-slot='dropdown-menu-radio-item'],
+  [data-slot='dropdown-menu-checkbox-item'],
+  [role='menuitem'],
+  [role='menuitemradio'],
+  [role='menuitemcheckbox'],
+  [role='option'],
+  .custom-react-select__option,
+  .select-group__option {
+    border-radius: 8px !important;
+  }
+
+  /* The × on a multi-select chip is welded to the chip's right end, so only that
+     end rounds. */
+  .custom-react-select__multi-value__remove,
+  .select-group__multi-value__remove {
+    border-radius: 0 var(--pill) var(--pill) 0 !important;
+  }
+
+  /* The phone field's country picker sits inside the input, over its left edge,
+     so it has to follow the same curve the input just took. */
+  .react-tel-input .flag-dropdown,
+  .react-tel-input .flag-dropdown.open,
+  .react-tel-input .selected-flag,
+  .react-tel-input .selected-flag:hover,
+  .react-tel-input .flag-dropdown.open .selected-flag {
+    border-radius: var(--pill) 0 0 var(--pill) !important;
+  }
+
+  /* ── One dropdown, one tab ───────────────────────────────────────────────
+     Two controls turn up on nearly every screen, and the app had several
+     drawings of each. These rules make the rest match the two the settings
+     screens already use: the Picker (a `.fchip` trigger over
+     `.mcm-fchip-menu`) and the tab rail (`.tabnav`).
+
+     Important, like the shape rules above, because the pages pass their own
+     Tailwind classes for exactly these properties. Uniformity is the point:
+     a page that wanted a blue-filled active tab now gets the same soft wash
+     as every other tab strip. */
+
+  /* ---- dropdowns ------------------------------------------------------- */
+
+  /* Open is the state that has to read. The trigger takes the accent edge and
+     the soft wash, so the field and the menu below it are one object rather
+     than a box with something floating under it. */
+  .custom-react-select__control--is-focused,
+  .custom-react-select__control--menu-is-open,
+  .select-group__control--is-focused,
+  .select-group__control--menu-is-open {
+    border-color: var(--accent, #2563eb) !important;
+    background-color: var(--accent-wash, #e8efff) !important;
+    box-shadow: var(--focus-ring) !important;
+  }
+  .custom-react-select__control--menu-is-open .custom-react-select__single-value,
+  .select-group__control--menu-is-open .select-group__single-value {
+    color: var(--accent-ink, #1d4ed8) !important;
+    font-weight: 700 !important;
+  }
+  /* The menu carries the accent edge too, which is what ties it to the trigger
+     it dropped out of. Value pickers only: the row menus behind a "..." button
+     are a different thing and keep the neutral edge. */
+  .custom-react-select__menu,
+  .select-group__menu,
+  .mcm-fchip-menu {
+    border: 1px solid var(--accent, #2563eb) !important;
+  }
+
+  /* ---- tabs ------------------------------------------------------------ */
+
+  [data-slot='tabs-list'],
+  .mcm-pg-tabs {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  /* The Home console's strip spans its panel and carries the hairline beneath
+     it, so only the tabs inside it change. */
+  .mcm-page.home-v3 .tabs {
+    gap: 3px !important;
+    padding: 6px 8px !important;
+  }
+
+  /* Hand-rolled strips keep whatever padding and hairline they were given —
+     they sit in different places and a shared reset would strand them against
+     an edge. Only the spacing between tabs is made to match. */
+  [role='tablist']:not([data-slot='tabs-list']) {
+    gap: 3px !important;
+    align-items: center !important;
+  }
+
+  /* `[role="tab"]` as well as the named classes: a few strips are hand-rolled
+     buttons that carry the right ARIA but no shared class, and those are tabs
+     to a screen reader whatever they are called in the markup. */
+  [role='tab'],
+  [data-slot='tabs-trigger'],
+  .mcm-pg-tab,
+  .mcm-page.home-v3 .tab {
+    position: relative;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    flex: none !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 15px !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 14px !important;
+    line-height: 20px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    color: var(--ink-3, #667085) !important;
+    white-space: nowrap !important;
+    cursor: pointer;
+    transition:
+      color 0.12s ease,
+      background-color 0.12s ease;
+  }
+  /* Pointer devices only. On a touch screen :hover latches after a tap, so the
+     tab you just left keeps its tint and reads as if it were still open. */
+  @media (hover: hover) {
+    [role='tab'][aria-selected='false']:hover,
+    [data-slot='tabs-trigger']:not([data-state='active']):hover,
+    .mcm-pg-tab:not(.is-on):hover,
+    .mcm-page.home-v3 .tab:not(.is-on):hover {
+      color: var(--ink, #0d1526) !important;
+      background: color-mix(in srgb, var(--accent, #2563eb) 8%, transparent) !important;
+    }
+  }
+  /* The open tab: the wash, an inset edge that makes it a pressed segment
+     rather than a smudge, and the accent ink. Same recipe as the marker the
+     tab rail slides between its tabs. */
+  [role='tab'][aria-selected='true'],
+  [data-slot='tabs-trigger'][data-state='active'],
+  .mcm-pg-tab.is-on,
+  .mcm-page.home-v3 .tab.is-on {
+    background: var(--accent-wash, #e8efff) !important;
+    box-shadow: inset 0 0 0 1px var(--accent-edge, #c7d7fe) !important;
+    color: var(--accent-ink, #1d4ed8) !important;
+    font-weight: 700 !important;
+  }
+
+  /* ---- a field inside a bordered wrapper --------------------------------
+     Search boxes are a wrapper holding a magnifier and a bare input. The
+     wrapper is the control: it carries the edge, the radius and its own
+     :focus-within state, and the input is only where the text goes. Once
+     every input grew a focus ring, these drew a second pill inside the first.
+
+     Direct children only, so a real bordered field that happens to sit inside
+     a section named "search" keeps its own edge. The `:not([readonly])` is
+     carrying no meaning beyond weight: it puts this selector above the focus
+     rule above, which is otherwise more specific and would keep its ring. */
+  [class*='search']
+    > input:not([type='checkbox']):not([type='radio']):not(:disabled):not([readonly]) {
+    border: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* ...and the wrapper takes the ring the input gave up, so focusing a search
+     box still reads. `:has(> input)` rather than the class alone: a dropdown
+     panel named "search" can contain the focused input too, and only the
+     element the input sits directly inside is the control. */
+  [class*='search']:has(> input):focus-within {
+    border-color: var(--accent-solid, #2563eb) !important;
+    box-shadow: var(--focus-ring) !important;
+  }
 }

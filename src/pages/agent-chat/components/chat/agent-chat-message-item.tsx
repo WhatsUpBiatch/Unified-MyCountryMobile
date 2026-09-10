@@ -202,7 +202,7 @@ const AgentChatMessageItem = ({ msgObj, currentChat }: { msgObj: any; currentCha
             </span>
             <span className="text-muted-foreground">{formattedTime}</span>
           </div>
-          <div className="rounded-t-[16px] rounded-bl-[10px] rounded-br-[16px] border border-border bg-white px-3 py-2 text-[13px] italic text-muted-foreground sm:px-4 sm:text-[14px]">
+          <div className="rounded-t-xl rounded-bl-xl rounded-br-xl border border-border bg-white px-3 py-2 text-[13px] italic text-muted-foreground sm:px-4 sm:text-[14px]">
             {isMine ? 'You deleted this message' : 'This message was deleted'}
           </div>
         </div>
@@ -230,10 +230,10 @@ const AgentChatMessageItem = ({ msgObj, currentChat }: { msgObj: any; currentCha
         <div
           className={`w-fit px-3 py-2.5 sm:px-4 sm:py-3 break-words ${
             isMine
-              ? 'rounded-t-[16px] rounded-bl-[16px] rounded-br-[0px] border border-ucass-active bg-ucass-active text-white'
+              ? 'rounded-t-xl rounded-bl-xl rounded-br-[0px] border border-ucass-active bg-ucass-active text-white'
               : isBotMessage
-                ? 'rounded-t-[16px] rounded-bl-[16px] rounded-br-[0px] border border-border bg-muted text-foreground'
-                : 'rounded-t-[16px] rounded-bl-[0px] rounded-br-[16px] border border-border bg-white text-foreground'
+                ? 'rounded-t-xl rounded-bl-xl rounded-br-[0px] border border-border bg-muted text-foreground'
+                : 'rounded-t-xl rounded-bl-[0px] rounded-br-xl border border-border bg-white text-foreground'
           }`}
         >
           <div

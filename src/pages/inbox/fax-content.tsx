@@ -202,7 +202,7 @@ const FaxContent = ({
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className="grid h-10 w-10 shrink-0 place-items-center rounded-[9px]"
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
                           style={{
                             background: isOutbound
                               ? 'rgba(255,255,255,0.18)'
@@ -232,7 +232,7 @@ const FaxContent = ({
                             href={mediaUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px]"
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-xl"
                             style={{ color: 'inherit' }}
                             aria-label="Open fax PDF"
                             title="Open PDF"

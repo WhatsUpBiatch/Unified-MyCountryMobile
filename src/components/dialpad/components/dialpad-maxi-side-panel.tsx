@@ -289,7 +289,7 @@ const DialpadMaxiSidePanel = ({
     <div
       style={{ overflowX: 'auto' }}
       className={cn(
-        'flex h-full min-h-0 w-full flex-col rounded-[32px] border border-white/80 bg-white',
+        'flex h-full min-h-0 w-full flex-col rounded-xl border border-white/80 bg-white',
         'px-3 pb-3 pt-2.5 max-[380px]:px-2.5 max-[380px]:pb-2.5 max-[380px]:pt-2 sm:px-4 sm:pb-4 sm:pt-3 md:px-2 md:pb-3 md:pt-3 xxl:p-4',
         className,
       )}

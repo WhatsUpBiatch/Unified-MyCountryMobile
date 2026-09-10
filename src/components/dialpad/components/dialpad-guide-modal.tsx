@@ -14,7 +14,7 @@ const DialpadGuideModal = ({ isOpen, onClose }: DialpadGuideModalProps) => {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] rounded-[24px] bg-white p-6 shadow-[0_24px_44px_rgba(18,31,53,0.32)]"
+        className="w-full max-w-[430px] rounded-xl bg-white p-6 shadow-[0_24px_44px_rgba(18,31,53,0.32)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">

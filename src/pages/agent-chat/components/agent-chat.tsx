@@ -217,7 +217,7 @@ const AgentChat = ({
                 type="button"
                 onClick={acceptPendingRequest}
                 disabled={isAcceptingRequest}
-                className="mt-1 inline-flex h-10 min-w-[180px] cursor-pointer items-center justify-center rounded-[10px] bg-ucass-active px-6 text-[13px] font-semibold leading-none text-white shadow-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-1 inline-flex h-10 min-w-[180px] cursor-pointer items-center justify-center rounded-xl bg-ucass-active px-6 text-[13px] font-semibold leading-none text-white shadow-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isAcceptingRequest ? 'Accepting...' : 'Accept Request'}
               </button>

@@ -121,7 +121,7 @@ function TestTalkModal({
       }}
     >
       <DialogContent
-        className="p-0 border-none bg-white shadow-2xl w-[360px] max-w-[95vw] overflow-hidden rounded-[28px]"
+        className="p-0 border-none bg-white shadow-2xl w-[360px] max-w-[95vw] overflow-hidden rounded-xl"
         showCloseButton={false}
       >
         {isAgentListLoading ? (

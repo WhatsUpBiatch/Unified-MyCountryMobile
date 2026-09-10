@@ -104,7 +104,7 @@ const ChatOpenPreview = ({
         </button>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-5 pb-[34px] text-center">
-        <span className="mb-4 inline-flex h-[60px] w-[60px] items-center justify-center rounded-[10px] bg-white shadow-[0_14px_26px_rgba(0,0,0,.12)]">
+        <span className="mb-4 inline-flex h-[60px] w-[60px] items-center justify-center rounded-xl bg-white shadow-[0_14px_26px_rgba(0,0,0,.12)]">
           <Bot className="h-[30px] w-[30px]" style={{ color: colors.headerBackground }} />
         </span>
         <h1 className="m-0 text-xl font-extrabold leading-[1.2]">Hi, welcome👋</h1>
@@ -193,7 +193,7 @@ const ChatConversationPreview = ({
     <section className="relative flex min-h-0 flex-1 flex-col bg-white">
       <div className="flex-1 overflow-hidden bg-white px-[14px] py-4">
         <article
-          className="mb-[11px] max-w-[88%] whitespace-pre-wrap rounded-[14px] border border-[rgba(17,24,39,0.08)] px-3 py-2.5 text-sm leading-[1.45]"
+          className="mb-[11px] max-w-[88%] whitespace-pre-wrap rounded-xl border border-[rgba(17,24,39,0.08)] px-3 py-2.5 text-sm leading-[1.45]"
           style={{ backgroundColor: colors.bubbleBackground, color: colors.bubbleText }}
         >
           <span className="mb-1 block text-[11px] font-extrabold leading-none opacity-70">
@@ -202,14 +202,14 @@ const ChatConversationPreview = ({
           <span className="block">Hi! How can I help you today?</span>
         </article>
         <article
-          className="mb-[11px] ml-auto max-w-[88%] whitespace-pre-wrap rounded-[14px] px-3 py-2.5 text-sm leading-[1.45] text-white"
+          className="mb-[11px] ml-auto max-w-[88%] whitespace-pre-wrap rounded-xl px-3 py-2.5 text-sm leading-[1.45] text-white"
           style={{ backgroundColor: colors.sendButton }}
         >
           <span className="mb-1 block text-[11px] font-extrabold leading-none opacity-70">You</span>
           <span className="block">Can I see the plans?</span>
         </article>
         <article
-          className="mb-[11px] max-w-[88%] whitespace-pre-wrap rounded-[14px] border border-[rgba(17,24,39,0.08)] px-3 py-2.5 text-sm leading-[1.45]"
+          className="mb-[11px] max-w-[88%] whitespace-pre-wrap rounded-xl border border-[rgba(17,24,39,0.08)] px-3 py-2.5 text-sm leading-[1.45]"
           style={{ backgroundColor: colors.bubbleBackground, color: colors.bubbleText }}
         >
           <span className="mb-1 block text-[11px] font-extrabold leading-none opacity-70">
@@ -233,7 +233,7 @@ const ChatConversationPreview = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-[9px] border-t border-[rgba(17,24,39,0.1)] bg-white px-3 py-2.5">
-        <span className="h-[42px] min-w-0 flex-1 rounded-[10px] border border-[rgba(17,24,39,0.16)] bg-white px-3 text-sm leading-[42px] text-slate-400">
+        <span className="h-[42px] min-w-0 flex-1 rounded-xl border border-[rgba(17,24,39,0.16)] bg-white px-3 text-sm leading-[42px] text-slate-400">
           Type here...
         </span>
         <span

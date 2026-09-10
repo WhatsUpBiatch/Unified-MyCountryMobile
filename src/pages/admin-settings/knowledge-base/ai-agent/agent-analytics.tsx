@@ -293,7 +293,7 @@ const KpiCard = ({
   deltaClass: string;
   isLoading: boolean;
 }) => (
-  <div className="relative flex min-h-[86px] flex-col justify-between rounded-[10px] border border-gray-200 bg-white px-4 py-3.5 shadow-sm">
+  <div className="relative flex min-h-[86px] flex-col justify-between rounded-xl border border-gray-200 bg-white px-4 py-3.5 shadow-sm">
     {isLoading && <CardLoader />}
     <p className="text-[11px] font-medium text-slate-500">{title}</p>
     <div className="mt-2">
@@ -1079,7 +1079,7 @@ export default function AgentAnalytics({ onClose, agents = [] }: AgentAnalyticsP
         </div>
 
         {selectedRepId !== 'all' && selectedAgent ? (
-          <div className="mb-4 flex items-center gap-3 rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
             <div
               className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white"
               style={{ backgroundColor: selectedAgent.avatarBg }}
@@ -1766,9 +1766,9 @@ export default function AgentAnalytics({ onClose, agents = [] }: AgentAnalyticsP
                   <span className="mr-2 text-lg leading-none">{c.flag}</span>
                   <div className="min-w-0 flex-1 truncate font-medium text-slate-600">{c.name}</div>
                   <div className="mr-2 shrink-0 font-bold text-slate-900">{c.value}</div>
-                  <div className="relative h-[5px] w-[60px] shrink-0 overflow-hidden rounded-[3px] bg-gray-100">
+                  <div className="relative h-[5px] w-[60px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
                     <div
-                      className="absolute inset-y-0 left-0 rounded-[3px] bg-primary"
+                      className="absolute inset-y-0 left-0 rounded-xl bg-primary"
                       style={{ width: `${c.barPct}%` }}
                     />
                   </div>
@@ -1793,9 +1793,9 @@ export default function AgentAnalytics({ onClose, agents = [] }: AgentAnalyticsP
                     <span>{l.name}</span>
                   </div>
                   <div className="mr-2 shrink-0 font-bold text-slate-900">{l.pct}%</div>
-                  <div className="relative h-[5px] w-[60px] shrink-0 overflow-hidden rounded-[3px] bg-gray-100">
+                  <div className="relative h-[5px] w-[60px] shrink-0 overflow-hidden rounded-xl bg-gray-100">
                     <div
-                      className="absolute inset-y-0 left-0 rounded-[3px] bg-primary"
+                      className="absolute inset-y-0 left-0 rounded-xl bg-primary"
                       style={{ width: `${l.barPct}%` }}
                     />
                   </div>

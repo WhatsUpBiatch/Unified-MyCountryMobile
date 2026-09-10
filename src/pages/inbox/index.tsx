@@ -493,7 +493,7 @@ const MMSAttachmentPreview = ({
           )}
           <button
             type="button"
-            className="absolute cursor-pointer bg-[var(--mcm-accent)] top-2 right-2 h-7 w-7 rounded-[8px] text-white flex items-center justify-center"
+            className="absolute cursor-pointer bg-[var(--mcm-accent)] top-2 right-2 h-7 w-7 rounded-xl text-white flex items-center justify-center"
             onClick={openPreview}
             aria-label={isGif ? 'Open GIF in large view' : 'Open image in large view'}
           >
@@ -568,7 +568,7 @@ const MMSAttachmentPreview = ({
           )}
           <button
             type="button"
-            className="absolute cursor-pointer bg-[var(--mcm-accent)] top-2 right-2 h-7 w-7 rounded-[8px] text-white flex items-center justify-center"
+            className="absolute cursor-pointer bg-[var(--mcm-accent)] top-2 right-2 h-7 w-7 rounded-xl text-white flex items-center justify-center"
             onClick={openPreview}
             aria-label="Open video in large view"
           >
@@ -628,7 +628,7 @@ const MMSAttachmentPreview = ({
     >
       <div
         className={cn(
-          'min-w-9 max-h-9 max-w-9 min-h-9 rounded-[9px] flex justify-center items-center overflow-hidden',
+          'min-w-9 max-h-9 max-w-9 min-h-9 rounded-xl flex justify-center items-center overflow-hidden',
           isMine ? 'bg-white/20 text-white' : 'bg-[var(--mcm-surface-3)] text-[var(--mcm-ink-3)]',
         )}
       >
@@ -1400,7 +1400,7 @@ const InboxContent = ({
                                   ) : null}
                                   {isMMSMessage && mmsMediaUrl ? (
                                     <div
-                                      className="w-full overflow-hidden rounded-[9px]"
+                                      className="w-full overflow-hidden rounded-xl"
                                       style={{
                                         background: isOutbound
                                           ? 'rgba(255,255,255,0.14)'

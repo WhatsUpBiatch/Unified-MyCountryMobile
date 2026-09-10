@@ -145,7 +145,7 @@ const DialpadMiniFrame = ({
   return (
     <div
       className={cn(
-        'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[30px] border border-white/80 bg-white  sm:rounded-[32px]',
+        'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-white/80 bg-white  sm:rounded-xl',
         'xs:p-2 xl:p-4',
         className,
       )}

@@ -359,7 +359,7 @@ const OngoingMeetings = () => {
                         <DropdownMenuContent
                           align="end"
                           sideOffset={8}
-                          className="min-w-[142px] overflow-hidden rounded-[12px] border border-[#e5e7eb] bg-white p-0 shadow-[0_6px_14px_rgba(15,23,42,0.12)]"
+                          className="min-w-[142px] overflow-hidden rounded-xl border border-[#e5e7eb] bg-white p-0 shadow-[0_6px_14px_rgba(15,23,42,0.12)]"
                         >
                           <DropdownMenuItem
                             className="h-10 rounded-none px-4 text-[15px] font-normal leading-none text-[#1f2937] hover:bg-[#f3f4f6] focus:bg-[#f3f4f6]"

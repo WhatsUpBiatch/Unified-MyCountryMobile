@@ -61,9 +61,10 @@
   --shadow-sm: 0 1px 2px rgba(13, 21, 38, 0.06), 0 1px 1px rgba(13, 21, 38, 0.04);
   --shadow: 0 4px 14px rgba(13, 21, 38, 0.07), 0 1px 3px rgba(13, 21, 38, 0.05);
   --shadow-lg: 0 18px 44px rgba(13, 21, 38, 0.14), 0 3px 10px rgba(13, 21, 38, 0.07);
-  --r: 12px;
-  --r-sm: 8px;
-  --r-lg: 18px;
+  /* One corner, shared with the rest of the console. */
+  --r: 14px;
+  --r-sm: 14px;
+  --r-lg: 14px;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -238,12 +239,12 @@
   gap: 2px;
   background: var(--surface-3);
   padding: 2px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
 }
 .mcm-video .seg button {
   flex: 1;
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11.5px;
   font-weight: 700;
   color: var(--ink-3);
@@ -263,7 +264,7 @@
 .mcm-video .search-mini input {
   width: 100%;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 10px 0 30px;
@@ -290,7 +291,7 @@
   gap: 7px;
   height: 40px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -343,7 +344,7 @@
   height: 30px;
   padding: 0 11px;
   font-size: 12px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
 }
 .mcm-video .btn.sm .ic {
   width: 14px;
@@ -360,7 +361,7 @@
 .mcm-video .mini {
   height: 26px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11px;
   font-weight: 700;
   background: var(--surface);
@@ -394,7 +395,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -436,7 +437,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -553,7 +554,7 @@
 .mcm-video .rule-ic {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -817,7 +818,7 @@
 .mcm-video .qa-ic {
   width: 40px;
   height: 40px;
-  border-radius: 13px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   color: #fff;
@@ -1094,7 +1095,7 @@
   flex: 1;
   min-width: 0;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 8px;
@@ -1108,7 +1109,7 @@
 }
 .mcm-video .bgopt {
   aspect-ratio: 16/10;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1.5px solid var(--line);
   overflow: hidden;
   display: flex;
@@ -1204,11 +1205,11 @@
   gap: 2px;
   background: var(--stage-3);
   padding: 2px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
 }
 .mcm-video .layout-seg button {
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   color: var(--stage-ink-3);
   display: inline-flex;
   align-items: center;
@@ -1383,7 +1384,7 @@
 .mcm-video .tbadge {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
   background: rgba(11, 18, 32, 0.72);
@@ -1532,7 +1533,7 @@
   align-items: center;
   gap: 4px;
   padding: 7px 7px 6px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   color: var(--stage-ink-2);
   font-size: 9.5px;
   font-weight: 700;
@@ -1589,7 +1590,7 @@
   flex-direction: row;
   padding: 0 16px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   font-size: 13px;
 }
 .mcm-video .dbtn.leave .ic {
@@ -1715,7 +1716,7 @@
 .mcm-video .pav {
   width: 32px;
   height: 32px;
-  border-radius: 11px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -1761,7 +1762,7 @@
 .mcm-video .pacts button {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   display: grid;
   place-items: center;
 }
@@ -1813,7 +1814,7 @@
 .mcm-video .msg-av {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -1870,7 +1871,7 @@
 .mcm-video .composer textarea {
   flex: 1;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   padding: 9px 11px;
   font-size: 12.5px;
@@ -1887,7 +1888,7 @@
 .mcm-video .sendbtn {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   background: var(--accent);
   color: #fff;
   display: grid;
@@ -1972,7 +1973,7 @@
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   background: var(--surface);
   border: 1px solid var(--line);
   font-size: 10px;
@@ -1997,7 +1998,7 @@
 .mcm-video .todo-box {
   width: 17px;
   height: 17px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   border: 1.8px solid var(--line);
   flex: none;
   margin-top: 1px;
@@ -2085,7 +2086,7 @@
 }
 .mcm-video .sugg {
   padding: 4px 9px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   font-size: 11px;
   font-weight: 600;
   text-align: left;
@@ -2152,7 +2153,7 @@
 .mcm-video .turn-av {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;
@@ -2196,7 +2197,7 @@
 .mcm-video mark {
   background: var(--warn-wash);
   color: inherit;
-  border-radius: 3px;
+  border-radius: var(--r, 14px);
   padding: 0 2px;
   font-weight: 600;
 }
@@ -2354,7 +2355,7 @@
   font-family: var(--mono);
   color: var(--accent-ink);
   background: var(--accent-wash);
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   padding: 2px 6px;
   flex: none;
 }
@@ -2415,7 +2416,7 @@
   background: var(--ink);
   color: var(--ground);
   padding: 9px 15px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   font-size: 12.5px;
   font-weight: 700;
   box-shadow: var(--shadow-lg);
@@ -2517,7 +2518,7 @@
 .mcm-video .field textarea {
   width: 100%;
   height: 36px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   padding: 0 11px;
@@ -2558,7 +2559,7 @@
   flex-wrap: wrap;
   gap: 5px;
   padding: 7px;
-  border-radius: 9px;
+  border-radius: var(--r, 14px);
   border: 1px solid var(--line);
   background: var(--surface-2);
   min-height: 36px;
@@ -2587,7 +2588,7 @@
   gap: 5px;
   height: 24px;
   padding: 0 5px 0 8px;
-  border-radius: 7px;
+  border-radius: var(--r, 14px);
   background: var(--surface-3);
   font-size: 11.5px;
   font-weight: 700;
@@ -2608,7 +2609,7 @@
   place-items: center;
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: var(--r, 14px);
   color: inherit;
   opacity: 0.65;
 }
@@ -2710,7 +2711,7 @@
 .mcm-video .recent-av {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
   flex: none;
   display: grid;
   place-items: center;

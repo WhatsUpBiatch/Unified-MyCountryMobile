@@ -62,7 +62,7 @@ const DialpadMicroFrame = ({
   return (
     <div
       className={cn(
-        'w-full rounded-[24px] border border-white/80 bg-white p-2.5  max-[380px]:p-2 sm:rounded-[26px]  sm:p-3 md:p-4',
+        'w-full rounded-xl border border-white/80 bg-white p-2.5  max-[380px]:p-2 sm:rounded-xl  sm:p-3 md:p-4',
         'max-w-[min(100vw-1.25rem,348px)] max-[380px]:max-w-[min(100vw-0.5rem,312px)]',
         className,
       )}

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,6 +24,32 @@ import './admin-home.css';
 
 type Entry = { title: string; path: string };
 type Group = { title: string; icon: string; entries: Entry[] };
+
+/* How many columns the index runs at. Read in JavaScript rather than left to a
+   media query because the areas are packed into those columns by height, and
+   the packer has to know the number to pack into. Widest first would shadow the
+   narrower rules, so these are tested narrowest first and the first match
+   wins. */
+const useColumnCount = () => {
+  const [count, setCount] = useState(4);
+  useEffect(() => {
+    /* Four is the layout this page is designed at, so the thresholds are set
+       low enough that an ordinary desktop gets four rather than three. A
+       browser zoomed to 150%, or a laptop at 1280, still counts as a desktop
+       to the person using it. Below 1240 the columns get too narrow for a
+       screen name to survive, and it steps down. */
+    const steps: Array<[MediaQueryList, number]> = [
+      [window.matchMedia('(max-width: 700px)'), 1],
+      [window.matchMedia('(max-width: 1000px)'), 2],
+      [window.matchMedia('(max-width: 1240px)'), 3],
+    ];
+    const read = () => setCount(steps.find(([query]) => query.matches)?.[1] ?? 4);
+    read();
+    steps.forEach(([query]) => query.addEventListener('change', read));
+    return () => steps.forEach(([query]) => query.removeEventListener('change', read));
+  }, []);
+  return count;
+};
 
 
 /* The matched run of characters, marked. Searching a list of fifty names and
@@ -67,6 +94,43 @@ const AdminHome = () => {
       })
       .filter((group: any) => group.entries.length > 0);
   }, [features, IS_ADMIN, user_info]);
+
+  const columnCount = useColumnCount();
+
+  /* The areas, packed into columns of near-equal height.
+     CSS `columns` did this itself, and did it badly here: an area cannot be
+     split across a column break, so with one area of eight screens and several
+     of two the browser's balancing left one column a hand's width shorter than
+     the rest. Packing by hand fixes that, because the cost of each area is
+     known before it is placed: a heading is worth about two rows, each screen
+     under it one. Each area goes to whichever column is shortest at that
+     moment, and ties go left, so the reading order still runs across the page
+     rather than being shuffled. */
+  const columns = useMemo(() => {
+    const cost = (group: Group) => 2 + group.entries.length;
+
+    /* The small areas — three screens or fewer — are collected in the last
+       column rather than packed with the rest. Spread through the page they
+       broke the taller lists up and left short stubs beside them; gathered,
+       they read as one short column of small areas and the long lists get to
+       run uninterrupted. */
+    const small = columnCount > 1 ? groups.filter((group) => group.entries.length <= 3) : [];
+    const rest = groups.filter((group) => !small.includes(group));
+    const packInto = columnCount > 1 && small.length ? columnCount - 1 : columnCount;
+
+    const buckets = Array.from({ length: packInto }, () => ({
+      groups: [] as Group[],
+      height: 0,
+    }));
+    rest.forEach((group) => {
+      const shortest = buckets.reduce((a, b) => (b.height < a.height ? b : a));
+      shortest.groups.push(group);
+      shortest.height += cost(group);
+    });
+
+    const packed = buckets.map((bucket) => bucket.groups);
+    return small.length ? [...packed, small] : packed;
+  }, [groups, columnCount]);
 
   const allEntries = useMemo(
     () =>
@@ -268,40 +332,51 @@ const AdminHome = () => {
               </div>
             ) : null}
 
-            {/* One panel holding the whole index, with the areas as sections
-                flowing inside it — not ten panels. Ten boxes gave the page ten
-                outlines, ten header fills and ten sets of row rules to say what
-                two levels of type say on their own, and none of those areas is
-                a thing you act on as a unit, so boxing them grouped nothing. */}
-            <div className="mcm-adminindex">
-              <div className="mcm-admingrid">
-              {groups.map((group) => (
-                  <div className="mcm-admincard" key={group.title}>
-                    {/* The section's own nav icon, not a decoration chosen here:
-                        `group.icon` is the name the sidebar already renders for
-                        this section, so a section is the same mark in both places
-                        and this page reads as a map of the nav rather than as a
-                        second, unrelated list of the same screens. */}
-                    <div className="mcm-admincard-h">
-                      <span className="mcm-admincard-tile">
-                        <NavIcon name={group.icon} />
-                      </span>
-                      <span className="mcm-admincard-t">{group.title}</span>
-                      <span className="mcm-admincard-n">{group.entries.length}</span>
+            {/* The areas, four to a row, each in its own card. One flat
+                panel put every area on the same surface, which read as one very
+                long list rather than as eleven places to go; a card gives an
+                area an edge to be scanned to and something for the pointer to
+                land on. */}
+            <div
+              className="mcm-admingrid"
+              style={{ '--cols': columnCount } as CSSProperties}
+            >
+              {columns.map((column, index) => (
+                <div className="mcm-admincol" key={index}>
+                  {column.map((group) => (
+                    <div className="mcm-admincard" key={group.title}>
+                      {/* The section's own nav icon, not a decoration chosen
+                          here: `group.icon` is the name the sidebar already
+                          renders for this section, so a section is the same
+                          mark in both places and this page reads as a map of
+                          the nav rather than as a second, unrelated list of the
+                          same screens. One ink, no tile, and it does not react
+                          to the pointer. */}
+                      <div className="mcm-admincard-h">
+                        <span className="mcm-admincard-tile">
+                          <NavIcon name={group.icon} />
+                        </span>
+                        <span className="mcm-admincard-t">{group.title}</span>
+                        <span className="mcm-admincard-n">{group.entries.length}</span>
+                      </div>
+                      <ul>
+                        {group.entries.map((entry) => (
+                          <li key={entry.path}>
+                            <Link to={entry.path}>
+                              <span className="mcm-admincard-txt">{entry.title}</span>
+                              <ChevronRight
+                                className="mcm-admincard-go"
+                                size={15}
+                                aria-hidden="true"
+                              />
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul>
-                      {group.entries.map((entry) => (
-                        <li key={entry.path}>
-                          <Link to={entry.path}>
-                            <span className="mcm-admincard-txt">{entry.title}</span>
-                            <ChevronRight className="mcm-admincard-go" size={15} aria-hidden="true" />
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
             </div>
           </>
         )}

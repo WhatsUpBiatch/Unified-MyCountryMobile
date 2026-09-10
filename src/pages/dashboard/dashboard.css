@@ -147,7 +147,7 @@
   gap: 0;
   background: var(--surface);
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
   box-shadow: var(--lift);
   padding: 4px 0;
   margin-bottom: 22px;
@@ -203,7 +203,7 @@
 .mcm-page.home-v2 .panel-card {
   background: var(--surface);
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--r, 14px);
   box-shadow: var(--lift);
   overflow: hidden;
 }
@@ -318,7 +318,7 @@
   border: 1px solid var(--hair);
   /* 10px, not 18px. Large radii read as soft and consumer; at this size the
      corner is a detail rather than a shape. */
-  border-radius: 10px;
+  border-radius: var(--r, 14px);
 }
 
 /* ---- type ----
@@ -431,7 +431,7 @@
   top: -3px;
   bottom: -3px;
   width: 2px;
-  border-radius: 2px;
+  border-radius: var(--r, 14px);
   background: var(--ink-3);
   transform: translateX(-1px);
 }
@@ -600,7 +600,7 @@
 }
 .mcm-page.home-v2 .qlane {
   padding: 15px 16px 13px;
-  border-radius: 14px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2);
   border: 1px solid var(--hair);
   transition:
@@ -746,7 +746,7 @@
   flex: 1 1 0;
   min-width: 0;
   padding: 13px 14px;
-  border-radius: 12px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2);
   border: 1px solid var(--hair);
 }
@@ -796,7 +796,7 @@
 .mcm-page.home-v2 .myday-legend i {
   width: 8px;
   height: 8px;
-  border-radius: 3px;
+  border-radius: var(--r, 14px);
 }
 .mcm-page.home-v2 .myday-legend .is-in {
   background: var(--accent);

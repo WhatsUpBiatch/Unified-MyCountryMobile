@@ -808,10 +808,10 @@ const MessageItem = ({
             className={cn(
               'w-fit max-w-full min-w-0 break-words px-4 py-3',
               isMine && !isBotMessage
-                ? 'rounded-t-[16px] rounded-bl-[16px] rounded-br-[10px] border border-ucass-active bg-ucass-active text-white'
+                ? 'rounded-t-xl rounded-bl-xl rounded-br-xl border border-ucass-active bg-ucass-active text-white'
                 : isBotMessage
-                  ? 'rounded-t-[16px] rounded-bl-[10px] rounded-br-[16px] border border-border bg-muted text-foreground'
-                  : 'rounded-t-[16px] rounded-bl-[10px] rounded-br-[16px] border border-border bg-white text-foreground',
+                  ? 'rounded-t-xl rounded-bl-xl rounded-br-xl border border-border bg-muted text-foreground'
+                  : 'rounded-t-xl rounded-bl-xl rounded-br-xl border border-border bg-white text-foreground',
             )}
           >
             {msgObj?.messageType === 'poll' && msgObj?.poll ? (

@@ -547,7 +547,7 @@ const AiBotSession = () => {
           <button
             type="button"
             onClick={exportCsv}
-            className="inline-flex h-[34px] items-center gap-1.5 rounded-[7px] border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
+            className="inline-flex h-[34px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400"
           >
             <Download className="h-3.5 w-3.5" />
             Export CSV

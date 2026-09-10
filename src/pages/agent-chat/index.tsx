@@ -324,7 +324,7 @@ const PendingRequestItem = ({
       <button
         type="button"
         onClick={() => onSelect(request)}
-        className={`min-h-[84px] w-full cursor-pointer rounded-[12px] px-3 py-[10px] text-left transition-colors duration-200 ${
+        className={`min-h-[84px] w-full cursor-pointer rounded-xl px-3 py-[10px] text-left transition-colors duration-200 ${
           isSelected ? 'bg-ucass-active-bg' : 'bg-transparent hover:bg-muted'
         }`}
       >
@@ -449,7 +449,7 @@ const ListItem = ({
   return (
     <div key={chat?.chatId} className="px-3" onClick={() => handleClickItem(chat)}>
       <div
-        className={`min-h-[68px] w-full cursor-pointer rounded-[12px] px-3 py-[10px] transition-colors duration-200 ${
+        className={`min-h-[68px] w-full cursor-pointer rounded-xl px-3 py-[10px] transition-colors duration-200 ${
           chatIdFromQuery === chat?.chatId || chatWindows?.includes(chat?.chatId)
             ? 'bg-ucass-active-bg'
             : 'bg-transparent hover:bg-muted'
@@ -806,7 +806,7 @@ const SidebarContent = ({
       </div>
 
       <div className="px-4 pt-4 pb-5 border-b border-border bg-white">
-        <div className="h-12 rounded-[14px] bg-muted p-[5px]">
+        <div className="h-12 rounded-xl bg-muted p-[5px]">
           <div className="grid h-full grid-cols-[1.5fr_1fr_1fr_1.15fr] gap-1.5">
             {tabOptions.map((tab) => {
               const count = tabCounts[tab.value as AgentChatTab] || 0;
@@ -822,7 +822,7 @@ const SidebarContent = ({
               return (
                 <button
                   key={tab.value}
-                  className={`h-[38px] min-w-0 rounded-[12px] px-1 text-[10px] sm:text-[11px] font-semibold cursor-pointer ${
+                  className={`h-[38px] min-w-0 rounded-xl px-1 text-[10px] sm:text-[11px] font-semibold cursor-pointer ${
                     isActive
                       ? `${styles.activeBg} ${styles.activeText} ${styles.activeDecoration || ''}`
                       : `${styles.inactiveText} hover:text-foreground`
@@ -864,7 +864,7 @@ const SidebarContent = ({
             <Input
               Icon={<SearchLine className="text-muted-foreground" />}
               IconPosition="left-0 pl-4 inset-y-0"
-              className="  rounded-[12px] border-0 bg-muted pl-11 text-[14px] shadow-none placeholder:text-muted-foreground hover:border-transparent focus:border-transparent focus:shadow-none focus:ring-0"
+              className="  rounded-xl border-0 bg-muted pl-11 text-[14px] shadow-none placeholder:text-muted-foreground hover:border-transparent focus:border-transparent focus:shadow-none focus:ring-0"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search chats, users..."

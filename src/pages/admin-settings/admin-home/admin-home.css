@@ -21,8 +21,10 @@
 
 .mcm-adminhome {
   --hair: var(--line);
-  --r-panel: 8px;
-  --r-ctl: 6px;
+  --r-panel: var(--r, 14px);
+  /* Controls are pills app-wide (see the control-shape layer in index.css), and
+     this is the token those controls read. */
+  --r-ctl: var(--pill, 999px);
   background: var(--surface-2);
 }
 
@@ -88,7 +90,7 @@
 }
 .mcm-adminhome .mcm-adminhome-kbd {
   border: 1px solid var(--hair);
-  border-radius: 4px;
+  border-radius: var(--r, 14px);
   background: var(--surface-2);
   font-size: 10.5px;
   color: var(--ink-4);
@@ -116,63 +118,91 @@
    them grouped nothing.
    ────────────────────────────────────────────────────────────────────────── */
 .mcm-adminhome .mcm-adminhome-body {
+  position: relative;
   padding: 16px 24px 28px;
-  background: var(--surface-2);
+  /* A wash of the accent bleeding down from under the header, over the flat
+     page colour. It is what stops forty-two links on one grey field reading as
+     a spreadsheet, and it sits behind everything rather than tinting any of
+     it. */
+  background:
+    radial-gradient(
+        120% 220px at 50% -40px,
+        color-mix(in srgb, var(--accent) 9%, transparent) 0%,
+        transparent 70%
+      )
+      no-repeat,
+    var(--surface-2);
 }
 .mcm-adminhome .mcm-adminindex {
   max-width: 1600px;
   margin-inline: auto;
-  padding: 6px 4px;
-  border: 1px solid var(--hair);
-  border-radius: var(--r-panel);
-  background: var(--surface);
 }
 
+/* ── the index ───────────────────────────────────────────────────────────
+   Four columns, and the areas packed into them by height in the page rather
+   than by the browser. See the packer in index.tsx for why: an area cannot be
+   split, so CSS column balancing left one column short. */
 .mcm-adminhome .mcm-admingrid {
-  columns: 4;
-  column-gap: 0;
-  /* The rule between columns, the way a newspaper index separates them. It
-     costs one line where the old layout spent four borders per card. */
-  column-rule: 1px solid var(--hair);
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  gap: 14px;
+  columns: auto;
+  column-rule: none;
 }
-@media (max-width: 1440px) {
-  .mcm-adminhome .mcm-admingrid {
-    columns: 3;
-  }
-}
-@media (max-width: 1080px) {
-  .mcm-adminhome .mcm-admingrid {
-    columns: 2;
-  }
-}
-@media (max-width: 720px) {
-  .mcm-adminhome .mcm-admingrid {
-    columns: 1;
-  }
-}
-/* Areas hold between two and eight screens. On a grid every row is as tall as
-   its tallest card, so Captain (eight) beside Company (two) left a hand's
-   width of empty page under Company on every row. Column flow packs by height;
-   break-inside keeps an area whole across the break. */
-.mcm-adminhome .mcm-admingrid > * {
-  break-inside: avoid;
-  padding: 10px 16px 16px;
+.mcm-adminhome .mcm-admincol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* The columns are packed to near-equal heights, not stretched to match. A
+     card stretched to fill a column would put a hand's width of empty surface
+     under a two-screen area. */
+  align-content: start;
 }
 
 /* ── an area ─────────────────────────────────────────────────────────────
-   A heading and a list. No border, no fill, no badge — the screens are
-   directly under their heading and you can count them. */
+   A card again, and this time it earns the edge: eleven areas on one flat
+   surface read as one very long list, and there was nothing for the pointer to
+   land on between one area and the next. */
 .mcm-adminhome .mcm-admincard {
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  overflow: visible;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r, 14px);
+  /* A single wash of the accent at the top, fading out before the first row.
+     It gives the card a light source without tinting the screen names, which
+     are the one thing on this page anybody came for. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 4%, var(--surface)) 0%,
+    var(--surface) 52%
+  );
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.03);
+  overflow: hidden;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
+/* No lit edge on hover. The shadow and the border already say which card the
+   pointer is on, and a coloured bar arriving along the top read as a state the
+   card had entered rather than as a pointer following the mouse. */
 .mcm-adminhome .mcm-admincard::before,
 .mcm-adminhome .mcm-admincard::after {
   content: none;
 }
+@media (hover: hover) {
+  .mcm-adminhome .mcm-admincard:hover {
+    border-color: var(--accent-edge);
+    /* A close contact shadow and a wide coloured one. The coloured half is what
+       makes the card feel lifted rather than outlined, and it is keyed to the
+       accent so it belongs to this console rather than to a stock card. */
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.05),
+      0 16px 32px -20px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+}
+
 .mcm-adminhome .mcm-admincard-h {
   display: flex;
   align-items: center;
@@ -293,7 +323,7 @@
    the one place it carries information. */
 .mcm-adminhome .mcm-admincard-hit {
   padding: 0 1px;
-  border-radius: 2px;
+  border-radius: var(--r, 14px);
   background: var(--accent-wash);
   color: var(--accent-ink);
   font-weight: 650;
@@ -353,9 +383,18 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.mcm-adminhome .mcm-adminchip:hover {
-  border-color: var(--accent);
+/* The same wash the screen rows take, not a hard blue outline. One chip
+   ringed in solid accent read as the selected chip rather than as the one
+   under the pointer, and this strip has no selected state. */
+.mcm-adminhome .mcm-adminchip:hover,
+.mcm-adminhome .mcm-adminchip:focus-visible {
+  border-color: var(--accent-edge);
+  background: var(--accent-wash);
   color: var(--accent-ink);
+}
+.mcm-adminhome .mcm-adminchip:hover .mcm-adminchip-g,
+.mcm-adminhome .mcm-adminchip:focus-visible .mcm-adminchip-g {
+  color: color-mix(in srgb, var(--accent-ink) 60%, transparent);
 }
 /* The area, so two screens with the same name in different areas are told
    apart without opening either. */

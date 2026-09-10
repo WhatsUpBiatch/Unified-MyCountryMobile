@@ -80,7 +80,7 @@ const DialpadGlobalOverlay = () => {
 
   const frameClassName = useMemo(
     () =>
-      `pointer-events-auto rounded-[24px] bg-white shadow-[0px_12px_50px_0px_rgba(0,_0,_0,_0.3)] ${
+      `pointer-events-auto rounded-xl bg-white shadow-[0px_12px_50px_0px_rgba(0,_0,_0,_0.3)] ${
         isMaxiMode
           ? 'h-full w-full max-w-[calc(100dvw-6rem)] max-h-[calc(100dvh-2rem)] overflow-hidden'
           : 'max-h-[calc(100dvh-2rem)] max-w-[calc(100dvw-400px)] overflow-hidden md:max-w-[min(100%,300px)] lg:max-w-[min(100%,300px)] xl:max-w-[min(100%,430px)]'
