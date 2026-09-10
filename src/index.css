@@ -2371,7 +2371,15 @@
      carrying no meaning beyond weight: it puts this selector above the focus
      rule above, which is otherwise more specific and would keep its ring. */
   [class*='search']
-    > input:not([type='checkbox']):not([type='radio']):not(:disabled):not([readonly]) {
+    > input:not([type='checkbox']):not([type='radio']):not(:disabled):not([readonly]),
+  /* The chat composers are the same arrangement with a textarea and a Send
+     button instead of a magnifier. Named rather than matched, because
+     "field" is what this codebase calls the input itself in 48 other places
+     and a pattern match would strip the edge off all of them. */
+  .mcm-cpg-field > textarea:not(:disabled):not([readonly]),
+  /* Filter chips that hold a live input — the people search on Directory is
+     one — are the same arrangement again. */
+  .fchip > input:not([type='checkbox']):not([type='radio']):not(:disabled):not([readonly]) {
     border: 0 !important;
     outline: none !important;
     box-shadow: none !important;
@@ -2382,8 +2390,66 @@
      box still reads. `:has(> input)` rather than the class alone: a dropdown
      panel named "search" can contain the focused input too, and only the
      element the input sits directly inside is the control. */
-  [class*='search']:has(> input):focus-within {
-    border-color: var(--accent-solid, #2563eb) !important;
-    box-shadow: var(--focus-ring) !important;
+  /* Keyboard focus still has to show. The wrapper cannot carry it — the
+     :focus-within rules these wrappers already had do not paint, and adding
+     another did not either — so it goes on the field as an outline rather
+     than a border or a ring. An outline draws outside the box and follows the
+     radius, and on :focus-visible only, so clicking into a search box does not
+     put a line inside it while tabbing to one still shows where you are. */
+  [class*='search'] > input:focus-visible,
+  .mcm-cpg-field > textarea:focus-visible,
+  .fchip > input:focus-visible {
+    outline: 2px solid var(--accent-solid, #2563eb) !important;
+    outline-offset: 1px !important;
   }
-}
+
+  /* Multi-line fields take the panel radius, not the pill.
+     A pill is a single-line shape: the curve is half the height, so on a
+     40px input it is a neat capsule and on a 140px instructions box it is a
+     pair of 70px arcs that bow inward and cut the corner off the first and
+     last words. Both radii stay exactly as they are; a box of text is simply
+     a container rather than a control, and takes the corner every other
+     container in the console takes. */
+  textarea:not(.rounded-none),
+  .mcm-cpg-field,
+  /* A card that happens to be a button. "Your own API" is a whole card people
+     click, not a control on one, and at pill radius it drew as a lozenge in a
+     row of square-shouldered cards. Same reasoning as the textarea: what it is
+     made of does not decide its shape, what it is does. */
+  .mcm-act-app {
+    border-radius: var(--r, 14px) !important;
+  }
+
+  /* Menu rows are the exception, and stay at 8px. A dropdown row is not a
+     control sitting on the page, it is a line inside a panel, and the Picker's
+     menu is the shape the rest of the app's dropdowns are being matched to. */
+  [data-slot='dropdown-menu-item'],
+  [data-slot='dropdown-menu-radio-item'],
+  [data-slot='dropdown-menu-checkbox-item'],
+  [role='menuitem'],
+  [role='menuitemradio'],
+  [role='menuitemcheckbox'],
+  [role='option'],
+  .custom-react-select__option,
+  .select-group__option {
+    border-radius: 8px !important;
+  }
+
+  /* The × on a multi-select chip is welded to the chip's right end, so only that
+     end rounds. */
+  .custom-react-select__multi-value__remove,
+  .select-group__multi-value__remove {
+    border-radius: 0 var(--pill) var(--pill) 0 !important;
+  }
+
+  /* The phone field's country picker sits inside the input, over its left edge,
+     so it has to follow the same curve the input just took. */
+  .react-tel-input .flag-dropdown,
+  .react-tel-input .flag-dropdown.open,
+  .react-tel-input .selected-flag,
+  .react-tel-input .selected-flag:hover,
+  .react-tel-input .flag-dropdown.open .selected-flag {
+    border-radius: var(--pill) 0 0 var(--pill) !important;
+  }
+
+  /* ── }
